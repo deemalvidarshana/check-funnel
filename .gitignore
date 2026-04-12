@@ -1,0 +1,45 @@
+# Environment files - NEVER commit these!
+.env
+.env.local
+.env.production
+*.env
+
+# TikTok tokens
+.tiktok_token.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+test.py
+test1.py
+tiktok.py
+
+# Node modules (too large)
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+*/dist/
+build/
+*/build/
+
+# Logs
+*.log
+*.txt
+server_log.txt
+output.txt
+final_output.txt
+
+# JSON data dumps
+fb_7_months_insights.json
+ig_7_months_insights.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

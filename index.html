@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Precision Admin - User Management</title>
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap"
+        rel="stylesheet" />
+    <!-- Material Symbols -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#622700",
+                        "secondary": "#4553c1",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb691",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-fixed": "#001b3c",
+                        "secondary-fixed": "#dfe0ff",
+                        "surface-container": "#edeeef",
+                        "on-secondary-fixed": "#000a63",
+                        "outline": "#727782",
+                        "on-tertiary-fixed": "#341100",
+                        "inverse-primary": "#a8c8ff",
+                        "on-tertiary-container": "#ffaf87",
+                        "tertiary-fixed": "#ffdbcb",
+                        "surface": "#f8f9fa",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "primary-fixed": "#d5e3ff",
+                        "on-surface": "#191c1d",
+                        "on-surface-variant": "#424751",
+                        "surface-tint": "#215ea9",
+                        "surface-container-high": "#e7e8e9",
+                        "primary": "#003870",
+                        "surface-dim": "#d9dadb",
+                        "secondary-fixed-dim": "#bcc2ff",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed-variant": "#793100",
+                        "error": "#ba1a1a",
+                        "on-secondary": "#ffffff",
+                        "surface-bright": "#f8f9fa",
+                        "secondary-container": "#7e8cfe",
+                        "outline-variant": "#c2c6d3",
+                        "tertiary-container": "#863802",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-primary": "#ffffff",
+                        "on-background": "#191c1d",
+                        "inverse-on-surface": "#f0f1f2",
+                        "on-secondary-container": "#071991",
+                        "on-secondary-fixed-variant": "#2b39a8",
+                        "on-primary-container": "#a0c3ff",
+                        "background": "#f8f9fa",
+                        "primary-container": "#014f99",
+                        "inverse-surface": "#2e3132",
+                        "primary-fixed-dim": "#a8c8ff",
+                        "surface-variant": "#e1e3e4",
+                        "on-primary-fixed-variant": "#00468a"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .glass-effect {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+            color: #191c1d;
+        }
+
+        h1,
+        h2,
+        h3,
+        .font-headline {
+            font-family: 'Manrope', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-surface text-on-surface">
+    <!-- SideNavBar (Authority: JSON) -->
+    <nav
+        class="fixed left-0 top-0 h-full w-[280px] z-50 bg-slate-50 dark:bg-slate-950 flex flex-col py-8 px-6 gap-y-6 border-r border-slate-200/15 dark:border-slate-800/15 font-['Manrope'] text-sm tracking-tight">
+        <div class="flex items-center gap-3 px-2 mb-4">
+            <div
+                class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center text-white shadow-lg">
+                <span class="material-symbols-outlined" data-icon="curate">browse</span>
+            </div>
+            <div>
+                <h2
+                    class="text-xl font-bold bg-gradient-to-br from-blue-900 to-blue-700 bg-clip-text text-transparent leading-none">
+                    Precision Admin</h2>
+                <p class="text-[10px] uppercase tracking-widest text-slate-400 mt-1 font-semibold">Enterprise Curator
+                </p>
+            </div>
+        </div>
+        <div class="flex flex-col gap-y-1">
+            <!-- Dashboard Tab -->
+            <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-blue-800 hover:translate-x-1 transition-transform group"
+                href="#">
+                <span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                <span>Dashboard</span>
+            </a>
+            <!-- User Approvals Tab -->
+            <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-blue-800 hover:translate-x-1 transition-transform group"
+                href="#">
+                <span class="material-symbols-outlined" data-icon="how_to_reg">how_to_reg</span>
+                <span>User Approvals</span>
+            </a>
+            <!-- User Management Tab (Active) -->
+            <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-blue-900 font-bold border-r-2 border-blue-900 transition-all"
+                href="#">
+                <span class="material-symbols-outlined" data-icon="group">group</span>
+                <span>User Management</span>
+            </a>
+            <!-- Settings Tab -->
+            <a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-blue-800 hover:translate-x-1 transition-transform group"
+                href="#">
+                <span class="material-symbols-outlined" data-icon="settings">settings</span>
+                <span>Settings</span>
+            </a>
+        </div>
+    </nav>
+    <!-- TopNavBar (Authority: JSON) -->
+    <header
+        class="fixed top-0 right-0 w-[calc(100%-280px)] z-40 h-16 bg-white/70 backdrop-blur-xl flex items-center justify-between px-8 shadow-[0_30px_60px_-5px_rgba(25,28,29,0.06)] font-['Manrope'] font-semibold">
+        <div class="flex items-center gap-4 flex-1 max-w-xl">
+            <div class="relative w-full">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"
+                    data-icon="search">search</span>
+                <input
+                    class="w-full bg-slate-100/50 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                    placeholder="Global system search..." type="text" />
+            </div>
+        </div>
+        <div class="flex items-center gap-6">
+            <button class="p-2 text-slate-500 hover:bg-slate-50 rounded-full transition-all relative">
+                <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+                <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-white"></span>
+            </button>
+            <button class="p-2 text-slate-500 hover:bg-slate-50 rounded-full transition-all">
+                <span class="material-symbols-outlined" data-icon="settings">settings</span>
+            </button>
+            <div class="flex items-center gap-3 ml-2 pl-6 border-l border-slate-200">
+                <div class="text-right">
+                    <p class="text-sm font-bold text-slate-900 leading-none">Alex Sterling</p>
+                    <p class="text-[10px] text-slate-400 font-medium">Super Admin</p>
+                </div>
+                <img alt="Admin User Profile" class="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm"
+                    data-alt="portrait of a professional male executive in a neutral studio setting with soft lighting"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSrpEhwMjyGUdo_alawskPUOcTFii_dyzOf4M9lLD55AaTwln043FfrcmY-gS1DvJZU30tokFhTn0ktMwTvdBoi1sF_91L95Bmsg2kZ4jWma10ZJRyuOjAfi1XkyHlRWFg82Uz_I5SHAjwsShuRY_n-tuZuWdkGIynWc38zA0V2kt1NBkJgc8jMEBAqo-KYpmIrg52Vc5QEfdbbSKsmlkE44s0Hy_mcBP5wJ1xjYlarfR7EaGeK96CeCxslcBm5qfGH0okvNdVXplD" />
+            </div>
+        </div>
+    </header>
+    <!-- Main Content Canvas -->
+    <main class="ml-[280px] pt-24 px-10 pb-20 max-w-[1600px]">
+        <!-- Dashboard Header -->
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+            <div>
+                <h1 class="text-4xl font-extrabold tracking-tight text-on-surface mb-2">User Management</h1>
+                <p class="text-on-surface-variant text-lg max-w-2xl font-body">Manage platform access, define roles, and
+                    audit permissions for the marketing funnel ecosystem.</p>
+            </div>
+            <div class="flex items-center gap-4"><button
+                    class="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-br from-primary to-primary-container text-white font-bold shadow-lg hover:shadow-primary/20 transition-all">
+                    <span class="material-symbols-outlined" data-icon="ios_share">ios_share</span>
+                    Export User Data
+                </button></div>
+        </div>
+        <div class="flex flex-col gap-10">
+            <!-- User Directory Card -->
+            <section class="w-full">
+                <div class="bg-surface-container-low rounded-xl p-8 min-h-[400px] flex flex-col shadow-sm">
+                    <div class="flex items-center justify-between mb-8">
+                        <h3 class="text-xl font-bold font-headline text-on-surface">Registered Users</h3>
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="bg-surface-container-lowest rounded-full px-4 py-2 border border-outline-variant/15 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-slate-400 text-sm"
+                                    data-icon="filter_list">filter_list</span>
+                                <span class="text-xs font-bold text-slate-600">All Roles</span>
+                                <span class="material-symbols-outlined text-slate-400 text-xs"
+                                    data-icon="expand_more">expand_more</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-separate border-spacing-y-4">
+                            <thead>
+                                <tr class="text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                                    <th class="px-4 pb-2 w-16">Profile</th>
+                                    <th class="px-4 pb-2">Name</th>
+                                    <th class="px-4 pb-2">Email</th>
+                                    <th class="px-4 pb-2">Role</th>
+                                    <th class="px-4 pb-2">Status</th>
+                                    <th class="px-4 pb-2 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="font-body">
+                                <!-- User Row 1 -->
+                                <tr class="bg-surface-container-lowest hover:bg-white rounded-xl transition-all group">
+                                    <td class="px-4 py-4 rounded-l-xl">
+                                        <img alt="Sarah Jenkins" class="w-10 h-10 rounded-full object-cover"
+                                            data-alt="portrait of a confident woman smiling in professional attire"
+                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHFLGfDDFWqFaaAai1KxQkAZv1JXBEZKLxOySXJbRJ1hVskU4C37CMuaU7ahbDy-zRcxTt2BcGLJQJXG1SgSc1jK64_1iEjSkmm0oeWMtGUrLAGp5YhbACWF8CcapwqbUNyFqtCKO39yCT2poaYQPy521WtOSANkWMDBoA-hL6UqFkSNmIUjrSk8Vb3J01FRgZ0oQZemAY-JawNfysHxChSfoyI5ziuP5BNUCQ0ao2ueOErehakr5VoH9u_hrIjt0SdArzwEHma0hc" />
+                                    </td>
+                                    <td class="px-4 py-4"><span class="font-bold text-slate-900">Sarah Jenkins</span>
+                                    </td>
+                                    <td class="px-4 py-4 text-slate-500 text-sm">s.jenkins@checkfunnel.io</td>
+                                    <td class="px-4 py-4">
+                                        <span
+                                            class="px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed-variant text-[10px] font-bold">Admin</span>
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                            <span class="text-xs font-semibold text-slate-700">Active</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 rounded-r-xl text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button
+                                                class="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+                                                <span class="material-symbols-outlined text-xl"
+                                                    data-icon="edit_square">edit_square</span>
+                                            </button>
+                                            <button
+                                                class="p-2 text-slate-400 hover:text-error hover:bg-error/5 rounded-full transition-all">
+                                                <span class="material-symbols-outlined text-xl"
+                                                    data-icon="delete">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- User Row 2 -->
+                                <tr class="bg-surface-container-lowest hover:bg-white rounded-xl transition-all group">
+                                    <td class="px-4 py-4 rounded-l-xl">
+                                        <img alt="Marcus Vane" class="w-10 h-10 rounded-full object-cover"
+                                            data-alt="professional headshot of a young creative man with modern styling"
+                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbGHnHqW2dth-gsVqty3fvdfVq_AlaeEwCCV0VDScaLOnv-_TZUtLb2tIKIH9nJdX6GuijbQztKnrOaZ5EEfyTuzyejc-aIe157A2waIlWDKk0eMJNExTGwKEmhCC8SOE4sUBzJV7bhUR98ZHQGP5lEDe1rgU09ijgNnG2fdRC7HCXMRZcjXDn9Evu91dMpJ6-ME2Nc2Hxu9iSrIAoNELs76uKdbkI_S43cMYLM4UTtoqzBzpSp48DMotmZBiQyzoHkMxnKUefN3wq" />
+                                    </td>
+                                    <td class="px-4 py-4"><span class="font-bold text-slate-900">Marcus Vane</span></td>
+                                    <td class="px-4 py-4 text-slate-500 text-sm">m.vane@checkfunnel.io</td>
+                                    <td class="px-4 py-4">
+                                        <span
+                                            class="px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant text-[10px] font-bold">Viewer</span>
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                            <span class="text-xs font-semibold text-slate-700">Active</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4 rounded-r-xl text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button
+                                                class="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+                                                <span class="material-symbols-outlined text-xl"
+                                                    data-icon="edit_square">edit_square</span>
+                                            </button>
+                                            <button
+                                                class="p-2 text-slate-400 hover:text-error hover:bg-error/5 rounded-full transition-all">
+                                                <span class="material-symbols-outlined text-xl"
+                                                    data-icon="delete">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            <!-- Pending Users Card -->
+            <section class="w-full">
+                <div
+                    class="bg-surface-container-low rounded-xl p-8 min-h-[300px] flex flex-col shadow-sm border border-outline-variant/10">
+                    <div class="flex items-center justify-between mb-8">
+                        <h3 class="text-xl font-bold font-headline text-on-surface">Pending Users</h3>
+                        <div class="bg-secondary-container/20 text-secondary px-4 py-1 rounded-full text-xs font-bold">3
+                            Awaiting Approval</div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-separate border-spacing-y-4">
+                            <thead>
+                                <tr class="text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                                    <th class="px-4 pb-2 w-16">Profile</th>
+                                    <th class="px-4 pb-2">Name</th>
+                                    <th class="px-4 pb-2">Email</th>
+                                    <th class="px-4 pb-2">Role</th>
+                                    <th class="px-4 pb-2">Request Date</th>
+                                    <th class="px-4 pb-2 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="font-body">
+                                <!-- Pending User Row 1 -->
+                                <tr class="bg-surface-container-lowest hover:bg-white rounded-xl transition-all group">
+                                    <td class="px-4 py-4 rounded-l-xl">
+                                        <div
+                                            class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-slate-400">
+                                            <span class="material-symbols-outlined" data-icon="person">person</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4"><span class="font-bold text-slate-900">Julian Thorne</span>
+                                    </td>
+                                    <td class="px-4 py-4 text-slate-500 text-sm">j.thorne@checkfunnel.io</td>
+                                    <td class="px-4 py-4">
+                                        <span
+                                            class="px-3 py-1 rounded-full bg-surface-dim text-slate-600 text-[10px] font-bold">Viewer</span>
+                                    </td>
+                                    <td class="px-4 py-4 text-xs font-medium text-slate-600">Oct 24, 2023</td>
+                                    <td class="px-4 py-4 rounded-r-xl text-right">
+                                        <div class="flex items-center justify-end gap-3">
+                                            <button
+                                                class="px-4 py-1.5 rounded-full bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-all shadow-sm">Approve</button>
+                                            <button
+                                                class="p-2 text-slate-400 hover:text-error hover:bg-error/5 rounded-full transition-all">
+                                                <span class="material-symbols-outlined text-xl"
+                                                    data-icon="close">close</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Pending User Row 2 -->
+                                <tr class="bg-surface-container-lowest hover:bg-white rounded-xl transition-all group">
+                                    <td class="px-4 py-4 rounded-l-xl">
+                                        <img alt="Elena Rossi" class="w-10 h-10 rounded-full object-cover grayscale"
+                                            data-alt="high quality headshot of a woman with a neutral background"
+                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWUm53cXg-mw3Uu6Koy-GuI9co0RKYrJp-RcNs7FfpjUR--7lIJOyA3uFOOD_pdEjECNjHmGksQexenHI6LNd-ub3G4reQ9yIW9EVgXvx-UxxV4zOH8jTRdW2qQvwrj5GQwm46i1bXya16vo_nGUiam6emh77aXGaJGAfwZf07JzhKuCyBnwpgdvPEUeSPISxmBkWW8POIVzrga6zirLq4U19dUHxe9UH4-RfmZID23MvdlT3zv7-qTi5FY6pl8g7pHhSt5VUe3uRY" />
+                                    </td>
+                                    <td class="px-4 py-4"><span class="font-bold text-slate-900">Elena Rossi</span></td>
+                                    <td class="px-4 py-4 text-slate-500 text-sm">e.rossi@checkfunnel.io</td>
+                                    <td class="px-4 py-4">
+                                        <span
+                                            class="px-3 py-1 rounded-full bg-surface-dim text-slate-600 text-[10px] font-bold">Admin</span>
+                                    </td>
+                                    <td class="px-4 py-4 text-xs font-medium text-slate-600">Oct 23, 2023</td>
+                                    <td class="px-4 py-4 rounded-r-xl text-right">
+                                        <div class="flex items-center justify-end gap-3">
+                                            <button
+                                                class="px-4 py-1.5 rounded-full bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-all shadow-sm">Approve</button>
+                                            <button
+                                                class="p-2 text-slate-400 hover:text-error hover:bg-error/5 rounded-full transition-all">
+                                                <span class="material-symbols-outlined text-xl"
+                                                    data-icon="close">close</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+</body>
+
+</html>
