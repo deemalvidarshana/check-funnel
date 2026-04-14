@@ -286,11 +286,33 @@ export default function ClientInsights() {
     try {
       const updatedClient = await toggleShare(id, true);
       const shareUrl = `${window.location.origin}/public-report/${updatedClient.shareToken}`;
-      await navigator.clipboard.writeText(shareUrl);
+      
+      // Fallback for non-HTTPS or older browsers
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        // Fallback for HTTP (Unsecure) environments
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Fallback copy failed', err);
+        }
+        document.body.removeChild(textArea);
+      }
+
       setShowCopied(true);
       setTimeout(() => setShowCopied(false), 2000);
     } catch (error) {
       console.error("Failed to share report", error);
+      alert("Failed to copy link. Please manually copy the URL from the browser console.");
     } finally {
       setShareLoading(false);
     }
