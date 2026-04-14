@@ -103,7 +103,7 @@ export default function AddClientModal({ open, onClose, onCreate, initialData })
 
       // Show existing logo if available
       if (initialData.id) {
-        setLogoPreview(`http://localhost:3000/clients/${initialData.id}/logo`);
+        setLogoPreview(`${import.meta.env.VITE_API_BASE_URL || '/api'}/clients/${initialData.id}/logo`);
       }
     } else if (open) {
       // Reset for Create Mode

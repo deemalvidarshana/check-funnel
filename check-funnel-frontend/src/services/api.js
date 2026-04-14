@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000', // Base URL for the NestJS backend
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api', // Base URL for the NestJS backend
 });
 
 // Add a request interceptor to attach the JWT token

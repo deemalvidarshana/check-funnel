@@ -185,7 +185,8 @@ export default function Sidebar() {
 
   const getAvatarUrl = () => {
     if (!user?.id) return "https://lh3.googleusercontent.com/aida-public/AB6AXuA3RQRrLT1pfQt2CFGd3fDM0sBKglHZFN84Ji_1QUGgxChBmnV32O4-AswGFR1mtk7tWB1IK2LjN5gt0gpei315mlWuLtURI39ub7oxCkR31rB60m2mV9Yskw7KHln3M671BaaQFEBcyDugy072vvrtC7o4uOM2fvqUN9FgBsh3hRBjH6gi26KcUQkmWzptw74GdFiJzd-0WVSgPSm-OwEVzq1tvNoxRR9eQxHBXUlrVifq_xlfbWvQFt8Vo_AahiMgv-kfKLOoy4FP";
-    return `http://localhost:3000/user/${user.id}/avatar?t=${avatarTimestamp}`;
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api';
+    return `${apiBase}/user/${user.id}/avatar?t=${avatarTimestamp}`;
   };
 
   return (

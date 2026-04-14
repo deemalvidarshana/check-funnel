@@ -61,7 +61,7 @@ export default function ClientCard({ client, isAdmin, onEdit, onDelete }) {
       <div className="mb-5 flex items-start justify-between gap-4">
         <div className="h-14 w-14 overflow-hidden rounded-full border border-[#c2c6d3] bg-[#edeeef]">
           <img
-            src={`http://localhost:3000/clients/${client.id}/logo`}
+            src={`${import.meta.env.VITE_API_BASE_URL || '/api'}/clients/${client.id}/logo`}
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = "https://via.placeholder.com/200x200.png?text=Logo";
