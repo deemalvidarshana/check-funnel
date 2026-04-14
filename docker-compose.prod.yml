@@ -5,6 +5,8 @@ services:
   mysql:
     image: mysql:8.0
     container_name: cf_mysql
+    ports:
+      - "127.0.0.1:3306:3306"
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
@@ -12,11 +14,11 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - mysql_data:/var/lib/mysql   # data persist වෙනවා
+      - mysql_data:/var/lib/mysql # data persist වෙනවා
     networks:
       - app_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,7 +38,7 @@ services:
       NODE_ENV: production
     depends_on:
       mysql:
-        condition: service_healthy   # MySQL ready වෙනකන් wait
+        condition: service_healthy # MySQL ready වෙනකන් wait
     networks:
       - app_network
 
