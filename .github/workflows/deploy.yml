@@ -110,7 +110,7 @@ jobs:
 
             echo "♻️ Restarting containers..."
             IMAGE_TAG=${IMAGE_TAG} GITHUB_REPO=${GITHUB_REPO} \
-              docker compose -f docker-compose.prod.yml up -d --remove-orphans
+              docker-compose -f docker-compose.prod.yml up -d --remove-orphans
 
             echo "🧹 Cleaning old images..."
             docker image prune -f
