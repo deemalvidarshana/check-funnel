@@ -14,7 +14,7 @@ export class InstagramService {
    */
   async getWeeklyInsights(dto: GetIgInsightsDto) {
     const { pageId, accessToken, until, timeRange } = dto;
-    
+
     try {
       const cleanToken = accessToken ? accessToken.trim() : accessToken;
       const igId = await this.getInstagramId(pageId, cleanToken);
@@ -22,7 +22,7 @@ export class InstagramService {
       const cleanPageToken = pageToken ? pageToken.trim() : pageToken;
 
       const weeks = timeRange === '30' ? this.generateLast6Months(until) : this.generateLast7Weeks(until);
-      
+
       // Parallelize fetching for all 7 weeks
       const weeksData = await Promise.all(
         weeks.map(week => this.analyseWeek(igId, cleanPageToken, week, cleanToken, pageId))
@@ -63,10 +63,10 @@ export class InstagramService {
     if (!isValid(endDate)) endDate = new Date();
 
     const weeks: any[] = [];
-    
+
     // Find most recent Monday
     const currentMonday = startOfWeek(endDate, { weekStartsOn: 1 });
-    
+
     // 1. Current week from most recent Monday to today/until
     weeks.push({
       label: `${format(currentMonday, 'do MMM')} - ${format(endDate, 'do MMM')}`,
@@ -77,16 +77,16 @@ export class InstagramService {
     // 2. Previous 6 full Mon-Sun weeks
     let lastMonday = currentMonday;
     for (let i = 0; i < 6; i++) {
-        const sun = subDays(lastMonday, 1);
-        const mon = subDays(sun, 6);
-        
-        weeks.push({
-            label: `${format(mon, 'do MMM')} - ${format(sun, 'do MMM')}`,
-            since: format(mon, 'yyyy-MM-dd'),
-            until: format(sun, 'yyyy-MM-dd'),
-        });
-        
-        lastMonday = mon;
+      const sun = subDays(lastMonday, 1);
+      const mon = subDays(sun, 6);
+
+      weeks.push({
+        label: `${format(mon, 'do MMM')} - ${format(sun, 'do MMM')}`,
+        since: format(mon, 'yyyy-MM-dd'),
+        until: format(sun, 'yyyy-MM-dd'),
+      });
+
+      lastMonday = mon;
     }
 
     // Return in chronological order (oldest first)
@@ -102,41 +102,41 @@ export class InstagramService {
 
     const periods: any[] = [];
     for (let i = 0; i < 6; i++) {
-        // Start of month (1st day)
-        const sinceDate = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
-        
-        let untilDate;
-        if (i === 0) {
-            untilDate = new Date(endDate);
-        } else {
-            // End of target month (Day 0 of next month)
-            untilDate = new Date(endDate.getFullYear(), endDate.getMonth() - i + 1, 0);
-        }
+      // Start of month (1st day)
+      const sinceDate = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
 
-        periods.push({
-            label: `${format(sinceDate, 'do MMM')} - ${format(untilDate, 'do MMM')}`,
-            since: format(sinceDate, 'yyyy-MM-dd'),
-            until: format(untilDate, 'yyyy-MM-dd'),
-        });
+      let untilDate;
+      if (i === 0) {
+        untilDate = new Date(endDate);
+      } else {
+        // End of target month (Day 0 of next month)
+        untilDate = new Date(endDate.getFullYear(), endDate.getMonth() - i + 1, 0);
+      }
+
+      periods.push({
+        label: `${format(sinceDate, 'do MMM')} - ${format(untilDate, 'do MMM')}`,
+        since: format(sinceDate, 'yyyy-MM-dd'),
+        until: format(untilDate, 'yyyy-MM-dd'),
+      });
     }
     return periods.reverse();
   }
 
-  // ── HELPERS ───────────────────────────────────────────────────────
+  // ── HELPERS ───────────────────────────────────────────────────────────────
 
   private async apiGet(url: string, params: any) {
     try {
       // Add User-Agent to keep Facebook API happy on hosted environments
-      const headers = { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       };
-      
+
       const response = await axios.get(url, { params, headers });
       return response.data;
     } catch (error) {
       const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error.response?.data || error.message;
-      
+
       // Mask token in logs for security
       const safeParams = { ...params };
       if (safeParams.access_token) safeParams.access_token = '***_MASKED_***';
@@ -144,7 +144,7 @@ export class InstagramService {
       console.error(`[Instagram API Error] URL: ${url} | Params: ${JSON.stringify(safeParams)}`);
       console.error(`[Instagram API Error] Status: ${status}`);
       console.error(`[Instagram API Error] Payload:`, JSON.stringify(message));
-      
+
       throw new HttpException(message, status);
     }
   }
@@ -163,17 +163,13 @@ export class InstagramService {
     return items;
   }
 
+  // ── FIX 1: Removed maxUntil safeguard — it was cutting off current week
+  //           on hosted servers due to UTC timezone mismatch with Sri Lanka (UTC+5:30).
+  //           Now simply returns until+1 day, consistent with all other fetchers.
   private apiUntil(untilStr: string) {
-    // Current week boundary logic
     const dt = parseISO(untilStr);
     const tomorrow = addDays(dt, 1);
-
-    // Safeguard: Don't go beyond today's UTC date + 1 for insights stability
-    const nowUtc = new Date();
-    const maxUntil = addDays(nowUtc, 1);
-    
-    const finalDate = tomorrow > maxUntil ? maxUntil : tomorrow;
-    return format(finalDate, 'yyyy-MM-dd');
+    return format(tomorrow, 'yyyy-MM-dd');
   }
 
   private sumTotalValues(data: any[], metricName: string) {
@@ -203,16 +199,16 @@ export class InstagramService {
     while (currentSince < uDate) {
       let nextUntil = addDays(currentSince, 25);
       if (nextUntil > uDate) nextUntil = uDate;
-      chunks.push({ 
-        since: format(currentSince, 'yyyy-MM-dd'), 
-        until: format(nextUntil, 'yyyy-MM-dd') 
+      chunks.push({
+        since: format(currentSince, 'yyyy-MM-dd'),
+        until: format(nextUntil, 'yyyy-MM-dd')
       });
       currentSince = nextUntil;
     }
     return chunks;
   }
 
-  // ── INITIALIZATION ───────────────────────────────────────────
+  // ── INITIALIZATION ────────────────────────────────────────────────────────
 
   private async getInstagramId(pageId: string, accessToken: string) {
     const url = `${this.baseUrl}/${pageId}`;
@@ -230,20 +226,24 @@ export class InstagramService {
     return token;
   }
 
-  // ── FETCHERS ────────────────────────────────────────────────
+  // ── FETCHERS ──────────────────────────────────────────────────────────────
 
+  // ── FIX 2: Now uses apiUntil(until) instead of raw `until`,
+  //           consistent with all other fetchers. Previously raw `until`
+  //           was causing posts/reels to return 0 for current week on hosted.
   private async fetchPostsAndReels(igId: string, since: string, until: string, accessToken: string) {
     let posts = 0;
     let reels = 0;
     const storiesNote = "N/A (24h Stories expire; cannot retrieve historical data via API)";
     try {
       const url = `${this.baseUrl}/${igId}/media`;
-      const params = { 
-        fields: 'id,timestamp,media_type,media_product_type', 
-        since, 
-        until, 
-        limit: 100, 
-        access_token: accessToken 
+      const adjustedUntil = this.apiUntil(until);
+      const params = {
+        fields: 'id,timestamp,media_type,media_product_type',
+        since,
+        until: adjustedUntil,
+        limit: 100,
+        access_token: accessToken
       };
       const mediaItems = await this.paginateEndpoint(url, params);
       for (const item of mediaItems) {
@@ -388,7 +388,7 @@ export class InstagramService {
 
   private async fetchFollowerMetrics(igId: string, pageToken: string, since: string, until: string, accessToken: string, pageId: string) {
     let newF = 0, unf = 0, tf: any = 'N/A';
-    
+
     try {
       // Parallelize profile count and daily follower insights
       const [resUser, resInsights] = await Promise.all([
@@ -403,19 +403,19 @@ export class InstagramService {
       ]);
 
       tf = resUser.followers_count ?? 'N/A';
-      
+
       for (const m of resInsights.data || []) {
         const sum = (m.values || []).reduce((s, v) => s + (v.value || 0), 0);
         if (m.name === 'page_daily_follows_unique') newF = sum;
         if (m.name === 'page_daily_unfollows_unique') unf = sum;
       }
-    } catch (e) {}
+    } catch (e) { }
     return { newF, unf, tf };
   }
 
   private async analyseWeek(igId: string, pageToken: string, week: any, accessToken: string, pageId: string) {
     const { since, until, label } = week;
-    
+
     // Debug log for checking call parameters on hosted
     console.log(`[Instagram Debug] Analysing: ${label} | Since: ${since} | Until: ${until}`);
 
