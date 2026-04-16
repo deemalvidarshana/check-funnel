@@ -22,3 +22,9 @@ export const getPublicInstagramInsights = async (shareToken, timeRange) => {
   });
   return response.data;
 };
+
+export const getPublicTiktokInsights = async (shareToken) => {
+  const response = await publicApi.get(`/public-insights/tiktok/${shareToken}`);
+  return response.data;
+};
+

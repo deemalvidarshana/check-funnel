@@ -44,6 +44,16 @@ export class Client {
   @Column({ nullable: true })
   tiktokApiKey: string;
 
+  @Column({ nullable: true })
+  tiktokClientKey: string;
+
+  @Column({ nullable: true })
+  tiktokClientSecret: string;
+
+  @Column({ nullable: true })
+  tiktokRefreshToken: string;
+
+
   @CreateDateColumn()
   createdAt: Date;
 

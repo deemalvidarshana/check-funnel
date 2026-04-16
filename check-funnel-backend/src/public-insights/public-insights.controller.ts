@@ -2,6 +2,7 @@ import { Controller, Get, Param, NotFoundException, Query } from '@nestjs/common
 import { ClientService } from '../client/client.service';
 import { FacebookService } from '../facebook/facebook.service';
 import { InstagramService } from '../instagram/instagram.service';
+import { TiktokService } from '../tiktok/tiktok.service';
 
 @Controller('public-insights')
 export class PublicInsightsController {
@@ -9,7 +10,9 @@ export class PublicInsightsController {
     private readonly clientService: ClientService,
     private readonly facebookService: FacebookService,
     private readonly instagramService: InstagramService,
+    private readonly tiktokService: TiktokService,
   ) {}
+
 
   @Get('info/:shareToken')
   async getPublicInfo(@Param('shareToken') shareToken: string) {
@@ -26,6 +29,10 @@ export class PublicInsightsController {
     if (client.instagramAccountId && client.instagramApiKey && !active.includes('instagram')) {
       active.push('instagram');
     }
+    if (client.tiktokApiKey && client.tiktokRefreshToken && !active.includes('tiktok')) {
+      active.push('tiktok');
+    }
+
 
     return {
       name: client.name,
@@ -68,4 +75,22 @@ export class PublicInsightsController {
         until: undefined,
     });
   }
+
+  @Get('tiktok/:shareToken')
+  async getTiktokData(@Param('shareToken') shareToken: string) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    if (!client.tiktokApiKey) {
+        throw new NotFoundException('TikTok insights not available for this client');
+    }
+    
+    const insights = await this.tiktokService.getInsights(client);
+    
+    // If token was refreshed during fetching, update the database
+    if (insights.newAccessToken) {
+      await this.clientService.update(client.id, { tiktokApiKey: insights.newAccessToken });
+    }
+    
+    return insights;
+  }
 }
+

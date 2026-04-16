@@ -1,10 +1,22 @@
-export default function OverviewMetricsCard() {
-  const metrics = [
-    { label: "Avg Daily Reach", value: "12.4K" },
-    { label: "Share Rate", value: "1.2%" },
-    { label: "Profile Visits", value: "842" },
-    { label: "Bio Clicks", value: "156" },
-  ];
+export default function OverviewMetricsCard({ platform = 'facebook', data = {} }) {
+  let metrics = [];
+
+  if (platform === 'tiktok') {
+    metrics = [
+      { label: "Total Videos", value: data.video_count?.toLocaleString() || "0" },
+      { label: "Followers", value: data.follower_count?.toLocaleString() || "0" },
+      { label: "Following", value: data.following_count?.toLocaleString() || "0" },
+      { label: "Profile Likes", value: data.likes_count?.toLocaleString() || "0" },
+    ];
+  } else {
+    metrics = [
+      { label: "Avg Daily Reach", value: "12.4K" },
+      { label: "Share Rate", value: "1.2%" },
+      { label: "Profile Visits", value: "842" },
+      { label: "Bio Clicks", value: "156" },
+    ];
+  }
+
 
   return (
     <div className="rounded-3xl border border-[#c2c6d3]/30 bg-white p-6 shadow-sm">

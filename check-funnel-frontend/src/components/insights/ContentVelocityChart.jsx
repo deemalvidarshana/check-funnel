@@ -69,7 +69,7 @@ function buildAreaPoints(data, key, width, height, maxValue) {
 }
 
 // ---------------- Sub-component for Chart Content ----------------
-function ChartDrawing({ data, activeMetrics, height = 240 }) {
+function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false }) {
   const containerRef = useRef(null);
   const [chartWidth, setChartWidth] = useState(760);
 
@@ -148,14 +148,18 @@ function ChartDrawing({ data, activeMetrics, height = 240 }) {
           const textAnchor = "middle";
 
           return (
-            <g key={item.week}>
+            <g key={index}>
               {activeMetrics.map((m) => {
                 const val = getNestedValue(item, m.key);
                 const numVal = typeof val === 'number' ? val : 0;
                 const y = height - (numVal / maxValue) * (height - 30);
                 return (
-                  <g key={`${item.week}-${m.key}`}>
-                    <circle cx={x} cy={y} r="4" fill={m.color} className="transition-all duration-300" />
+                  <g key={`${index}-${m.key}`}>
+                    {/* Only show dot if value is > 0 OR if it's not the bottom line */}
+                    {numVal > 0 && (
+                      <circle cx={x} cy={y} r="4" fill={m.color} className="transition-all duration-300" />
+                    )}
+                    
                     {numVal > 0 && (
                       <text
                         x={x}
@@ -172,6 +176,7 @@ function ChartDrawing({ data, activeMetrics, height = 240 }) {
                   </g>
                 );
               })}
+
               <text
                 x={x}
                 y={height + 25}
@@ -186,13 +191,14 @@ function ChartDrawing({ data, activeMetrics, height = 240 }) {
             </g>
           );
         })}
+
       </svg>
     </div>
   );
 }
 
 // ---------------- Main Component ----------------
-export default function ContentVelocityChart({ title, subtitle, data, metrics, onNext, onPrev }) {
+export default function ContentVelocityChart({ title, subtitle, data, metrics, onNext, onPrev, hidePoints = false }) {
   const [isMaximized, setIsMaximized] = useState(false);
 
   // Prevent body scroll when maximized
@@ -258,7 +264,7 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
         </div>
 
         <div className="h-[240px] sm:h-[300px] w-full">
-          <ChartDrawing data={data} activeMetrics={activeMetrics} height={220} />
+          <ChartDrawing data={data} activeMetrics={activeMetrics} height={220} hidePoints={hidePoints} />
         </div>
       </div>
 
@@ -310,8 +316,9 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
 
             {/* Modal Content - Larger Graph Area */}
             <div className="p-6 sm:p-10 h-[300px] sm:h-[450px] overflow-hidden">
-              <ChartDrawing data={data} activeMetrics={activeMetrics} height={350} />
+              <ChartDrawing data={data} activeMetrics={activeMetrics} height={350} hidePoints={hidePoints} />
             </div>
+
 
             {/* Modal Footer */}
             <div className="border-t border-[#edeeef] px-6 py-4 sm:px-10 sm:py-6 bg-[#f8f9fa] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-[#727782]">

@@ -7,7 +7,9 @@ import { FacebookModule } from './facebook/facebook.module';
 import { InstagramModule } from './instagram/instagram.module';
 import { UserModule } from './user/user.module';
 import { PublicInsightsModule } from './public-insights/public-insights.module';
+import { TiktokModule } from './tiktok/tiktok.module';
 import { User } from './auth/user.entity';
+
 import { Client } from './client/client.entity';
 
 @Module({
@@ -34,6 +36,10 @@ import { Client } from './client/client.entity';
     InstagramModule,
     UserModule,
     PublicInsightsModule,
+    TiktokModule,
   ],
 })
+
 export class AppModule {}
+// Triggering rebuild
+

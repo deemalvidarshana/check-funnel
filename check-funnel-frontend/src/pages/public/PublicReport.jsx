@@ -9,8 +9,10 @@ import OverviewMetricsCard from "../../components/insights/OverviewMetricsCard";
 import { 
   getPublicClientInfo, 
   getPublicFacebookInsights, 
-  getPublicInstagramInsights 
+  getPublicInstagramInsights,
+  getPublicTiktokInsights
 } from "../../api/publicInsights";
+
 
 export default function PublicReport() {
   const { shareToken } = useParams();
@@ -20,7 +22,9 @@ export default function PublicReport() {
   const [timeRange, setTimeRange] = useState("7");
   const [client, setClient] = useState(null);
   const [insightData, setInsightData] = useState([]);
+  const [platformStats, setPlatformStats] = useState({});
   const [loading, setLoading] = useState(true);
+
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -126,6 +130,8 @@ export default function PublicReport() {
   useEffect(() => {
     const fetchData = async () => {
       if (!client) return;
+
+      setInsightData([]); // Reset data to avoid stale property glitches when switching platforms
       
       const channels = Array.isArray(client.activeChannels) 
         ? client.activeChannels 
@@ -151,9 +157,16 @@ export default function PublicReport() {
         } else if (activePlatform === "instagram") {
           const result = await getPublicInstagramInsights(shareToken, timeRange);
           setInsightData(result.weeks || []);
+        } else if (activePlatform === "tiktok") {
+          const result = await getPublicTiktokInsights(shareToken);
+          setInsightData(result.videos || []);
+          if (result.user) {
+            setPlatformStats(prev => ({ ...prev, tiktok: result.user }));
+          }
         } else {
           setInsightData([]);
         }
+
       } catch (err) {
         console.error("Failed to load insights", err);
         setInsightData([]);
@@ -163,6 +176,22 @@ export default function PublicReport() {
     };
     fetchData();
   }, [client, activePlatform, timeRange, shareToken]);
+
+  // NEW: Prepare specialized data for the chart (especially for TikTok)
+  const chartData = useMemo(() => {
+    if (activePlatform === 'tiktok') {
+      const sorted = [...(insightData || [])].sort((a, b) => (b.create_time || 0) - (a.create_time || 0));
+      const last7 = sorted.slice(0, 7).reverse();
+      return last7.map(v => ({
+        ...v,
+        week: v.create_time 
+          ? new Date(v.create_time * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) 
+          : ''
+      }));
+    }
+    return insightData;
+  }, [insightData, activePlatform]);
+
 
   const chartConfigs = useMemo(() => {
     const isIG = activePlatform === 'instagram';
@@ -215,24 +244,58 @@ export default function PublicReport() {
           { key: "unfollows", label: "Unfollows", color: "#93000a" },
         ],
       },
+      "Video Breakdown": {
+        title: "Views Breakdown",
+        subtitle: "Performance of Last 7 Videos",
+        metrics: [
+          { key: "view_count", label: "Views", color: "#003870" },
+        ],
+      },
+      "Video Likes": {
+        title: "Likes Breakdown",
+        subtitle: "Performance of Last 7 Videos",
+        metrics: [
+          { key: "like_count", label: "Likes", color: "#e11d48" },
+        ],
+      },
     };
   }, [activePlatform]);
+
 
   const currentChartConfig = chartConfigs[activeTab] || chartConfigs["Content Counts"];
   const fbTabsList = ["Content Counts", "Total Views", "Viewer Retention", "Engagement Metrics", "Audience Growth"];
   const igTabsList = ["Content Counts", "Total Views", "Audience Reach", "Engagement Metrics", "Audience Growth"];
 
   // Reset activeTab when platform changes to avoid invalid tab state
-  // (e.g. "Audience Reach" only exists in IG tabs, "Viewer Retention" only in FB tabs)
   useEffect(() => {
-    if (activePlatform === 'instagram' && activeTab === 'Viewer Retention') {
+    // If returning from TikTok to FB/IG, default to 'Content Counts'
+    if ((activePlatform === 'facebook' || activePlatform === 'instagram') && 
+        (activeTab === 'Video Breakdown' || activeTab === 'Video Likes')) {
+      setActiveTab('Content Counts');
+    } 
+    else if (activePlatform === 'instagram' && activeTab === 'Viewer Retention') {
       setActiveTab('Audience Reach');
     } else if (activePlatform === 'facebook' && activeTab === 'Audience Reach') {
       setActiveTab('Viewer Retention');
     }
-  }, [activePlatform]);
+    else if (activePlatform === 'tiktok') {
+      if (!["Video Breakdown", "Video Likes"].includes(activeTab)) {
+        setActiveTab('Video Breakdown');
+      }
+    }
+  }, [activePlatform, activeTab]);
+
+  const platformLabel = activePlatform === 'tiktok' ? 'TikTok' : (activePlatform === 'instagram' ? 'Instagram' : 'Facebook');
+  const ttTabsList = ["Video Breakdown", "Video Likes"];
+
 
   const handleNextTab = () => {
+    if (activePlatform === 'tiktok') {
+      const currentIndex = ttTabsList.indexOf(activeTab);
+      const nextIndex = (currentIndex + 1) % ttTabsList.length;
+      setActiveTab(ttTabsList[nextIndex]);
+      return;
+    }
     const tabs = activePlatform === 'instagram' ? igTabsList : fbTabsList;
     const currentIndex = tabs.indexOf(activeTab);
     const nextIndex = (currentIndex + 1) % tabs.length;
@@ -240,11 +303,18 @@ export default function PublicReport() {
   };
 
   const handlePrevTab = () => {
+    if (activePlatform === 'tiktok') {
+      const currentIndex = ttTabsList.indexOf(activeTab);
+      const prevIndex = (currentIndex - 1 + ttTabsList.length) % ttTabsList.length;
+      setActiveTab(ttTabsList[prevIndex]);
+      return;
+    }
     const tabs = activePlatform === 'instagram' ? igTabsList : fbTabsList;
     const currentIndex = tabs.indexOf(activeTab);
     const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
     setActiveTab(tabs[prevIndex]);
   };
+
 
   if (loading) {
     return (
@@ -281,12 +351,13 @@ export default function PublicReport() {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-[#191c1d] mb-1 leading-tight">
-                {client.name}
+                {client.name}: {platformLabel} Insights
               </h1>
               <p className="font-bold text-[10px] text-[#727782] uppercase tracking-[0.2em]">
                 Social Performance Report
               </p>
             </div>
+
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
@@ -311,11 +382,13 @@ export default function PublicReport() {
             <ContentVelocityChart
               title={currentChartConfig.title}
               subtitle={currentChartConfig.subtitle}
-              data={insightData}
+              data={chartData}
               metrics={currentChartConfig.metrics}
               onNext={handleNextTab}
               onPrev={handlePrevTab}
+              hidePoints={activePlatform === 'tiktok'}
             />
+
 
             {insightsLoading ? (
               <div className="flex h-80 items-center justify-center rounded-[32px] border border-dashed border-slate-200 bg-white/50 text-[#727782]">
@@ -330,12 +403,18 @@ export default function PublicReport() {
                 data={insightData}
                 platform={activePlatform}
                 timeRange={timeRange}
+                followersCount={activePlatform === 'tiktok' ? platformStats.tiktok?.follower_count : null}
               />
+
             )}
           </div>
 
           <div className="col-span-12 space-y-10 lg:col-span-3">
-            <OverviewMetricsCard />
+            <OverviewMetricsCard 
+              platform={activePlatform} 
+              data={activePlatform === 'tiktok' ? platformStats.tiktok : {}} 
+            />
+
             
             <div className="p-8 rounded-[32px] bg-[linear-gradient(135deg,#003870_0%,#005cb8_100%)] text-white shadow-2xl relative overflow-hidden group">
                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-700"></div>

@@ -11,6 +11,8 @@ import DateRangeSelector from "../../components/insights/DateRangeSelector";
 import { getFacebookInsights } from "../../api/facebook";
 import { getInstagramInsights } from "../../api/instagram";
 import { getClientById, toggleShare } from "../../api/client";
+import { getTiktokInsights } from "../../api/tiktok";
+
 
 export default function ClientInsights() {
   const { id } = useParams();
@@ -20,7 +22,9 @@ export default function ClientInsights() {
   const [timeRange, setTimeRange] = useState("7");
   const [client, setClient] = useState(null);
   const [insightData, setInsightData] = useState([]);
+  const [platformStats, setPlatformStats] = useState({}); // New state for runtime metadata
   const [clientLoading, setClientLoading] = useState(true);
+
   const [insightsLoading, setInsightsLoading] = useState(false);
 
   // 1. Fetch real client data from DB
@@ -140,6 +144,8 @@ export default function ClientInsights() {
     const fetchAllData = async () => {
       if (!client) return;
       
+      setInsightData([]); // Reset data to avoid stale property glitches when switching platforms
+      
       // Facebook Fetch
       if (activePlatform === "facebook") {
         if (!client.facebookPageId || !client.facebookApiKey) {
@@ -183,22 +189,82 @@ export default function ClientInsights() {
         }
       }
       
+      // TikTok Fetch
+      else if (activePlatform === "tiktok") {
+        setInsightsLoading(true);
+        try {
+          const result = await getTiktokInsights(id);
+          // TikTok insights return { user, videos }
+          // We'll store videos as insightData for the table
+          setInsightData(result.videos || []);
+          // ✅ FIX: Use separate state to avoid infinite loops with the 'client' dependency
+          if (result.user) {
+            setPlatformStats(prev => ({ ...prev, tiktok: result.user }));
+          }
+        } catch (error) {
+          console.error("Failed to fetch TikTok insights", error);
+        } finally {
+          setInsightsLoading(false);
+        }
+      }
+
+      
       else {
         setInsightData([]);
       }
+
     };
 
-    if (client) fetchAllData();
-  }, [client, activePlatform, timeRange]);
+    if (client && !clientLoading) fetchAllData();
+  }, [id, activePlatform, timeRange, clientLoading]);
+
+
+
+
+  // NEW: Prepare specialized data for the chart (especially for TikTok)
+  const chartData = useMemo(() => {
+    if (activePlatform === 'tiktok') {
+      // 1. Get all videos
+      // 2. Sort by create_time descending to get newest first
+      // 3. Take last 7 (most recent)
+      // 4. Reverse to get oldest-to-newest for chart flow
+      const sorted = [...(insightData || [])].sort((a, b) => (b.create_time || 0) - (a.create_time || 0));
+      const last7 = sorted.slice(0, 7).reverse();
+      
+      return last7.map(v => ({
+        ...v,
+        week: v.create_time 
+          ? new Date(v.create_time * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) 
+          : ''
+      }));
+
+    }
+    return insightData;
+  }, [insightData, activePlatform]);
+
 
   // Adjust activeTab when platform changes
   useEffect(() => {
-    if (activePlatform === 'instagram' && activeTab === 'Viewer Retention') {
+    // If returning from TikTok to FB/IG, default to 'Content Counts'
+    if ((activePlatform === 'facebook' || activePlatform === 'instagram') && 
+        (activeTab === 'Video Breakdown' || activeTab === 'Account Overview')) {
+      setActiveTab('Content Counts');
+    } 
+    // Existing logic for FB <-> IG specific tabs
+    else if (activePlatform === 'instagram' && activeTab === 'Viewer Retention') {
       setActiveTab('Audience Reach');
     } else if (activePlatform === 'facebook' && activeTab === 'Audience Reach') {
       setActiveTab('Viewer Retention');
+    } 
+    // Logic for TikTok specific tabs
+    else if (activePlatform === 'tiktok') {
+      if (!["Video Breakdown", "Video Likes"].includes(activeTab)) {
+        setActiveTab('Video Breakdown');
+      }
     }
   }, [activePlatform, activeTab]);
+
+
 
   const chartConfigs = useMemo(() => {
     const isIG = activePlatform === 'instagram';
@@ -256,15 +322,39 @@ export default function ClientInsights() {
           { key: "unfollows", label: "Unfollows", color: "#93000a" },
         ],
       },
+      "Video Breakdown": {
+        title: "Views Breakdown",
+        subtitle: "Performance of Last 7 Videos",
+        metrics: [
+          { key: "view_count", label: "Views", color: "#003870" },
+        ],
+      },
+      "Video Likes": {
+        title: "Likes Breakdown",
+        subtitle: "Performance of Last 7 Videos",
+        metrics: [
+          { key: "like_count", label: "Likes", color: "#e11d48" },
+        ],
+      },
     };
   }, [client, activePlatform]);
 
   const currentChartConfig = chartConfigs[activeTab] || chartConfigs["Content Counts"];
 
+
+  const platformLabel = activePlatform === 'tiktok' ? 'TikTok' : (activePlatform === 'instagram' ? 'Instagram' : 'Facebook');
+
   const fbTabsList = ["Content Counts", "Total Views", "Viewer Retention", "Engagement Metrics", "Audience Growth"];
   const igTabsList = ["Content Counts", "Total Views", "Audience Reach", "Engagement Metrics", "Audience Growth"];
+  const ttTabsList = ["Video Breakdown", "Video Likes"];
 
   const handleNextTab = () => {
+    if (activePlatform === 'tiktok') {
+      const currentIndex = ttTabsList.indexOf(activeTab);
+      const nextIndex = (currentIndex + 1) % ttTabsList.length;
+      setActiveTab(ttTabsList[nextIndex]);
+      return;
+    }
     const tabs = activePlatform === 'instagram' ? igTabsList : fbTabsList;
     const currentIndex = tabs.indexOf(activeTab);
     const nextIndex = (currentIndex + 1) % tabs.length;
@@ -272,6 +362,12 @@ export default function ClientInsights() {
   };
 
   const handlePrevTab = () => {
+    if (activePlatform === 'tiktok') {
+      const currentIndex = ttTabsList.indexOf(activeTab);
+      const prevIndex = (currentIndex - 1 + ttTabsList.length) % ttTabsList.length;
+      setActiveTab(ttTabsList[prevIndex]);
+      return;
+    }
     const tabs = activePlatform === 'instagram' ? igTabsList : fbTabsList;
     const currentIndex = tabs.indexOf(activeTab);
     const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
@@ -335,13 +431,14 @@ export default function ClientInsights() {
   }
 
   return (
-    <section className="w-full">
+    <section className="w-full max-w-full overflow-hidden">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
           <h1 className="text-4xl font-extrabold tracking-tight text-[#191c1d]">
-            {client.name}: Social Insights
+            {client.name}: {platformLabel} Insights
           </h1>
+
           <p className="font-medium text-[#727782]">
             Performance monitoring and content velocity analytics for your network.
           </p>
@@ -390,21 +487,26 @@ export default function ClientInsights() {
       </div>
 
       {/* Main area */}
-      <div className="grid grid-cols-12 gap-8">
-        <div className="col-span-12 space-y-8 lg:col-span-9">
+       <div className="grid grid-cols-12 gap-8 w-full">
+        <div className="col-span-12 space-y-8 lg:col-span-9 min-w-0">
+
           <ContentVelocityChart
             title={currentChartConfig.title}
             subtitle={currentChartConfig.subtitle}
-            data={insightData}
+            data={chartData}
             metrics={currentChartConfig.metrics}
             onNext={handleNextTab}
             onPrev={handlePrevTab}
+            hidePoints={activePlatform === 'tiktok'}
           />
+
+
 
           {insightsLoading ? (
             <div className="flex h-64 items-center justify-center rounded-3xl border border-[#edeeef] bg-[#f8f9fa] text-[#727782]">
-              <p className="animate-pulse font-bold text-sm">Synchronizing real-time insights from {activePlatform === 'facebook' ? 'Facebook' : 'Instagram'}...</p>
+              <p className="animate-pulse font-bold text-sm">Synchronizing real-time insights from {activePlatform === 'tiktok' ? 'TikTok' : (activePlatform === 'facebook' ? 'Facebook' : 'Instagram')}...</p>
             </div>
+
           ) : activePlatform === 'facebook' && (!client.facebookPageId || !client.facebookApiKey) ? (
             <div className="flex h-64 items-center justify-center rounded-3xl border border-[#ffdad6] bg-[#ffdad6]/10 text-[#93000a]">
               <p className="font-bold text-sm text-center px-8">Facebook Page ID or API Key is missing.<br/>Please update client settings to see insights.</p>
@@ -419,15 +521,23 @@ export default function ClientInsights() {
               data={insightData}
               platform={activePlatform}
               timeRange={timeRange}
+              followersCount={activePlatform === 'tiktok' ? platformStats.tiktok?.follower_count : null}
             />
+
           )}
         </div>
 
-        <div className="col-span-12 space-y-8 lg:col-span-3">
-          <OverviewMetricsCard />
+        <div className="col-span-12 space-y-8 lg:col-span-3 min-w-0">
+
+          <OverviewMetricsCard 
+            platform={activePlatform} 
+            data={activePlatform === 'tiktok' ? platformStats.tiktok : {}} 
+          />
+
           <InitializePartnerCard />
           <SystemHealthCard />
         </div>
+
       </div>
     </section>
   );

@@ -92,7 +92,11 @@ export default function ClientDirectory() {
         instagramApiKey: formData.instagramApi || "",
         instagramAccountId: formData.instagramAccountId || "",
         tiktokApiKey: formData.tiktokApi || "",
+        tiktokClientKey: formData.tiktokClientKey || "",
+        tiktokClientSecret: formData.tiktokClientSecret || "",
+        tiktokRefreshToken: formData.tiktokRefreshToken || "",
       };
+
 
       if (formData.logo) {
         payload.logo = formData.logo;

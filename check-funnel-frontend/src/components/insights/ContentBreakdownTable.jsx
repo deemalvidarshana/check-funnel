@@ -27,11 +27,31 @@ function DownloadIcon() {
 
 // ---------------- Sub-component for Table Content ----------------
 // We extract this to ensure logic is 100% identical in both normal and maximized views.
-function TableContent({ reversedData, isInstagram, periodLabel }) {
+function TableContent({ sortedData, platform, periodLabel, followersCount }) {
+  const isInstagram = platform === 'instagram';
+  const isTiktok = platform === 'tiktok';
+
+
+
   return (
     <table className="w-full min-w-[1000px] lg:min-w-[1200px] border-collapse text-left">
       <thead>
-        {isInstagram ? (
+        {isTiktok ? (
+           <tr className="bg-[#f3f4f5] text-[10px] font-bold uppercase tracking-widest text-[#727782]">
+            <th className="px-6 py-4 whitespace-nowrap text-left">Upload Date</th>
+            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Total Views</th>
+            <th className="px-4 py-4 text-center">Likes</th>
+            <th className="px-4 py-4 text-center">Comments</th>
+            <th className="px-4 py-4 text-center">Shares</th>
+            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20 text-[#003870]">ER %</th>
+            <th className="px-6 py-4 text-center border-l border-[#c2c6d3]/20">Total Followers</th>
+          </tr>
+        ) : isInstagram ? (
+
+
+
+
+
           <tr className="bg-[#f3f4f5] text-[10px] font-bold uppercase tracking-widest text-[#727782]">
             <th className="px-6 py-4 whitespace-nowrap">{periodLabel}</th>
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">No of Posts</th>
@@ -65,25 +85,49 @@ function TableContent({ reversedData, isInstagram, periodLabel }) {
       </thead>
 
       <tbody className="text-xs font-semibold text-[#424751]">
-        {reversedData.map((row, index) => {
+        {sortedData.map((row, index) => {
           const isCurrent = index === 0;
+
 
           return (
             <tr
-              key={row.week}
+              key={isTiktok ? row.id : row.week}
               className={
-                isCurrent
+                !isTiktok && isCurrent
                   ? "border-l-4 border-[#003870] bg-[#003870]/5 font-bold"
                   : "border-b border-[#edeeef] hover:bg-[#f3f4f5]/50"
               }
             >
-              <td className="px-6 py-5 whitespace-nowrap font-bold text-[#191c1d]">
-                {row.week}
-                {isCurrent ? " (Current)" : ""}
-              </td>
-              
-              {isInstagram ? (
+              {isTiktok ? (
                 <>
+                  <td className="px-6 py-5 whitespace-nowrap text-left border-r border-[#c2c6d3]/10">
+                    {row.create_time ? new Date(row.create_time * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                  </td>
+                  <td className="px-4 py-5 text-center border-l border-[#c2c6d3]/10 font-bold">
+                    {row.view_count?.toLocaleString() ?? 0}
+                  </td>
+                  <td className="px-4 py-5 text-center">{row.like_count?.toLocaleString() ?? 0}</td>
+                  <td className="px-4 py-5 text-center">{row.comment_count?.toLocaleString() ?? 0}</td>
+                  <td className="px-4 py-5 text-center">{row.share_count?.toLocaleString() ?? 0}</td>
+                  <td className="px-4 py-5 text-center border-l border-[#c2c6d3]/10 font-bold text-[#003870]">
+                    {row.view_count > 0 
+                      ? (((row.like_count || 0) + (row.comment_count || 0) + (row.share_count || 0)) / row.view_count * 100).toFixed(2)
+                      : '0.00'}%
+                  </td>
+                  <td className="px-6 py-5 text-center border-l border-[#c2c6d3]/10 font-bold text-[#191c1d]">
+                    {followersCount?.toLocaleString() || 'N/A'}
+                  </td>
+                </>
+              ) : isInstagram ? (
+
+
+
+
+                <>
+                  <td className="px-6 py-5 whitespace-nowrap font-bold text-[#191c1d]">
+                    {row.week}
+                    {isCurrent ? " (Current)" : ""}
+                  </td>
                   <td className="px-4 py-5 text-center border-l border-[#c2c6d3]/10">{row.no_of_posts ?? 0}</td>
                   <td className="px-4 py-5 text-center">{row.no_of_reels ?? 0}</td>
                   <td className="px-4 py-5 text-center text-[#727782]">N/A</td>
@@ -98,6 +142,10 @@ function TableContent({ reversedData, isInstagram, periodLabel }) {
                 </>
               ) : (
                 <>
+                  <td className="px-6 py-5 whitespace-nowrap font-bold text-[#191c1d]">
+                    {row.week}
+                    {isCurrent ? " (Current)" : ""}
+                  </td>
                   <td className="px-4 py-5 text-center border-l border-[#c2c6d3]/10">{row.static_posts ?? 0}</td>
                   <td className="px-4 py-5 text-center">{row.no_of_reels ?? 0}</td>
                   <td className="px-4 py-5 text-center text-[#727782]">N/A</td>
@@ -111,6 +159,7 @@ function TableContent({ reversedData, isInstagram, periodLabel }) {
                   <td className="px-4 py-5 text-center font-bold text-[#191c1d]">{row.total_followers?.toLocaleString() ?? 0}</td>
                 </>
               )}
+
             </tr>
           );
         })}
@@ -120,13 +169,24 @@ function TableContent({ reversedData, isInstagram, periodLabel }) {
 }
 
 // ---------------- Main Component ----------------
-export default function ContentBreakdownTable({ clientName, data, platform = 'facebook', timeRange = '7' }) {
+export default function ContentBreakdownTable({ clientName, data, platform = 'facebook', timeRange = '7', followersCount }) {
   const [isMaximized, setIsMaximized] = useState(false);
-  const reversedData = [...(data || [])].reverse();
+
+  const isTiktok = platform === 'tiktok';
   const isInstagram = platform === 'instagram';
+  
+  // For TikTok, we want to ensure newest videos are at the top (create_time descending)
+  // For FB/IG, we keep the existing reverse chronological logic
+  const sortedData = isTiktok 
+    ? [...(data || [])].sort((a, b) => (b.create_time || 0) - (a.create_time || 0))
+    : [...(data || [])].reverse();
+
+
   const periodLabel = timeRange === '30'
     ? (isInstagram ? 'Month Range' : 'Month Period')
-    : (isInstagram ? 'Week Range' : 'Week Period');
+    : (isInstagram ? (isTiktok ? 'Video' : 'Week Range') : 'Week Period');
+
+
 
   // Prevent body scroll when maximized
   useEffect(() => {
@@ -139,14 +199,31 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
 
   const handleDownloadExcel = () => {
     let headers = [];
-    if (isInstagram) {
+    if (isTiktok) {
+      headers = ["Upload Date", "Total Views", "Likes", "Comments", "Shares", "ER %", "Total Followers"];
+    } else if (isInstagram) {
       headers = ["Week Period", "Posts", "Reels", "Stories", "Views (Organic)", "Views (Ads)", "Reach (Organic)", "Reach (Ads)", "Interactions", "New Follows", "Unfollows", "Total Followers"];
     } else {
       headers = ["Week Period", "Static Posts", "Reels", "Stories", "Views (Org.)", "Views (Ads)", "3s Views (Org.)", "3s Views (Ads)", "Interactions", "New Follows", "Unfollows", "Total Followers"];
     }
 
-    const rows = reversedData.map(row => {
-      if (isInstagram) {
+    const rows = sortedData.map(row => {
+
+      if (isTiktok) {
+        const er = row.view_count > 0 
+          ? (((row.like_count || 0) + (row.comment_count || 0) + (row.share_count || 0)) / row.view_count * 100).toFixed(2)
+          : '0.00';
+          
+        return [
+          row.create_time ? `"${new Date(row.create_time * 1000).toLocaleDateString('en-GB')}"` : '"N/A"',
+          row.view_count ?? 0,
+          row.like_count ?? 0,
+          row.comment_count ?? 0,
+          row.share_count ?? 0,
+          `"${er}%"`,
+          followersCount ?? 0
+        ];
+      } else if (isInstagram) {
         return [
           `"${row.week}"`,
           row.no_of_posts ?? 0,
@@ -179,6 +256,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
       }
     });
 
+
     const csvContent = [
       headers.join(","),
       ...rows.map(r => r.join(","))
@@ -200,8 +278,9 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
       <div className="overflow-hidden rounded-3xl border border-[#c2c6d3]/30 bg-white shadow-sm">
         <div className="border-b border-[#edeeef] p-6 flex items-center justify-between">
           <h3 className="text-xl font-bold text-[#191c1d]">
-            {clientName} {isInstagram ? 'Instagram' : 'Facebook'} Breakdown
+            {clientName} {isTiktok ? 'TikTok' : (isInstagram ? 'Instagram' : 'Facebook')} Breakdown
           </h3>
+
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownloadExcel}
@@ -222,8 +301,11 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
 
         <div className="relative group/table">
           <div className="overflow-x-auto no-scrollbar">
-            <TableContent reversedData={reversedData} isInstagram={isInstagram} periodLabel={periodLabel} />
+            <TableContent sortedData={sortedData} platform={platform} periodLabel={periodLabel} followersCount={followersCount} />
           </div>
+
+
+
           
           {/* Scroll indicators for mobile */}
           <div className="absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none opacity-0 group-hover/table:opacity-100 lg:hidden" />
@@ -273,9 +355,12 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
             {/* Modal Table Area */}
             <div className="flex-1 overflow-auto p-2">
               <div className="p-4">
-                <TableContent reversedData={reversedData} isInstagram={isInstagram} periodLabel={periodLabel} />
+                <TableContent sortedData={sortedData} platform={platform} periodLabel={periodLabel} followersCount={followersCount} />
               </div>
             </div>
+
+
+
 
             {/* Modal Footer (Optional status info) */}
             <div className="border-t border-[#edeeef] px-8 py-4 bg-[#f8f9fa] flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-[#727782]">

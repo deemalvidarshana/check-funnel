@@ -65,8 +65,12 @@ export class ClientService {
         'instagramApiKey',
         'instagramAccountId',
         'tiktokApiKey',
+        'tiktokClientKey',
+        'tiktokClientSecret',
+        'tiktokRefreshToken',
       ],
     });
+
   }
 
   async findOne(id: number): Promise<Client> {

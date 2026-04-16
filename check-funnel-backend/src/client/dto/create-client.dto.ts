@@ -50,4 +50,16 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   tiktokApiKey?: string;
-}
+
+  @IsOptional()
+  @IsString()
+  tiktokClientKey?: string;
+
+  @IsOptional()
+  @IsString()
+  tiktokClientSecret?: string;
+
+  @IsOptional()
+  @IsString()
+  tiktokRefreshToken?: string;
+}

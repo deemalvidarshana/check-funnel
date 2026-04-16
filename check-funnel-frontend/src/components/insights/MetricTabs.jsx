@@ -14,8 +14,15 @@ const igTabs = [
   "Audience Growth",
 ];
 
+const tkTabs = [
+  "Video Breakdown",
+  "Video Likes",
+];
+
+
 export default function MetricTabs({ activeTab, setActiveTab, platform = 'facebook' }) {
-  const tabs = platform === 'instagram' ? igTabs : fbTabs;
+  const tabs = platform === 'instagram' ? igTabs : (platform === 'tiktok' ? tkTabs : fbTabs);
+
 
   return (
     <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap gap-2 rounded-full bg-[#f3f4f5] p-1.5">

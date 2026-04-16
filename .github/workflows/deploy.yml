@@ -71,10 +71,10 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ═══════════════════════════════════════════════
-  # JOB 2: Deploy to AWS Lightsail
+  # JOB 2: Deploy to Hostinger VPS
   # ═══════════════════════════════════════════════
   deploy:
-    name: 🌐 Deploy to Lightsail
+    name: 🌐 Deploy to Hostinger
     runs-on: ubuntu-latest
     needs: build-and-push   # Build job finish වෙනකන් wait
 
@@ -82,21 +82,27 @@ jobs:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v4
 
-      - name: 🚀 SSH into Lightsail & Deploy
+      - name: 📂 Copy config files to Hostinger
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          source: "docker-compose.prod.yml,nginx/"
+          target: "/root/app"
+
+      - name: 🚀 SSH into Hostinger & Deploy
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
-          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
           command_timeout: 30m
           script: |
             set -e
 
             echo "📂 Moving to app directory..."
-            cd /home/ubuntu/app
-
-            echo "🔄 Pulling latest code..."
-            git pull origin main
+            cd /root/app
 
             echo "🔑 Logging into GitHub Container Registry..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
