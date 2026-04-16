@@ -104,6 +104,17 @@ jobs:
             echo "📂 Moving to app directory..."
             cd /root/app
 
+            echo "📝 Creating/Updating .env file..."
+            cat <<EOF > .env
+            DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_EXPIRES_IN=7d
+            NODE_ENV=production
+            EOF
+
             echo "🔑 Logging into GitHub Container Registry..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
               -u "${{ github.actor }}" --password-stdin
