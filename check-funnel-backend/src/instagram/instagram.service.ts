@@ -16,14 +16,16 @@ export class InstagramService {
     const { pageId, accessToken, until, timeRange } = dto;
     
     try {
-      const igId = await this.getInstagramId(pageId, accessToken);
-      const pageToken = await this.getPageToken(pageId, accessToken);
+      const cleanToken = accessToken ? accessToken.trim() : accessToken;
+      const igId = await this.getInstagramId(pageId, cleanToken);
+      const pageToken = await this.getPageToken(pageId, cleanToken);
+      const cleanPageToken = pageToken ? pageToken.trim() : pageToken;
 
       const weeks = timeRange === '30' ? this.generateLast6Months(until) : this.generateLast7Weeks(until);
       
       // Parallelize fetching for all 7 weeks
       const weeksData = await Promise.all(
-        weeks.map(week => this.analyseWeek(igId, pageToken, week, accessToken, pageId))
+        weeks.map(week => this.analyseWeek(igId, cleanPageToken, week, cleanToken, pageId))
       );
 
       return {
@@ -124,14 +126,22 @@ export class InstagramService {
 
   private async apiGet(url: string, params: any) {
     try {
-      const response = await axios.get(url, { params });
+      // Add User-Agent to keep Facebook API happy on hosted environments
+      const headers = { 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' 
+      };
+      
+      const response = await axios.get(url, { params, headers });
       return response.data;
     } catch (error) {
       const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error.response?.data || error.message;
       
-      // Log error for debugging on hosted environment
-      console.error(`[Instagram API Error] URL: ${url}`);
+      // Mask token in logs for security
+      const safeParams = { ...params };
+      if (safeParams.access_token) safeParams.access_token = '***_MASKED_***';
+
+      console.error(`[Instagram API Error] URL: ${url} | Params: ${JSON.stringify(safeParams)}`);
       console.error(`[Instagram API Error] Status: ${status}`);
       console.error(`[Instagram API Error] Payload:`, JSON.stringify(message));
       
