@@ -1,6 +1,8 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
 import { format, addDays, subDays, parseISO, isValid, startOfWeek, differenceInDays } from 'date-fns';
+import * as https from 'https';
+import * as http from 'http';
 
 import { GetIgInsightsDto } from './dto/get-ig-insights.dto';
 
@@ -17,15 +19,17 @@ export class InstagramService {
 
     try {
       const cleanToken = accessToken ? accessToken.trim() : accessToken;
-      const igId = await this.getInstagramId(pageId, cleanToken);
-      const pageToken = await this.getPageToken(pageId, cleanToken);
+      const cleanPageId = pageId ? pageId.trim() : pageId;
+
+      const igId = await this.getInstagramId(cleanPageId, cleanToken);
+      const pageToken = await this.getPageToken(cleanPageId, cleanToken);
       const cleanPageToken = pageToken ? pageToken.trim() : pageToken;
 
       const weeks = timeRange === '30' ? this.generateLast6Months(until) : this.generateLast7Weeks(until);
 
       // Parallelize fetching for all 7 weeks
       const weeksData = await Promise.all(
-        weeks.map(week => this.analyseWeek(igId, cleanPageToken, week, cleanToken, pageId))
+        weeks.map(week => this.analyseWeek(igId, cleanPageToken, week, cleanToken, cleanPageId))
       );
 
       return {
@@ -126,23 +130,35 @@ export class InstagramService {
 
   private async apiGet(url: string, params: any) {
     try {
+      // Create agents to force IPv4 (family: 4)
+      // This often solves "500 Internal Server Error" issues on VPS where IPv6 route is unstable
+      const httpsAgent = new https.Agent({ family: 4 });
+      const httpAgent = new http.Agent({ family: 4 });
+
       // Add User-Agent to keep Facebook API happy on hosted environments
       const headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       };
 
-      const response = await axios.get(url, { params, headers });
+      const response = await axios.get(url, {
+        params,
+        headers,
+        httpsAgent,
+        httpAgent,
+        timeout: 15000 // 15s timeout
+      });
       return response.data;
     } catch (error) {
       const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error.response?.data || error.message;
+      const errorCode = error.code || 'NO_CODE';
 
       // Mask token in logs for security
       const safeParams = { ...params };
       if (safeParams.access_token) safeParams.access_token = '***_MASKED_***';
 
       console.error(`[Instagram API Error] URL: ${url} | Params: ${JSON.stringify(safeParams)}`);
-      console.error(`[Instagram API Error] Status: ${status}`);
+      console.error(`[Instagram API Error] Status: ${status} | Code: ${errorCode}`);
       console.error(`[Instagram API Error] Payload:`, JSON.stringify(message));
 
       throw new HttpException(message, status);
