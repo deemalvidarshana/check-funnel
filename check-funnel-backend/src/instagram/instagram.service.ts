@@ -129,6 +129,12 @@ export class InstagramService {
     } catch (error) {
       const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = error.response?.data || error.message;
+      
+      // Log error for debugging on hosted environment
+      console.error(`[Instagram API Error] URL: ${url}`);
+      console.error(`[Instagram API Error] Status: ${status}`);
+      console.error(`[Instagram API Error] Payload:`, JSON.stringify(message));
+      
       throw new HttpException(message, status);
     }
   }
@@ -148,9 +154,16 @@ export class InstagramService {
   }
 
   private apiUntil(untilStr: string) {
-    // Add 1 day to until to align with Dashboard (UTC+5:30 boundary)
-    const dt = addDays(parseISO(untilStr), 1);
-    return format(dt, 'yyyy-MM-dd');
+    // Current week boundary logic
+    const dt = parseISO(untilStr);
+    const tomorrow = addDays(dt, 1);
+
+    // Safeguard: Don't go beyond today's UTC date + 1 for insights stability
+    const nowUtc = new Date();
+    const maxUntil = addDays(nowUtc, 1);
+    
+    const finalDate = tomorrow > maxUntil ? maxUntil : tomorrow;
+    return format(finalDate, 'yyyy-MM-dd');
   }
 
   private sumTotalValues(data: any[], metricName: string) {
@@ -393,6 +406,9 @@ export class InstagramService {
   private async analyseWeek(igId: string, pageToken: string, week: any, accessToken: string, pageId: string) {
     const { since, until, label } = week;
     
+    // Debug log for checking call parameters on hosted
+    console.log(`[Instagram Debug] Analysing: ${label} | Since: ${since} | Until: ${until}`);
+
     // Multi-level parallelization: Fetch all metric categories for a week simultaneously
     const [postsData, views, reach, interactions, followers] = await Promise.all([
       this.fetchPostsAndReels(igId, since, until, accessToken),
