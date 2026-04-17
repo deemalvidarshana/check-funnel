@@ -531,7 +531,12 @@ export default function ClientInsights() {
 
           <OverviewMetricsCard 
             platform={activePlatform} 
-            data={activePlatform === 'tiktok' ? platformStats.tiktok : {}} 
+            timeRange={timeRange}
+            allData={
+              activePlatform === 'tiktok' 
+                ? [platformStats.tiktok] 
+                : insightData
+            } 
           />
 
           <InitializePartnerCard />

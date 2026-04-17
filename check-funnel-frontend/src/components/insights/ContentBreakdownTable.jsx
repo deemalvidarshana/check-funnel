@@ -76,7 +76,7 @@ function TableContent({ sortedData, platform, periodLabel, followersCount }) {
             <th className="px-4 py-4 text-center">Views (Ads)</th>
             <th className="px-4 py-4 text-center">3s Views (Org.)</th>
             <th className="px-4 py-4 text-center">3s Views (Ads)</th>
-            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Interactions</th>
+            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Engagements</th>
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">New Follows</th>
             <th className="px-4 py-4 text-center">Unfollows</th>
             <th className="px-4 py-4 text-center">Total Followers</th>
@@ -204,7 +204,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
     } else if (isInstagram) {
       headers = ["Week Period", "Posts", "Reels", "Stories", "Views (Organic)", "Views (Ads)", "Reach (Organic)", "Reach (Ads)", "Interactions", "New Follows", "Unfollows", "Total Followers"];
     } else {
-      headers = ["Week Period", "Static Posts", "Reels", "Stories", "Views (Org.)", "Views (Ads)", "3s Views (Org.)", "3s Views (Ads)", "Interactions", "New Follows", "Unfollows", "Total Followers"];
+      headers = ["Week Period", "Static Posts", "Reels", "Stories", "Views (Org.)", "Views (Ads)", "3s Views (Org.)", "3s Views (Ads)", "Engagements", "New Follows", "Unfollows", "Total Followers"];
     }
 
     const rows = sortedData.map(row => {
