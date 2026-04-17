@@ -9,6 +9,8 @@ export function SidebarProvider({ children }) {
     return saved === "true";
   });
 
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
   const toggleSidebar = () => {
     setIsCollapsed((prev) => {
       const newVal = !prev;
@@ -17,8 +19,19 @@ export function SidebarProvider({ children }) {
     });
   };
 
+  const toggleMobileMenu = () => {
+    setIsMobileOpen(prev => !prev);
+  };
+
   return (
-    <SidebarContext.Provider value={{ isCollapsed, toggleSidebar, setIsCollapsed }}>
+    <SidebarContext.Provider value={{ 
+      isCollapsed, 
+      toggleSidebar, 
+      setIsCollapsed,
+      isMobileOpen,
+      setIsMobileOpen,
+      toggleMobileMenu
+    }}>
       {children}
     </SidebarContext.Provider>
   );

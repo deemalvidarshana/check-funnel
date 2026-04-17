@@ -135,7 +135,7 @@ const navItems = [
 
 // ---------------- Sidebar Component ----------------
 export default function Sidebar() {
-  const { isCollapsed, toggleSidebar } = useSidebar();
+  const { isCollapsed, toggleSidebar, isMobileOpen, setIsMobileOpen } = useSidebar();
   const [user, setUser] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
@@ -198,15 +198,26 @@ export default function Sidebar() {
           onClose={() => setToast(null)} 
         />
       )}
+
+      {/* Mobile Backdrop */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[55] lg:hidden animate-in fade-in duration-300"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
       <aside 
-        className={`hidden lg:flex flex-col fixed left-0 top-0 h-screen bg-slate-50 border-r border-slate-200 z-[60] py-8 transition-all duration-300 ease-in-out ${
-          isCollapsed ? "w-20" : "w-72"
+        className={`fixed left-0 top-0 h-screen bg-slate-50 border-r border-slate-200 z-[60] py-8 transition-all duration-300 ease-in-out flex flex-col ${
+          isCollapsed ? "lg:w-20" : "lg:w-72"
+        } ${
+          isMobileOpen ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* Toggle Button */}
+        {/* Toggle Button (Desktop Only) */}
         <button
           onClick={toggleSidebar}
-          className="absolute -right-3 top-10 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-blue-700 hover:border-blue-200 z-50"
+          className="absolute -right-3 top-10 hidden lg:flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-blue-700 hover:border-blue-200 z-50"
         >
           <ChevronIcon direction={isCollapsed ? "right" : "left"} />
         </button>
