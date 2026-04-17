@@ -66,12 +66,20 @@ export default function OverviewMetricsCard({ platform = 'facebook', allData = [
       { label: "ER by Followers", value: `${erFollowers}%` },
       { label: "ER by Reach", value: `${erReach}%` },
     ];
+  } else if (isFB || isIG) {
+    // Show N/A instead of hardcoded placeholders while loading or if data is missing
+    metrics = [
+      { label: "Total Followers", value: "N/A" },
+      { label: isFB ? "Total Engagements" : "Content Interactions", value: "N/A" },
+      { label: "ER by Followers", value: "N/A" },
+      { label: isFB ? "ER by Views" : "ER by Reach", value: "N/A" },
+    ];
   } else {
     metrics = [
-      { label: "Avg Daily Reach", value: "12.4K" },
-      { label: "Share Rate", value: "1.2%" },
-      { label: "Profile Visits", value: "842" },
-      { label: "Bio Clicks", value: "156" },
+      { label: "Total Followers", value: "N/A" },
+      { label: "Total Interactions", value: "N/A" },
+      { label: "ER by Followers", value: "N/A" },
+      { label: "ER by Reach", value: "N/A" },
     ];
   }
 

@@ -200,6 +200,33 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
 // ---------------- Main Component ----------------
 export default function ContentVelocityChart({ title, subtitle, data, metrics, onNext, onPrev, hidePoints = false }) {
   const [isMaximized, setIsMaximized] = useState(false);
+  
+  const defaultMetrics = metrics || [
+    { key: "static_posts", label: "Posts", color: "#003870" },
+    { key: "no_of_stories", label: "Stories", color: "#4553c1" },
+    { key: "no_of_reels", label: "Reels", color: "#863802" },
+  ];
+
+  const [visibleKeys, setVisibleKeys] = useState(defaultMetrics.map(m => m.key));
+
+  // Reset visible keys when metrics change (e.g. when switching tabs)
+  useEffect(() => {
+    setVisibleKeys(defaultMetrics.map(m => m.key));
+  }, [metrics]);
+
+  const toggleMetric = (key) => {
+    setVisibleKeys(prev => {
+      if (prev.includes(key)) {
+        // Don't allow deselecting last one? Or allow it? 
+        // User asked for checkboxes, usually you want at least one or empty graph.
+        if (prev.length === 1) return prev; 
+        return prev.filter(k => k !== key);
+      }
+      return [...prev, key];
+    });
+  };
+
+  const activeMetrics = defaultMetrics.filter(m => visibleKeys.includes(m.key));
 
   // Prevent body scroll when maximized
   useEffect(() => {
@@ -210,15 +237,9 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
     }
   }, [isMaximized]);
 
-  const activeMetrics = metrics || [
-    { key: "static_posts", label: "Posts", color: "#003870" },
-    { key: "no_of_stories", label: "Stories", color: "#4553c1" },
-    { key: "no_of_reels", label: "Reels", color: "#863802" },
-  ];
-
   return (
     <>
-      <div className="rounded-3xl border border-[#c2c6d3]/30 bg-white p-4 sm:p-6 shadow-sm overflow-hidden">
+      <div className="rounded-3xl border border-[#c2c6d3]/30 bg-white p-4 sm:p-6 shadow-sm overflow-hiddenTransition-all duration-300">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex-1">
             <h2 className="text-xl sm:text-2xl font-bold text-[#191c1d] leading-tight">{title}</h2>
@@ -226,12 +247,29 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-            <div className="flex flex-wrap gap-3 sm:gap-4 text-[10px] sm:text-xs font-semibold">
-              {activeMetrics.map((m) => (
-                <div key={m.key} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: m.color }} />
-                  <span>{m.label}</span>
-                </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#727782]">
+              {defaultMetrics.map((m) => (
+                <label 
+                  key={m.key} 
+                  className="flex items-center gap-2 cursor-pointer group"
+                >
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={visibleKeys.includes(m.key)}
+                      onChange={() => toggleMetric(m.key)}
+                      className="sr-only"
+                    />
+                    <div className={`h-4 w-4 rounded border-2 transition-all ${visibleKeys.includes(m.key) ? 'border-transparent' : 'border-[#c2c6d3]'}`} style={{ backgroundColor: visibleKeys.includes(m.key) ? m.color : 'transparent' }}>
+                      {visibleKeys.includes(m.key) && (
+                        <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`transition-colors ${visibleKeys.includes(m.key) ? 'text-[#191c1d]' : 'text-[#727782]/50'}`}>{m.label}</span>
+                </label>
               ))}
             </div>
 
@@ -323,11 +361,28 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
             {/* Modal Footer */}
             <div className="border-t border-[#edeeef] px-6 py-4 sm:px-10 sm:py-6 bg-[#f8f9fa] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-[#727782]">
               <div className="flex flex-wrap gap-4 sm:gap-6">
-                {activeMetrics.map((m) => (
-                  <div key={m.key} className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
-                    <span>{m.label}</span>
-                  </div>
+                {defaultMetrics.map((m) => (
+                  <label 
+                    key={m.key} 
+                    className="flex items-center gap-2 cursor-pointer group"
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={visibleKeys.includes(m.key)}
+                        onChange={() => toggleMetric(m.key)}
+                        className="sr-only"
+                      />
+                      <div className={`h-4 w-4 rounded border-2 transition-all ${visibleKeys.includes(m.key) ? 'border-transparent' : 'border-[#c2c6d3]'}`} style={{ backgroundColor: visibleKeys.includes(m.key) ? m.color : 'transparent' }}>
+                        {visibleKeys.includes(m.key) && (
+                          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <span className={`transition-colors ${visibleKeys.includes(m.key) ? 'text-[#191c1d]' : 'text-[#727782]/50'}`}>{m.label}</span>
+                  </label>
                 ))}
               </div>
               <span className="opacity-70 sm:opacity-100">Trend Accuracy Verified</span>
