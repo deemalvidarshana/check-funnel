@@ -412,8 +412,9 @@ export default function PublicReport() {
           <div className="col-span-12 space-y-10 lg:col-span-3">
             <OverviewMetricsCard 
               platform={activePlatform} 
-              data={activePlatform === 'tiktok' ? platformStats.tiktok : {}} 
+              allData={activePlatform === 'tiktok' ? [platformStats.tiktok] : insightData} 
             />
+
 
             
             <div className="p-8 rounded-[32px] bg-[linear-gradient(135deg,#003870_0%,#005cb8_100%)] text-white shadow-2xl relative overflow-hidden group">
