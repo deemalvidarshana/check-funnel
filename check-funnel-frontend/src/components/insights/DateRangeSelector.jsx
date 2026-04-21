@@ -4,11 +4,13 @@ export default function DateRangeSelector({ selectedRange, onRangeChange }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const ranges = [
-    { label: "Last 7 Days", value: "7" },
-    { label: "Last Months", value: "30" },
+    { label: "Last 7 Weeks", value: "7" },
+    { label: "Last 6 Months", value: "30" },
   ];
 
-  const currentLabel = ranges.find((r) => r.value === selectedRange)?.label || "Last 7 Days";
+
+  const currentLabel = ranges.find((r) => r.value === selectedRange)?.label || "Last 7 Weeks";
+
 
   return (
     <div className="relative">
