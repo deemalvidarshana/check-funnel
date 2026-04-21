@@ -255,7 +255,7 @@ export default function PublicReport() {
         title: "Likes Breakdown",
         subtitle: "Performance of Last 7 Videos",
         metrics: [
-          { key: "like_count", label: "Likes", color: "#e11d48" },
+          { key: "like_count", label: "Likes", color: "#003870" },
         ],
       },
     };
