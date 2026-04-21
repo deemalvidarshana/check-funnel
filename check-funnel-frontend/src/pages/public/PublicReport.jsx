@@ -346,9 +346,24 @@ export default function PublicReport() {
         {/* Header */}
         <header className="mb-8 sm:mb-12 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4 sm:gap-6">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-[#003870] flex items-center justify-center text-white text-2xl sm:text-3xl font-black shadow-lg flex-shrink-0">
-                {client.name.charAt(0)}
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-[#f3f4f5] border border-[#c2c6d3]/30 flex items-center justify-center overflow-hidden shadow-lg flex-shrink-0">
+              {client.logoData ? (
+                <img 
+                  src={`${import.meta.env.VITE_API_BASE_URL || '/api'}/public-insights/logo/${shareToken}`}
+                  alt={client.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(client.name)}&background=003870&color=fff&size=128`;
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full bg-[#003870] flex items-center justify-center text-white text-2xl sm:text-3xl font-black">
+                  {client.name.charAt(0)}
+                </div>
+              )}
             </div>
+
             <div>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-[#191c1d] mb-1 leading-tight">
                 {client.name}: {platformLabel} Insights

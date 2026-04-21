@@ -1,4 +1,5 @@
-import { Controller, Get, Param, NotFoundException, Query } from '@nestjs/common';
+import { Controller, Get, Param, NotFoundException, Query, Res } from '@nestjs/common';
+import * as express from 'express';
 import { ClientService } from '../client/client.service';
 import { FacebookService } from '../facebook/facebook.service';
 import { InstagramService } from '../instagram/instagram.service';
@@ -36,9 +37,23 @@ export class PublicInsightsController {
 
     return {
       name: client.name,
-      logoData: client.logoData,
+      logoData: !!client.logoData, // Just return if logo exists
       activeChannels: active,
     };
+  }
+
+  @Get('logo/:shareToken')
+  async getLogo(
+    @Param('shareToken') shareToken: string,
+    @Res() res: express.Response,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    if (!client.logoData) {
+      throw new NotFoundException('Logo not found');
+    }
+    // Simple MIME detection
+    res.set('Content-Type', 'image/jpeg');
+    res.send(client.logoData);
   }
 
   @Get('facebook/:shareToken')
