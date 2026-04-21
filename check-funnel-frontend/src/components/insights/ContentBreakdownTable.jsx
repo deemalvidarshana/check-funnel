@@ -74,8 +74,6 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Reach (Organic)</th>
             <th className="px-4 py-4 text-center">Reach (Ads)</th>
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Content Interactions</th>
-            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">New Follows</th>
-            <th className="px-4 py-4 text-center">Unfollows</th>
             <th className="px-4 py-4 text-center">Total Followers</th>
           </tr>
         ) : (
@@ -161,12 +159,6 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
                   </td>
                   <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 font-bold ${getTrendColor(row.content_interactions?.total, nextRow, 'content_interactions.total')} text-[#003870]`}>
                     {row.content_interactions?.total?.toLocaleString() ?? 0}
-                  </td>
-                  <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 ${getTrendColor(row.new_follows, nextRow, 'new_follows')}`}>
-                    {row.new_follows ?? 0}
-                  </td>
-                  <td className={`px-4 py-5 text-center ${getTrendColor(row.unfollows, nextRow, 'unfollows')}`}>
-                    {row.unfollows ?? 0}
                   </td>
                   <td className={`px-4 py-5 text-center font-bold text-[#191c1d] ${getTrendColor(row.total_followers, nextRow, 'total_followers')}`}>
                     {row.total_followers?.toLocaleString() ?? 0}
@@ -254,7 +246,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
     if (isTiktok) {
       headers = ["Upload Date", "Total Views", "Likes", "Comments", "Shares", "ER %", "Total Followers"];
     } else if (isInstagram) {
-      headers = ["Week Period", "Posts", "Reels", "Views (Organic)", "Views (Ads)", "Reach (Organic)", "Reach (Ads)", "Interactions", "New Follows", "Unfollows", "Total Followers"];
+      headers = ["Week Period", "Posts", "Reels", "Views (Organic)", "Views (Ads)", "Reach (Organic)", "Reach (Ads)", "Interactions", "Total Followers"];
     } else {
       headers = ["Week Period", "Static Posts", "Reels", "Views (Org.)", "Views (Ads)", "3s Views (Org.)", "3s Views (Ads)", "Engagements", "New Follows", "Unfollows", "Total Followers"];
     }
@@ -285,8 +277,6 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
           row.reach?.organic ?? 0,
           row.reach?.ads ?? 0,
           row.content_interactions?.total ?? 0,
-          row.new_follows ?? 0,
-          row.unfollows ?? 0,
           row.total_followers ?? 0
         ];
       } else {
