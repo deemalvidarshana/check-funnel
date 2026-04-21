@@ -43,13 +43,13 @@ export default function OverviewMetricsCard({ platform = 'facebook', allData = [
     const totalFollowers = data.total_followers || 0;
     const totalViews = (data.views?.organic || 0) + (data.views?.ads || 0);
 
-    const erFollowers = totalFollowers > 0 ? ((totalEng * 100) / totalFollowers).toFixed(2) : "0.00";
+    const erFollowers = totalFollowers > 0 ? (totalEng / totalFollowers).toFixed(2) : "0.00";
     const erViews = totalViews > 0 ? ((totalEng * 100) / totalViews).toFixed(2) : "0.00";
 
     metrics = [
       { label: "Total Followers", value: totalFollowers?.toLocaleString() || "0" },
       { label: "Total Engagements", value: totalEng?.toLocaleString() || "0" },
-      { label: "E R by Followers", value: `${erFollowers}%` },
+      { label: "E R by Followers", value: erFollowers },
       { label: "E R by Views", value: `${erViews}%` },
     ];
   } else if (isIG && data?.week) {
@@ -57,13 +57,13 @@ export default function OverviewMetricsCard({ platform = 'facebook', allData = [
     const totalFollowers = data.total_followers || 0;
     const totalReach = (data.reach?.organic || 0) + (data.reach?.ads || 0);
 
-    const erFollowers = totalFollowers > 0 ? ((totalInt * 100) / totalFollowers).toFixed(2) : "0.00";
+    const erFollowers = totalFollowers > 0 ? (totalInt / totalFollowers).toFixed(2) : "0.00";
     const erReach = totalReach > 0 ? ((totalInt * 100) / totalReach).toFixed(2) : "0.00";
 
     metrics = [
       { label: "Total Followers", value: totalFollowers?.toLocaleString() || "0" },
       { label: "Content Interactions", value: totalInt?.toLocaleString() || "0" },
-      { label: "ER by Followers", value: `${erFollowers}%` },
+      { label: "ER by Followers", value: erFollowers },
       { label: "ER by Reach", value: `${erReach}%` },
     ];
   } else if (isFB || isIG) {
