@@ -99,7 +99,7 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
   return (
     <div ref={containerRef} className="w-full h-full overflow-hidden">
       <svg
-        viewBox={`-50 -40 ${chartWidth + 100} ${height + 80}`}
+        viewBox={`-50 -40 ${chartWidth + 100} ${height + 100}`}
         className="h-full w-full transition-all duration-300"
         preserveAspectRatio="none"
       >
@@ -180,11 +180,12 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
               <text
                 x={x}
                 y={height + 25}
-                textAnchor={textAnchor}
+                textAnchor={chartWidth < 500 ? "end" : "middle"}
                 fontSize="10"
                 fontWeight={index === data.length - 1 ? "800" : "600"}
                 fill={index === data.length - 1 ? "#003870" : "#727782"}
                 className="transition-all duration-300"
+                transform={chartWidth < 500 ? `rotate(-35, ${x}, ${height + 25})` : ""}
               >
                 {item.week}
               </text>
