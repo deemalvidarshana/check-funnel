@@ -131,6 +131,9 @@ export default function CompetitorAnalysis() {
 
   // ─── Metric Cards (dynamic) ────────────────────────────
   const metricCardsData = useMemo(() => {
+    const platform = activeTab?.toLowerCase();
+    const isAudienceBased = platform === 'instagram' || platform === 'facebook';
+    
     const totalPosts = selectedSummary.totalPosts || 1;
     const avgViews = Math.round(selectedSummary.totalViews / totalPosts);
     const avgLikes = Math.round(selectedSummary.totalLikes / totalPosts);
@@ -138,13 +141,20 @@ export default function CompetitorAnalysis() {
       ? Math.max(...filteredPosts.map(p => p.views || 0))
       : 0;
 
-    // Calculate rank among competitors (by avg views)
+    // Calculate rank among competitors (by avg views or engagement)
     const ranked = summary
-      .map(s => ({
-        username: s.username,
-        avgViews: Number(s.totalPosts) > 0 ? Number(s.totalViews) / Number(s.totalPosts) : 0,
-      }))
-      .sort((a, b) => b.avgViews - a.avgViews);
+      .map(s => {
+        const tp = Number(s.totalPosts) || 0;
+        let score = 0;
+        if (isAudienceBased) {
+          const totalEng = (Number(s.totalLikes) || 0) + (Number(s.totalComments) || 0) + (Number(s.totalShares) || 0);
+          score = tp > 0 ? totalEng / tp : 0;
+        } else {
+          score = tp > 0 ? Number(s.totalViews) / tp : 0;
+        }
+        return { username: s.username, score };
+      })
+      .sort((a, b) => b.score - a.score);
     const totalCompetitors = ranked.length;
     let rank = totalCompetitors;
     if (selectedCompetitor !== 'all') {
@@ -152,8 +162,7 @@ export default function CompetitorAnalysis() {
       rank = idx >= 0 ? idx + 1 : totalCompetitors;
     }
 
-    const platform = activeTab?.toLowerCase();
-    const isAudienceBased = platform === 'instagram' || platform === 'facebook';
+
     
     // Dynamic Metric Labels & Icons
     const avgLabel = isAudienceBased ? "Avg Eng./Post" : "Avg Views/Post";
