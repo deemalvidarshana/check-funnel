@@ -25,7 +25,7 @@ function TopContentCard({ data, onInfoClick }) {
       try {
         const res = await api.get(`/competitors/thumbnail?url=${encodeURIComponent(data.postUrl)}`);
         if (!ignore && res.data?.thumbnail) {
-          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
           const proxyUrl = `${baseUrl}/competitors/proxy-image?url=${encodeURIComponent(res.data.thumbnail)}`;
           setThumbnail(proxyUrl);
         }

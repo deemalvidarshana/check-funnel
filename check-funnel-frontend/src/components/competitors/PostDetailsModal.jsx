@@ -25,7 +25,7 @@ export default function PostDetailsModal({ postId, onClose }) {
           try {
             const thumbRes = await api.get(`/competitors/thumbnail?url=${encodeURIComponent(postData.postUrl)}`);
             if (thumbRes.data?.thumbnail) {
-              const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+              const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
               const proxyUrl = `${baseUrl}/competitors/proxy-image?url=${encodeURIComponent(thumbRes.data.thumbnail)}`;
               setThumbnail(proxyUrl);
             }
