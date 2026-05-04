@@ -8,9 +8,11 @@ import { InstagramModule } from './instagram/instagram.module';
 import { UserModule } from './user/user.module';
 import { PublicInsightsModule } from './public-insights/public-insights.module';
 import { TiktokModule } from './tiktok/tiktok.module';
+import { CompetitorModule } from './competitor/competitor.module';
 import { User } from './auth/user.entity';
-
 import { Client } from './client/client.entity';
+import { TrackedAccount } from './competitor/entities/tracked-account.entity';
+import { SocialMediaPost } from './competitor/entities/social-media-post.entity';
 
 @Module({
   imports: [
@@ -24,7 +26,7 @@ import { Client } from './client/client.entity';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [User, Client],
+        entities: [User, Client, TrackedAccount, SocialMediaPost],
         synchronize: true,
         logging: true,
       }),
@@ -37,6 +39,7 @@ import { Client } from './client/client.entity';
     UserModule,
     PublicInsightsModule,
     TiktokModule,
+    CompetitorModule,
   ],
 })
 
