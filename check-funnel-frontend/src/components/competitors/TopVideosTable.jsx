@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import PostDetailsModal from './PostDetailsModal';
 
 const fmt = (num) => {
   if (!num || isNaN(num)) return '0';
@@ -11,6 +12,7 @@ export default function TopVideosTable({ allPosts, competitors }) {
   const [selectedBrand, setSelectedBrand] = useState('all');
   const [isOpen, setIsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedPostId, setSelectedPostId] = useState(null);
   const dropdownRef = useRef(null);
   const itemsPerPage = 10;
 
@@ -58,7 +60,10 @@ export default function TopVideosTable({ allPosts, competitors }) {
       .map((p, idx) => {
         const name = p.trackedAccount?.displayName || p.trackedAccount?.username || '';
         const caption = p.rawExtensionData?.caption || p.rawExtensionData?.caption_text || p.rawExtensionData?.Description || '';
-        const totalEng = (p.likes || 0) + (p.commentsCount || 0) + (p.shares || 0);
+        const likes = Number(p.likes) || 0;
+        const comments = Number(p.commentsCount) || 0;
+        const shares = Number(p.shares) || 0;
+        const totalEng = likes + comments + shares;
         
         // Dynamic Engagement Rate Calculation
         const pform = p.platform?.toLowerCase();
@@ -74,25 +79,27 @@ export default function TopVideosTable({ allPosts, competitors }) {
           // Try multiple sources for follower count
           const followers = Number(p.rawExtensionData?.follower_count) || 
                             Number(p.rawExtensionData?.profile_followers) || 
-                            Number(p.rawExtensionData?.['Followers Count']) || // Facebook column
+                            Number(p.rawExtensionData?.['Followers Count']) || 
+                            Number(p.rawExtensionData?.followers) ||
                             Number(comp?.followerCount) || 0;
           
           const totalEngagement = Number(totalEng) || 0;
           
           if (followers > 0) {
             const rate = (totalEngagement / followers) * 100;
-            // If the rate is very small but > 0, show at least 0.1%
-            engRate = rate > 0 && rate < 0.1 ? '0.1%' : rate.toFixed(1) + '%';
+            // If the rate is very small but > 0, show at least 0.01%
+            engRate = rate > 0 && rate < 0.01 ? '0.01%' : rate.toFixed(2) + '%';
           } else {
             engRate = '0%';
           }
         } else {
           const views = Number(p.views) || 0;
           const totalEngagement = Number(totalEng) || 0;
-          engRate = views > 0 ? ((totalEngagement / views) * 100).toFixed(1) + '%' : 'N/A';
+          engRate = views > 0 ? ((totalEngagement / views) * 100).toFixed(2) + '%' : 'N/A';
         }
 
         return {
+          id: p.id,
           rank: idx + 1,
           brand: name,
           brandInitial: name.charAt(0).toUpperCase(),
@@ -102,13 +109,32 @@ export default function TopVideosTable({ allPosts, competitors }) {
           shares: fmt(p.shares),
           saves: fmt(p.rawExtensionData?.saves || 0),
           engRate,
+          postUrl: p.postUrl,
           caption: caption.substring(0, 80) + (caption.length > 80 ? '...' : ''),
         };
       });
-  }, [allPosts, selectedBrand]);
+  }, [allPosts, selectedBrand, competitors]);
 
   const totalPages = Math.ceil(allRankedData.length / itemsPerPage);
   const tableData = allRankedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const cleanFbUrl = (url) => {
+    if (!url) return '#';
+    return url.split('&fbclid=')[0].split('?fbclid=')[0].split('/&fbclid=')[0];
+  };
 
   const currentSelection = selectedBrand === 'all' 
     ? 'All Competitors' 
@@ -122,7 +148,7 @@ export default function TopVideosTable({ allPosts, competitors }) {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
         <div>
           <h2 className="text-lg font-bold text-[#191c1d] flex items-center gap-2">
-            Top Performing {isAudienceBased ? 'Content' : 'Videos'}
+            Top {isAudienceBased ? 'Engagement Content' : 'Performing Videos'}
             <svg className="w-4 h-4 text-[#727782] cursor-pointer" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"></circle>
               <path d="M12 16v-4"></path>
@@ -186,7 +212,7 @@ export default function TopVideosTable({ allPosts, competitors }) {
         </div>
       </div>
       
-      <div className="overflow-x-auto w-full flex-1">
+      <div className="overflow-x-auto w-full flex-1 min-h-[400px]">
         <table className={`w-full ${isAudienceBased ? 'min-w-[700px]' : 'min-w-[900px]'} text-left border-collapse`}>
           <thead>
             <tr className="border-b border-slate-100 text-[11px] font-bold text-[#727782] uppercase tracking-wider bg-blue-50/30 rounded-t-lg">
@@ -198,7 +224,8 @@ export default function TopVideosTable({ allPosts, competitors }) {
               <th className="py-3 px-4 text-center">Shares</th>
               {!isAudienceBased && <th className="py-3 px-4 text-center">Saves</th>}
               <th className="py-3 px-4 text-center">Eng. Rate</th>
-              <th className="py-3 px-4 rounded-tr-lg">Caption</th>
+              <th className="py-3 px-4">Caption</th>
+              <th className="py-3 px-4 text-center rounded-tr-lg">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -234,6 +261,62 @@ export default function TopVideosTable({ allPosts, competitors }) {
                 <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.engRate}</td>
                 <td className="py-3 px-4 text-xs font-medium text-slate-500 max-w-xs truncate" title={row.caption}>
                   {row.caption}
+                </td>
+                <td className="py-3 px-4 text-center relative">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuId(openMenuId === row.id ? null : row.id);
+                    }}
+                    className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-[#003870] transition-all"
+                    title="Actions"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="1" />
+                      <circle cx="12" cy="5" r="1" />
+                      <circle cx="12" cy="19" r="1" />
+                    </svg>
+                  </button>
+
+                  {openMenuId === row.id && (
+                    <div 
+                      ref={menuRef}
+                      className="absolute right-0 top-full z-[100] mt-1 w-48 bg-white rounded-2xl shadow-2xl border border-[#c2c6d3]/20 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                    >
+                      <button 
+                        onClick={() => {
+                          setSelectedPostId(row.id);
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-[#003870] hover:bg-[#f3f4f5] transition-all"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                          </svg>
+                        </div>
+                        View Details
+                      </button>
+                      <a 
+                        href={cleanFbUrl(row.postUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setOpenMenuId(null)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-[#003870] border-t border-slate-50 hover:bg-[#f3f4f5] transition-all"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#2563eb]">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                          </svg>
+                        </div>
+                        View on Platform
+                      </a>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -281,6 +364,14 @@ export default function TopVideosTable({ allPosts, competitors }) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Post Details Modal */}
+      {selectedPostId && (
+        <PostDetailsModal 
+          postId={selectedPostId} 
+          onClose={() => setSelectedPostId(null)} 
+        />
       )}
     </div>
   );

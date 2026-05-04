@@ -14,7 +14,7 @@ export default function AverageViewsChart({ data, activeTab }) {
     { key: 'comments', label: 'Average Comments per Post' },
     { key: 'shares', label: 'Average Shares per Post' },
     { key: 'saves', label: 'Average Saves per Post' }
-  ];
+  ].filter(m => !(isAudienceBased && m.key === 'saves'));
 
   const [metricIndex, setMetricIndex] = useState(0);
   const currentMetric = metrics[metricIndex];

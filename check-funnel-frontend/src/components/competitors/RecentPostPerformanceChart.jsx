@@ -27,7 +27,9 @@ function buildAreaPoints(data, width, height, maxValue) {
   return points.join(" ");
 }
 
-export default function RecentPostPerformanceChart({ data, selectedCompetitor }) {
+export default function RecentPostPerformanceChart({ data, selectedCompetitor, activeTab }) {
+  const platform = activeTab?.toLowerCase();
+  const isAudienceBased = platform === 'instagram' || platform === 'facebook';
   const containerRef = useRef(null);
   const [chartWidth, setChartWidth] = useState(500);
   const [chartHeight, setChartHeight] = useState(160);
@@ -78,7 +80,11 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor })
 
   // Calculate max value across only ACTIVE visible data
   const allValues = activeGroups.flatMap(g => g.data.map(d => d.value));
-  const maxValue = Math.max(...allValues, 1000);
+  // Calculate max value across only ACTIVE visible data with 15% buffer
+  const rawMax = Math.max(...allValues, 0);
+  const maxValue = rawMax > 100 
+    ? Math.ceil((rawMax * 1.15) / 100) * 100 
+    : Math.max(Math.ceil((rawMax * 1.15) / 10) * 10, 10);
 
   const handlePrev = () => {
     const nextIdx = currentIndex === 0 ? totalCarouselItems - 1 : currentIndex - 1;
@@ -119,7 +125,9 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor })
     <div className="bg-white rounded-3xl border border-[#c2c6d3]/30 p-5 pb-4 shadow-sm flex flex-col h-full group min-h-[350px]">
       <div className="flex items-center justify-between mb-3">
         <div className="flex flex-col">
-          <h2 className="text-lg font-bold text-[#191c1d]">Recent Performance</h2>
+          <h2 className="text-lg font-bold text-[#191c1d]">
+            Recent Performance {isAudienceBased ? '(Based on Engagement)' : '(Based on Views)'}
+          </h2>
           <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">
             {isAll ? "Comparison: All Competitors" : currentGroup?.brand}
           </span>
@@ -242,7 +250,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor })
       </div>
 
       {isAll && (
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-50 pt-3">
+        <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 border-t border-slate-50 pt-3">
           {data.map((group, idx) => {
             const isHidden = hiddenCompetitors.has(group.username);
             return (

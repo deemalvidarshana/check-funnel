@@ -356,7 +356,7 @@ export default function CompetitorAnalysis() {
         const name = p.trackedAccount?.displayName || p.trackedAccount?.username || '';
         const caption = p.rawExtensionData?.caption || p.rawExtensionData?.caption_text || p.rawExtensionData?.Description || '';
         const total = (p.views || 0) + (p.likes || 0) + (p.commentsCount || 0) + (p.shares || 0);
-        const engRate = p.views > 0 ? (((p.likes + p.commentsCount + p.shares) / p.views) * 100).toFixed(1) + '%' : '0%';
+        const engRate = p.views > 0 ? (((p.likes + p.commentsCount + p.shares) / p.views) * 100).toFixed(2) + '%' : '0%';
         return {
           rank: idx + 1,
           brand: name,
@@ -529,7 +529,7 @@ export default function CompetitorAnalysis() {
           {/* Main Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <AverageViewsChart data={multiMetricData} activeTab={activeTab} />
-            <RecentPostPerformanceChart data={recentPostPerformanceData} selectedCompetitor={selectedCompetitor} />
+            <RecentPostPerformanceChart data={recentPostPerformanceData} selectedCompetitor={selectedCompetitor} activeTab={activeTab} />
           </div>
 
           {/* Secondary Tables/Charts */}
@@ -542,14 +542,14 @@ export default function CompetitorAnalysis() {
           <div className="mb-6">
             <TopPerformingContent 
               allPosts={posts} 
-              competitors={summary.map(s => ({ username: s.username, brand: s.displayName || s.username }))}
+              competitors={competitors}
             />
           </div>
 
           {/* Bottom Table */}
           <TopVideosTable 
             allPosts={posts} 
-            competitors={summary.map(s => ({ username: s.username, brand: s.displayName || s.username }))}
+            competitors={competitors}
           />
         </>
       )}

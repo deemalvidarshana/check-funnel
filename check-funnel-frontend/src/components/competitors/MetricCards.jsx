@@ -57,7 +57,14 @@ export default function MetricCards({ data }) {
             </div>
             <div>
               <p className="text-[13px] font-bold text-[#727782] mb-0.5">{card.title}</p>
-              <h3 className="text-2xl font-black text-[#191c1d] tracking-tight">{card.value}</h3>
+              <h3 className="text-2xl font-black text-[#191c1d] tracking-tight">
+                {String(card.value).split(' ')[0]}
+                {String(card.value).includes(' ') && (
+                  <span className="text-sm font-bold text-[#727782] ml-1 opacity-80">
+                    {' ' + String(card.value).split(' ').slice(1).join(' ')}
+                  </span>
+                )}
+              </h3>
             </div>
           </div>
           
