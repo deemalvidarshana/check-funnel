@@ -16,6 +16,7 @@ import NotFound from "../pages/not-found/NotFound";
 import PublicReport from "../pages/public/PublicReport";
 import CompetitorAnalysis from "../pages/competitors/CompetitorAnalysis";
 import CompetitorPortfolio from "../pages/competitors/CompetitorPortfolio";
+import ContentCalendar from "../pages/social-media/ContentCalendar";
 /**
  * PublicRoute component that prevents logged-in users from accessing auth pages.
  */
@@ -43,6 +44,7 @@ export default function AppRoutes() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/content-calendar" element={<ContentCalendar />} />
           <Route path="/social-media" element={<SocialMediaAnalytics />} />
           <Route path="/competitors" element={<CompetitorPortfolio />} />
           <Route path="/competitors/:id" element={<CompetitorAnalysis />} />
