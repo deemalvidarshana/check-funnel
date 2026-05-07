@@ -123,19 +123,30 @@ export class CompetitorService {
         accountMap.set(normalized.username.toLowerCase(), trackedAccount);
       }
 
-      // Check for duplicate post
-      if (normalized.postId) {
-        const existing = await this.socialMediaPostRepo.findOne({
-          where: { platform, postId: normalized.postId },
-        });
+      // Check for duplicate post (Robust check: Prioritize URL over ID)
+      if (normalized.postUrl || normalized.postId) {
+        let existing: SocialMediaPost | null = null;
+        
+        if (normalized.postUrl) {
+          existing = await this.socialMediaPostRepo.findOne({
+            where: { platform, postUrl: normalized.postUrl },
+          });
+        } else if (normalized.postId) {
+          existing = await this.socialMediaPostRepo.findOne({
+            where: { platform, postId: normalized.postId },
+          });
+        }
+
         if (existing) {
           if (inserted === 0 && skipped < 3) {
-            console.log(`[CSV Upload] DUPLICATE: postId=${normalized.postId}, user=${normalized.username}`);
+            console.log(`[CSV Upload] DUPLICATE: postId=${normalized.postId}, url=${normalized.postUrl}, user=${normalized.username}`);
           }
           skipped++;
           continue;
         }
       }
+      // If neither ID nor URL is present, we still allow the insert (unless we want to enforce unique IDs/URLs)
+      // For now, let's allow it so the 3 missing rows can be added.
 
       // Insert the post
       const post = this.socialMediaPostRepo.create({
