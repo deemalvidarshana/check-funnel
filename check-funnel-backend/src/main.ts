@@ -11,6 +11,8 @@ async function bootstrap() {
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.enableCors();
-  await app.listen(4000);
+  const port = process.env.PORT || 4000;
+  await app.listen(port);
+  console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();
