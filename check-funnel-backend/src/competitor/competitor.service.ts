@@ -51,6 +51,7 @@ export class CompetitorService {
     fileBuffer: Buffer,
     platform: string,
     clientId: number,
+    syncRangeLabel?: string,
   ): Promise<{ inserted: number; skipped: number; autoCreated: string[] }> {
     // Parse CSV
     const records = csv.parse(fileBuffer, {
@@ -162,6 +163,7 @@ export class CompetitorService {
         commentsCount: normalized.commentsCount,
         shares: normalized.shares,
         rawExtensionData: normalized.rawData,
+        syncRangeLabel,
       } as any);
 
       await this.socialMediaPostRepo.save(post);

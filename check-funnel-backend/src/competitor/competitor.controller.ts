@@ -10,6 +10,8 @@ import {
   UseInterceptors,
   ParseIntPipe,
   Res,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -56,21 +58,16 @@ export class CompetitorController {
     @UploadedFile() file: Express.Multer.File,
     @Body('platform') platform: string,
     @Body('clientId') clientId: string,
+    @Body('syncRangeLabel') syncRangeLabel?: string,
   ) {
     if (!file) {
-      return { error: 'No file uploaded' };
+      throw new BadRequestException('CSV file is required');
     }
-    if (!platform || !['tiktok', 'instagram', 'facebook'].includes(platform)) {
-      return { error: 'Invalid platform. Use: tiktok, instagram, or facebook' };
-    }
-    if (!clientId) {
-      return { error: 'clientId is required' };
-    }
-
     return this.competitorService.uploadCSV(
       file.buffer,
       platform,
       parseInt(clientId),
+      syncRangeLabel,
     );
   }
 

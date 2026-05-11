@@ -7,8 +7,10 @@ import CompetitiveBenchmarkTable from '../../components/competitors/CompetitiveB
 import TopPerformingContent from '../../components/competitors/TopPerformingContent';
 import TopVideosTable from '../../components/competitors/TopVideosTable';
 import CSVUploadModal from '../../components/competitors/CSVUploadModal';
+import ApifyFetchModal from '../../components/competitors/ApifyFetchModal';
 import FollowersVsAvgViewsChart from '../../components/competitors/FollowersVsAvgViewsChart';
 import { getClientById } from '../../api/client';
+import { getSystemSettings } from '../../api/systemSettings';
 import api from '../../api';
 
 // ─── Helper: format numbers ─────────────────────────────
@@ -23,16 +25,52 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+// ─── Toast Component ──────────────────────────────────────
+function Toast({ message, type, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const borderColor = type === "success" ? "border-[#003870]" : "border-[#93000a]";
+  const iconColor = type === "success" ? "text-[#003870]" : "text-[#93000a]";
+
+  return (
+    <div className={`fixed top-10 right-10 z-[1000] flex items-center gap-3 px-5 py-4 rounded-2xl bg-white border-l-4 ${borderColor} shadow-[0_20px_40px_-10px_rgba(0,0,0,0.15)] animate-in slide-in-from-top-4 duration-300`}>
+       <div className={`${iconColor}`}>
+         {type === "success" ? (
+           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+           </svg>
+         ) : (
+           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+           </svg>
+         )}
+       </div>
+       <p className="text-base font-bold text-[#191c1d] tracking-tight">{message}</p>
+    </div>
+  );
+}
+
 export default function CompetitorAnalysis() {
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState('TikTok');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isFetchOpen, setIsFetchOpen] = useState(false);
   const [isCompetitorDropdownOpen, setIsCompetitorDropdownOpen] = useState(false);
   const [clientName, setClientName] = useState('');
   const [posts, setPosts] = useState([]);
   const [summary, setSummary] = useState([]);
   const [selectedCompetitor, setSelectedCompetitor] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [analyzeMethod, setAnalyzeMethod] = useState('upload');
+  const [apifyDefaultLimit, setApifyDefaultLimit] = useState(100);
+  const [toast, setToast] = useState(null);
+
+  const [dateRange, setDateRange] = useState('all');
+  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
 
   const platformKey = activeTab.toLowerCase().replace(' ', '');
 
@@ -49,14 +87,29 @@ export default function CompetitorAnalysis() {
     if (id) loadClient();
   }, [id]);
 
+  // Load System Settings
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const settings = await getSystemSettings();
+        setAnalyzeMethod(settings.competitorAnalyzeMethod || 'upload');
+        setApifyDefaultLimit(settings.apifyDefaultResultsLimit || 100);
+      } catch (e) {
+        console.error("Failed to load system settings", e);
+      }
+    }
+    loadSettings();
+  }, []);
+
   // Fetch data when platform changes
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
       try {
+        const endpointPrefix = analyzeMethod === 'apify' ? '/apify' : '/competitors';
         const [postsRes, summaryRes] = await Promise.all([
-          api.get(`/competitors/${id}/posts?platform=${platformKey}`),
-          api.get(`/competitors/${id}/summary?platform=${platformKey}`),
+          api.get(`${endpointPrefix}/${id}/posts?platform=${platformKey}`),
+          api.get(`${endpointPrefix}/${id}/summary?platform=${platformKey}`),
         ]);
         setPosts(postsRes.data);
         setSummary(summaryRes.data);
@@ -70,7 +123,7 @@ export default function CompetitorAnalysis() {
       }
     }
     if (id) fetchData();
-  }, [id, platformKey]);
+  }, [id, platformKey, analyzeMethod]);
 
   // Refresh data after upload
   const handleUploadClose = () => {
@@ -78,9 +131,10 @@ export default function CompetitorAnalysis() {
     // Re-fetch data
     async function refetch() {
       try {
+        const endpointPrefix = analyzeMethod === 'apify' ? '/apify' : '/competitors';
         const [postsRes, summaryRes] = await Promise.all([
-          api.get(`/competitors/${id}/posts?platform=${platformKey}`),
-          api.get(`/competitors/${id}/summary?platform=${platformKey}`),
+          api.get(`${endpointPrefix}/${id}/posts?platform=${platformKey}`),
+          api.get(`${endpointPrefix}/${id}/summary?platform=${platformKey}`),
         ]);
         setPosts(postsRes.data);
         setSummary(summaryRes.data);
@@ -98,36 +152,89 @@ export default function CompetitorAnalysis() {
     }));
   }, [summary]);
 
+  const availableRanges = useMemo(() => {
+    if (!posts.length) return [];
+    const uniqueLabels = [...new Set(posts.map(p => p.syncRangeLabel).filter(Boolean))];
+    
+    // Also keep the month-wise ranges as fallback if no specific sync labels exist
+    // Or just use the specific sync labels if available.
+    // The user wants the ones from sync live data.
+    return uniqueLabels.map(label => ({
+      key: label,
+      label: label
+    }));
+  }, [posts]);
+
+  const postsFilteredByDate = useMemo(() => {
+    if (dateRange === 'all') return posts;
+    return posts.filter(p => p.syncRangeLabel === dateRange);
+  }, [posts, dateRange]);
+
   // Filter posts by selected competitor
   const filteredPosts = useMemo(() => {
-    if (selectedCompetitor === 'all') return posts;
-    return posts.filter(p => p.trackedAccount?.username === selectedCompetitor);
-  }, [posts, selectedCompetitor]);
+    if (selectedCompetitor === 'all') return postsFilteredByDate;
+    return postsFilteredByDate.filter(p => p.trackedAccount?.username === selectedCompetitor);
+  }, [postsFilteredByDate, selectedCompetitor]);
 
-  // Selected competitor's summary or aggregated
+  // Selected competitor's summary or aggregated (CALCULATED FROM FILTERED POSTS)
   const selectedSummary = useMemo(() => {
-    if (selectedCompetitor === 'all') {
-      // Aggregate all
-      return {
-        totalPosts: posts.length,
-        totalViews: posts.reduce((a, p) => a + (p.views || 0), 0),
-        totalLikes: posts.reduce((a, p) => a + (p.likes || 0), 0),
-        totalComments: posts.reduce((a, p) => a + (p.commentsCount || 0), 0),
-        totalShares: posts.reduce((a, p) => a + (p.shares || 0), 0),
-        followerCount: summary.reduce((a, s) => a + (Number(s.followerCount) || 0), 0),
-      };
-    }
-    const s = summary.find(s => s.username === selectedCompetitor);
-    if (!s) return { totalPosts: 0, totalViews: 0, totalLikes: 0, totalComments: 0, totalShares: 0, followerCount: 0 };
-    return {
-      totalPosts: Number(s.totalPosts) || 0,
-      totalViews: Number(s.totalViews) || 0,
-      totalLikes: Number(s.totalLikes) || 0,
-      totalComments: Number(s.totalComments) || 0,
-      totalShares: Number(s.totalShares) || 0,
-      followerCount: Number(s.followerCount) || 0,
+    // We calculate the summary for the selected competitor using ONLY the posts in the selected date range
+    const relevantPosts = selectedCompetitor === 'all' 
+      ? postsFilteredByDate 
+      : postsFilteredByDate.filter(p => p.trackedAccount?.username === selectedCompetitor);
+
+    const metrics = {
+      totalPosts: relevantPosts.length,
+      totalViews: relevantPosts.reduce((a, p) => a + (p.views || 0), 0),
+      totalLikes: relevantPosts.reduce((a, p) => a + (p.likes || 0), 0),
+      totalComments: relevantPosts.reduce((a, p) => a + (p.commentsCount || 0), 0),
+      totalShares: relevantPosts.reduce((a, p) => a + (p.shares || 0), 0),
+      // Follower count is a snapshot, we take the max observed in this range or fallback to current
+      followerCount: summary.reduce((a, s) => {
+        if (selectedCompetitor === 'all' || s.username === selectedCompetitor) {
+          return a + (Number(s.followerCount) || 0);
+        }
+        return a;
+      }, 0)
     };
-  }, [posts, summary, selectedCompetitor]);
+
+    return metrics;
+  }, [postsFilteredByDate, summary, selectedCompetitor]);
+
+  // Recalculate summary for ALL competitors for ranking purposes
+  const filteredCompetitorSummaries = useMemo(() => {
+    const competitorMap = {};
+    
+    // Group filtered posts by competitor
+    postsFilteredByDate.forEach(p => {
+      const username = p.trackedAccount?.username;
+      if (!username) return;
+      if (!competitorMap[username]) {
+        competitorMap[username] = { 
+          username, 
+          displayName: p.trackedAccount.displayName || username,
+          totalPosts: 0, totalViews: 0, totalLikes: 0, totalComments: 0, totalShares: 0 
+        };
+      }
+      competitorMap[username].totalPosts++;
+      competitorMap[username].totalViews += (p.views || 0);
+      competitorMap[username].totalLikes += (p.likes || 0);
+      competitorMap[username].totalComments += (p.commentsCount || 0);
+      competitorMap[username].totalShares += (p.shares || 0);
+    });
+
+    // Merge with original summary to get follower counts (since posts don't have historical follower snapshots usually)
+    return summary.map(s => {
+      const filtered = competitorMap[s.username] || { 
+        username: s.username, displayName: s.displayName,
+        totalPosts: 0, totalViews: 0, totalLikes: 0, totalComments: 0, totalShares: 0 
+      };
+      return {
+        ...filtered,
+        followerCount: s.followerCount // Keep the latest known follower count
+      };
+    });
+  }, [postsFilteredByDate, summary]);
 
   // ─── Metric Cards (dynamic) ────────────────────────────
   const metricCardsData = useMemo(() => {
@@ -142,7 +249,7 @@ export default function CompetitorAnalysis() {
       : 0;
 
     // Calculate rank among competitors (by avg views or engagement)
-    const ranked = summary
+    const ranked = filteredCompetitorSummaries
       .map(s => {
         const tp = Number(s.totalPosts) || 0;
         let score = 0;
@@ -235,8 +342,8 @@ export default function CompetitorAnalysis() {
 
   // ─── Multi-Metric Chart Data ───────────────────────────────
   const multiMetricData = useMemo(() => {
-    return summary.map(s => {
-      const tp = Number(s.totalPosts) || 0;
+    return filteredCompetitorSummaries.map((s, index) => {
+      const tp = s.totalPosts || 1;
       const accountPosts = posts.filter(p => p.trackedAccount?.username === s.username);
       const totalSaves = accountPosts.reduce((acc, p) => acc + (Number(p.rawExtensionData?.saves) || 0), 0);
       const totalEng = (Number(s.totalLikes) || 0) + (Number(s.totalComments) || 0) + (Number(s.totalShares) || 0);
@@ -253,15 +360,12 @@ export default function CompetitorAnalysis() {
         saves: tp > 0 ? Math.round(totalSaves / tp) : 0,
       };
     });
-  }, [summary, posts, selectedCompetitor]);
+  }, [summary, posts, selectedCompetitor, filteredCompetitorSummaries]);
 
   // ─── Recent Post Performance (Grouped by Competitor) ───────────────────────────
   const recentPostPerformanceData = useMemo(() => {
-    // We want an array where each item is { brand, posts: [...] }
-    const brands = summary.map(s => s.username);
-    
     return summary.map(s => {
-      const brandPosts = posts
+      const brandPosts = postsFilteredByDate
         .filter(p => p.trackedAccount?.username === s.username && p.createdAt)
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
@@ -281,30 +385,31 @@ export default function CompetitorAnalysis() {
         })
       };
     }).filter(group => group.data.length > 0);
-  }, [summary, posts, selectedCompetitor]);
+  }, [summary, postsFilteredByDate, selectedCompetitor, activeTab]);
 
   // ─── Competitive Benchmark Table ───────────────────────
   const competitiveBenchmarkData = useMemo(() => {
     return summary
       .map(s => {
-        const tp = Number(s.totalPosts) || 0;
         const platform = activeTab?.toLowerCase();
         const isAudienceBased = platform === 'instagram' || platform === 'facebook';
         
-        // Dynamic Metric Selection
+        const accountPosts = postsFilteredByDate.filter(p => p.trackedAccount?.username === s.username);
+        const tp = accountPosts.length;
+
         let avgValue = 0;
         let topValue = 0;
 
-        const accountPosts = posts.filter(p => p.trackedAccount?.username === s.username);
-
         if (isAudienceBased) {
-          const totalEng = (Number(s.totalLikes) || 0) + (Number(s.totalComments) || 0) + (Number(s.totalShares) || 0);
+          const totalEng = accountPosts.reduce((sum, p) => 
+            sum + (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0), 0);
           avgValue = tp > 0 ? Math.round(totalEng / tp) : 0;
           topValue = accountPosts.length > 0 
             ? Math.max(...accountPosts.map(p => (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0))) 
             : 0;
         } else {
-          avgValue = tp > 0 ? Math.round(Number(s.totalViews) / tp) : 0;
+          const totalViews = accountPosts.reduce((sum, p) => sum + (Number(p.views) || 0), 0);
+          avgValue = tp > 0 ? Math.round(totalViews / tp) : 0;
           topValue = accountPosts.length > 0 ? Math.max(...accountPosts.map(p => Number(p.views) || 0)) : 0;
         }
 
@@ -313,7 +418,7 @@ export default function CompetitorAnalysis() {
           followers: Number(s.followerCount) > 0 ? fmt(s.followerCount) : '-',
           avgValue: fmt(avgValue),
           topValue: fmt(topValue),
-          postsPerWeek: tp > 0 ? `${tp} posts` : '0',
+          postsPerMonth: tp > 0 ? `${tp} posts` : '0',
           rank: '',
           isMain: s.username === selectedCompetitor,
           _sortValue: avgValue,
@@ -321,7 +426,7 @@ export default function CompetitorAnalysis() {
       })
       .sort((a, b) => b._sortValue - a._sortValue)
       .map((row, idx) => ({ ...row, rank: ordinal(idx + 1) }));
-  }, [summary, posts, selectedCompetitor, activeTab]);
+  }, [summary, postsFilteredByDate, selectedCompetitor, activeTab]);
 
   // ─── Top Performing Content (Array) ────────────────────
   const topPerformingContentData = useMemo(() => {
@@ -382,12 +487,32 @@ export default function CompetitorAnalysis() {
   }, [filteredPosts]);
 
   // ─── Loading State ─────────────────────────────────────
-  if (loading) {
+  if (loading || isSyncing) {
     return (
-      <section className="w-full bg-[#f8f9fa] flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="h-10 w-10 border-4 border-[#003870]/20 border-t-[#003870] rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm font-semibold text-[#727782]">Loading competitor data...</p>
+      <section className="w-full bg-[#f8f9fa] flex items-center justify-center min-h-[80vh]">
+        <div className="text-center flex flex-col items-center">
+          {isSyncing ? (
+            <div className="relative mb-6">
+              <div className="h-16 w-16 border-4 border-[#003870]/10 border-t-[#003870] rounded-full animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <svg className="h-6 w-6 text-[#003870] animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M23 4v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </div>
+          ) : (
+            <div className="h-10 w-10 border-4 border-[#003870]/20 border-t-[#003870] rounded-full animate-spin mb-4" />
+          )}
+          <h3 className="text-lg font-bold text-[#191c1d] mb-1">
+            {isSyncing ? `Syncing ${activeTab} data...` : "Loading dashboard..."}
+          </h3>
+          <p className="text-sm font-medium text-[#727782] max-w-xs">
+            {isSyncing 
+              ? "We're fetching real-time insights from Apify. This might take a minute." 
+              : "Preparing your competitor performance overview."
+            }
+          </p>
         </div>
       </section>
     );
@@ -405,7 +530,7 @@ export default function CompetitorAnalysis() {
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
-            <span className="text-base sm:text-lg">
+            <span className="text-sm">
               {selectedCompetitor === 'all' ? 'All Competitors' : `@${selectedCompetitor}`}
             </span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`text-[#727782] transition-transform ${isCompetitorDropdownOpen ? "rotate-180" : ""}`}>
@@ -445,17 +570,73 @@ export default function CompetitorAnalysis() {
         </div>
       )}
 
-      <button
-        onClick={() => setIsUploadOpen(true)}
-        className="flex h-11 items-center justify-center gap-2 rounded-full bg-[#003870] px-6 text-sm font-bold text-white shadow-md transition hover:bg-[#002d5a] active:scale-95"
-      >
-        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-          <polyline points="17,8 12,3 7,8" strokeLinecap="round" strokeLinejoin="round" />
-          <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
-        </svg>
-        <span>Upload Data</span>
-      </button>
+      {/* Date Range Dropdown */}
+      <div className="relative">
+        <button
+          onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
+          className="flex h-11 items-center gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5]"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#003870]">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span className="text-sm whitespace-nowrap">
+            {dateRange === 'all' ? 'All Time' : dateRange}
+          </span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`text-[#727782] transition-transform ${isDateDropdownOpen ? "rotate-180" : ""}`}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        {isDateDropdownOpen && (
+          <div className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl">
+            <button
+              onClick={() => { setDateRange('all'); setIsDateDropdownOpen(false); }}
+              className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${dateRange === 'all' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"}`}
+            >
+              All Time
+            </button>
+            {availableRanges.map((m) => (
+              <button
+                key={m.key}
+                onClick={() => { setDateRange(m.key); setIsDateDropdownOpen(false); }}
+                className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${dateRange === m.key ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"}`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {analyzeMethod === 'upload' ? (
+        <button
+          onClick={() => setIsUploadOpen(true)}
+          className="flex h-11 items-center justify-center gap-2 rounded-full bg-[#003870] px-6 text-sm font-bold text-white shadow-md transition hover:bg-[#002d5a] active:scale-95"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+            <polyline points="17,8 12,3 7,8" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
+          </svg>
+          <span className="hidden sm:inline">Upload Data</span>
+          <span className="sm:hidden">Upload</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setIsFetchOpen(true)}
+          className="flex h-11 items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 text-sm font-bold text-white shadow-md transition hover:shadow-lg active:scale-95"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M23 4v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="hidden sm:inline">Sync Live Data</span>
+          <span className="sm:hidden">Start</span>
+        </button>
+      )}
     </>
   );
 
@@ -471,7 +652,7 @@ export default function CompetitorAnalysis() {
           </h1>
 
           {/* Actions - DESKTOP ONLY */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-3 flex-wrap justify-end">
             <CompetitorActions />
           </div>
         </div>
@@ -484,7 +665,7 @@ export default function CompetitorAnalysis() {
             </p>
 
             {/* Actions - MOBILE ONLY (shown below text) */}
-            <div className="flex md:hidden items-center gap-3">
+            <div className="flex md:hidden items-center gap-2 flex-wrap">
               <CompetitorActions />
             </div>
           </div>
@@ -512,23 +693,42 @@ export default function CompetitorAnalysis() {
       {/* Empty State / Dashboard Content */}
       {posts.length === 0 ? (
         <div className="flex flex-col items-center justify-center bg-white rounded-3xl border border-[#c2c6d3]/30 p-16 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#f3f4f5] flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-[#727782]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points="17,8 12,3 7,8" strokeLinecap="round" strokeLinejoin="round" />
-              <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
-            </svg>
+          <div className="w-16 h-16 rounded-2xl bg-[#f3f4f5] flex items-center justify-center mb-4 text-[#727782]">
+            {analyzeMethod === 'upload' ? (
+              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points="17,8 12,3 7,8" strokeLinecap="round" strokeLinejoin="round" />
+                <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M23 4v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
           </div>
           <h3 className="text-lg font-bold text-[#191c1d] mb-2">No data yet</h3>
           <p className="text-sm text-[#727782] mb-6 max-w-md">
-            Upload CSV data from your browser extensions to start analyzing competitor performance on {activeTab}.
+            {analyzeMethod === 'upload' 
+              ? `Upload CSV data from your browser extensions to start analyzing competitor performance on ${activeTab}.`
+              : `Fetch real-time data via Apify to start analyzing competitor performance on ${activeTab}.`
+            }
           </p>
-          <button
-            onClick={() => setIsUploadOpen(true)}
-            className="rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-8 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] active:scale-95"
-          >
-            Upload {activeTab} Data
-          </button>
+          {analyzeMethod === 'upload' ? (
+            <button
+              onClick={() => setIsUploadOpen(true)}
+              className="rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-8 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] active:scale-95"
+            >
+              Upload {activeTab} Data
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsFetchOpen(true)}
+              className="rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-8 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] active:scale-95"
+            >
+              Fetch {activeTab} Data
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -550,15 +750,17 @@ export default function CompetitorAnalysis() {
           {/* Top Performing Content (Full Width) */}
           <div className="mb-6">
             <TopPerformingContent 
-              allPosts={posts} 
+              allPosts={postsFilteredByDate} 
               competitors={competitors}
+              isApify={analyzeMethod === 'apify'}
             />
           </div>
 
           {/* Bottom Table */}
           <TopVideosTable 
-            allPosts={posts} 
+            allPosts={postsFilteredByDate} 
             competitors={competitors}
+            isApify={analyzeMethod === 'apify'}
           />
         </>
       )}
@@ -570,6 +772,39 @@ export default function CompetitorAnalysis() {
         clientId={id}
         clientName={clientName}
       />
+      {/* Apify Fetch Modal */}
+      <ApifyFetchModal
+        open={isFetchOpen}
+        onClose={() => setIsFetchOpen(false)}
+        platform={activeTab}
+        defaultResultsLimit={apifyDefaultLimit}
+        onFetch={async (data) => {
+          try {
+            setIsSyncing(true);
+            console.log("Starting Apify fetch with data:", { ...data, platform: activeTab });
+            await api.post(`/apify/fetch/${id}`, { ...data, platform: activeTab });
+            
+            // Re-fetch data from Apify table
+            const [postsRes, summaryRes] = await Promise.all([
+              api.get(`/apify/${id}/posts?platform=${platformKey}`),
+              api.get(`/apify/${id}/summary?platform=${platformKey}`),
+            ]);
+            setPosts(postsRes.data);
+            setSummary(summaryRes.data);
+            setSelectedCompetitor('all');
+            setToast({ message: `Successfully fetched real-time ${activeTab} data!`, type: "success" });
+            setIsFetchOpen(false);
+          } catch (e) {
+            console.error("Failed to fetch from Apify", e);
+            const msg = e.response?.data?.message || e.message || "Fetch failed";
+            setToast({ message: msg, type: "error" });
+          } finally {
+            setIsSyncing(false);
+          }
+        }}
+      />
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </section>
   );
 }

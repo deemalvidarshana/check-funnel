@@ -13,6 +13,12 @@ import { User } from './auth/user.entity';
 import { Client } from './client/client.entity';
 import { TrackedAccount } from './competitor/entities/tracked-account.entity';
 import { SocialMediaPost } from './competitor/entities/social-media-post.entity';
+import { SystemSettings } from './system-settings/entities/system-settings.entity';
+import { SystemSettingsModule } from './system-settings/system-settings.module';
+import { ApifyModule } from './apify/apify.module';
+import { ApifyPost } from './apify/entities/apify-post.entity';
+import { ApifyTrackedAccount } from './apify/entities/apify-tracked-account.entity';
+
 
 @Module({
   imports: [
@@ -26,7 +32,7 @@ import { SocialMediaPost } from './competitor/entities/social-media-post.entity'
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [User, Client, TrackedAccount, SocialMediaPost],
+        entities: [User, Client, TrackedAccount, SocialMediaPost, SystemSettings, ApifyPost, ApifyTrackedAccount],
         synchronize: true,
         logging: true,
       }),
@@ -40,6 +46,8 @@ import { SocialMediaPost } from './competitor/entities/social-media-post.entity'
     PublicInsightsModule,
     TiktokModule,
     CompetitorModule,
+    SystemSettingsModule,
+    ApifyModule,
   ],
 })
 

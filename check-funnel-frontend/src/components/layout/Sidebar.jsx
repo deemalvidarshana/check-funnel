@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useSidebar } from "../../context/SidebarContext";
 import ProfileAvatarUploadModal from "../../components/profile/ProfileAvatarUploadModal";
+import UserSettingsModal from "../../components/user/UserSettingsModal";
 
 // ---------------- Icon Components ----------------
 function OverviewIcon() {
@@ -97,6 +98,15 @@ function ChevronIcon({ direction = "left" }) {
   );
 }
 
+function SettingsIcon() {
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+       <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+       <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+    </svg>
+  );
+}
+
 function LogoutIcon() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -151,6 +161,7 @@ export default function Sidebar() {
   const [user, setUser] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [avatarTimestamp, setAvatarTimestamp] = useState(Date.now());
   const [toast, setToast] = useState(null);
   const profileRef = useRef(null);
@@ -287,6 +298,21 @@ export default function Sidebar() {
                   </div>
                </div>
                
+               {user?.role === "admin" && (
+                 <button
+                   onClick={() => {
+                     setIsSettingsModalOpen(true);
+                     setIsProfileOpen(false);
+                   }}
+                   className="w-full flex items-center gap-3 px-3 py-1.5 text-sm font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-900 rounded-xl transition-all group mb-1"
+                 >
+                    <div className="p-1.5 bg-slate-50 rounded-lg group-hover:bg-blue-100 transition-colors text-slate-500 group-hover:text-blue-600">
+                       <SettingsIcon />
+                    </div>
+                    <span>Settings</span>
+                 </button>
+               )}
+               
                <button
                  onClick={handleLogout}
                  className="w-full flex items-center gap-3 px-3 py-1.5 text-sm font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-900 rounded-xl transition-all group"
@@ -343,6 +369,11 @@ export default function Sidebar() {
         open={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
         onUploadSuccess={handleAvatarUploadSuccess}
+      />
+
+      <UserSettingsModal 
+        open={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
       />
     </>
   );

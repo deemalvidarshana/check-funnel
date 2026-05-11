@@ -13,6 +13,7 @@ async function bootstrap() {
   app.enableCors();
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+  console.log(`--- NestJS Backend Running on: http://localhost:${port} ---`);
+  console.log(`--- Proxy requests should point to this port ---`);
 }
 bootstrap();

@@ -1,11 +1,11 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Client } from '../../client/client.entity';
-import { TrackedAccount } from './tracked-account.entity';
+import { ApifyTrackedAccount } from './apify-tracked-account.entity';
 
-@Entity()
-@Index('idx_smp_client_platform', ['clientId', 'platform', 'accountType'])
-@Index('idx_smp_created_at', ['createdAt'])
-export class SocialMediaPost {
+@Entity('apify_social_media_posts')
+@Index('idx_apify_client_platform', ['clientId', 'platform'])
+@Index('idx_apify_created_at', ['createdAt'])
+export class ApifyPost {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -17,19 +17,15 @@ export class SocialMediaPost {
   client: Client;
 
   @Column()
-  trackedAccountId: number;
+  apifyTrackedAccountId: number;
 
-  @ManyToOne(() => TrackedAccount, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'trackedAccountId' })
-  trackedAccount: TrackedAccount;
+  @ManyToOne(() => ApifyTrackedAccount, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'apifyTrackedAccountId' })
+  trackedAccount: ApifyTrackedAccount;
 
   @Column({ length: 20 })
   platform: string;
 
-  @Column({ length: 20 })
-  accountType: string;
-
-  // Common Metrics
   @Column({ length: 255, nullable: true })
   postId: string;
 
@@ -51,13 +47,21 @@ export class SocialMediaPost {
   @Column({ type: 'int', default: 0 })
   shares: number;
 
-  // Full raw data from extension CSV
+  @Column({ type: 'text', nullable: true })
+  caption: string;
+
   @Column({ type: 'json', nullable: true })
-  rawExtensionData: any;
+  media: any;
+
+  @Column({ type: 'json', nullable: true })
+  reactions: any;
+
+  @Column({ type: 'json', nullable: true })
+  rawData: any;
 
   @Column({ length: 100, nullable: true })
   syncRangeLabel: string;
 
   @CreateDateColumn()
-  uploadedAt: Date;
+  fetchedAt: Date;
 }

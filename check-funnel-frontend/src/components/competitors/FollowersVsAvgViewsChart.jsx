@@ -38,21 +38,25 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
 
   if (plotData.length === 0) return null;
 
-  const maxFollowers = Math.max(...plotData.map(d => d.followers), 10000);
-  const maxValue = Math.max(...plotData.map(d => d.avgValue), 1000);
+  const maxFollowers = Math.max(...plotData.map(d => d.followers), 1000);
+  const maxValue = Math.max(...plotData.map(d => d.avgValue), 10);
 
-  // Round up to nearest 10k and add 15% buffer to provide padding on the chart for labels
-  const xMax = Math.max(Math.ceil((maxFollowers * 1.15) / 10000) * 10000, 10000); 
-  const yMax = maxValue > 1000 ? Math.ceil(maxValue / 1000) * 1000 + 1000 : 1000;
+  // Use a tighter buffer and round more logically
+  const xMax = Math.ceil((maxFollowers * 1.1) / 1000) * 1000; 
+  const yMax = Math.ceil((maxValue * 1.2) / 10) * 10;
 
-  // Calculate tick marks
-  const xTicks = [0, xMax * 0.2, xMax * 0.4, xMax * 0.6, xMax * 0.8, xMax];
-  const yTicks = [0, yMax * 0.33, yMax * 0.66, yMax];
+  // Calculate tick marks - more granular
+  const xTicks = [0, xMax * 0.25, xMax * 0.5, xMax * 0.75, xMax];
+  const yTicks = [0, yMax * 0.25, yMax * 0.5, yMax * 0.75, yMax];
 
-  const formatK = (num) => num >= 1000 ? `${Math.round(num/1000)}K` : num;
+  const formatK = (num) => {
+    if (num >= 1000000) return `${(num/1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${Math.round(num/1000)}K`;
+    return Math.round(num);
+  };
 
   return (
-    <div className="bg-white rounded-3xl border border-[#c2c6d3]/30 p-6 shadow-sm flex flex-col h-full min-h-[350px] relative">
+    <div className="bg-white rounded-3xl border border-[#c2c6d3]/30 p-6 shadow-sm flex flex-col h-full min-h-[400px] relative">
       <h2 className="text-lg font-bold text-[#191c1d] mb-6">
         {isAudienceBased ? 'Followers vs Avg Engagement' : 'Followers vs Avg Views'}
       </h2>
@@ -61,7 +65,7 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
         {/* Y-axis Title */}
         <div className="flex items-center justify-center w-6 shrink-0 mr-2">
           <span className="text-[10px] font-bold uppercase text-[#727782] tracking-wider whitespace-nowrap -rotate-90 transform">
-            {isAudienceBased ? 'Avg Engagement per Post' : 'Avg Views per Post'}
+            {isAudienceBased ? 'Avg Engagement' : 'Avg Views'}
           </span>
         </div>
 
@@ -100,7 +104,7 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
             {xTicks.map((tick, i) => {
               const leftPct = (tick / xMax) * 100;
               return (
-                <div key={`xlab-${i}`} className="absolute top-full pt-3 transform -translate-x-1/2 text-xs font-semibold text-[#a0a5b1]" style={{ left: `${leftPct}%` }}>
+                <div key={`xlab-${i}`} className="absolute top-full pt-3 transform -translate-x-1/2 text-xs font-semibold text-[#a0a5b1] whitespace-nowrap" style={{ left: `${leftPct}%` }}>
                   {formatK(tick)}
                 </div>
               );
@@ -111,23 +115,43 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
               const leftPct = (point.followers / xMax) * 100;
               const bottomPct = (point.avgValue / yMax) * 100;
               
-              // Shorten long names aggressively for responsive design
               let shortName = point.brand;
-              if (shortName.length > 10) {
-                shortName = shortName.substring(0, 8) + '..';
+              if (shortName.length > 12) {
+                shortName = shortName.substring(0, 10) + '..';
+              }
+
+              // Simple collision avoidance: alternate label positions
+              const isEven = i % 2 === 0;
+              const isThird = i % 3 === 0;
+              
+              let labelStyle = {};
+              if (leftPct > 80) {
+                labelStyle = { right: '100%', marginRight: '10px' };
+              } else {
+                labelStyle = { left: '100%', marginLeft: '10px' };
+              }
+
+              // Vertical offset to prevent horizontal overlap
+              if (isEven) {
+                labelStyle.transform = 'translateY(-120%)';
+              } else if (isThird) {
+                labelStyle.transform = 'translateY(20%)';
+              } else {
+                labelStyle.transform = 'translateY(-50%)';
               }
 
               return (
                 <div 
                   key={`pt-${i}`} 
-                  className="absolute w-0 h-0"
+                  className="absolute w-0 h-0 transition-all duration-500"
                   style={{ left: `${leftPct}%`, bottom: `${bottomPct}%` }}
                 >
-                  {/* The dot centered perfectly on the coordinate */}
-                  <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full shrink-0 z-20 ${point.isMain ? 'w-[16px] h-[16px] sm:w-[20px] sm:h-[20px] bg-[#2563eb] shadow-[0_0_0_4px_rgba(37,99,235,0.2)]' : 'w-[12px] h-[12px] sm:w-[14px] sm:h-[14px] bg-[#cbd5e1]'}`}></div>
+                  <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full shrink-0 z-20 ${point.isMain ? 'w-[14px] h-[14px] sm:w-[18px] sm:h-[18px] bg-[#003870] shadow-[0_0_0_4px_rgba(0,56,112,0.15)]' : 'w-[10px] h-[10px] sm:w-[12px] sm:h-[12px] bg-[#cbd5e1]'}`}></div>
                   
-                  {/* The text positioned relative to the dot (flips to left if near right edge) */}
-                  <span className={`absolute top-1/2 ${leftPct > 80 ? 'right-1/2 mr-3 sm:mr-4' : 'left-1/2 ml-3 sm:ml-4'} transform -translate-y-1/2 text-[10px] sm:text-xs font-bold whitespace-nowrap z-30 ${point.isMain ? 'text-[#2563eb]' : 'text-[#727782]'}`}>
+                  <span 
+                    className={`absolute font-bold text-[9px] sm:text-[11px] whitespace-nowrap z-30 pointer-events-none ${point.isMain ? 'text-[#003870]' : 'text-[#727782]'}`}
+                    style={labelStyle}
+                  >
                     {shortName}
                   </span>
                 </div>

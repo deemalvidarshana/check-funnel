@@ -143,7 +143,7 @@ const fmt = (num) => {
   return num.toLocaleString();
 };
 
-export default function TopPerformingContent({ allPosts, competitors }) {
+export default function TopPerformingContent({ allPosts, competitors, isApify }) {
   const pf = allPosts[0]?.platform?.toLowerCase();
   const isAudienceBased = pf === 'instagram' || pf === 'facebook';
   const [selectedBrand, setSelectedBrand] = useState('all');
@@ -195,7 +195,7 @@ export default function TopPerformingContent({ allPosts, competitors }) {
         return scoreB - scoreA;
       })
       .map(post => {
-        const caption = post.rawExtensionData?.caption || post.rawExtensionData?.caption_text || post.rawExtensionData?.Description || '';
+        const caption = post.caption || post.rawExtensionData?.caption || post.rawExtensionData?.caption_text || post.rawExtensionData?.Description || '';
         return {
           id: post.id,
           title: caption.substring(0, 50) + (caption.length > 50 ? '...' : ''),
@@ -334,6 +334,7 @@ export default function TopPerformingContent({ allPosts, competitors }) {
         <PostDetailsModal 
           postId={selectedPostId} 
           onClose={() => setSelectedPostId(null)} 
+          isApify={isApify}
         />
       )}
     </div>

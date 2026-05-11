@@ -64,6 +64,8 @@ export default function CSVUploadModal({ open, onClose, clientId, clientName }) 
   const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [toast, setToast] = useState(null);
+  const [newerThan, setNewerThan] = useState("");
+  const [olderThan, setOlderThan] = useState("");
 
   // Reset state when modal opens
   useEffect(() => {
@@ -71,6 +73,8 @@ export default function CSVUploadModal({ open, onClose, clientId, clientName }) 
       setFile(null);
       setResult(null);
       setIsUploading(false);
+      setNewerThan("");
+      setOlderThan("");
     }
   }, [open]);
 
@@ -112,6 +116,22 @@ export default function CSVUploadModal({ open, onClose, clientId, clientName }) 
       formData.append("file", file);
       formData.append("platform", platform);
       formData.append("clientId", String(clientId));
+
+      if (newerThan || olderThan) {
+        const formatDate = (dateStr) => {
+          if (!dateStr) return null;
+          const d = new Date(dateStr);
+          return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        };
+        const start = formatDate(newerThan);
+        const end = formatDate(olderThan);
+        let label = "";
+        if (start && end) label = `${start} - ${end}`;
+        else if (start) label = `From ${start}`;
+        else label = `Until ${end}`;
+        
+        formData.append("syncRangeLabel", label);
+      }
 
       const response = await api.post("/competitors/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -156,6 +176,43 @@ export default function CSVUploadModal({ open, onClose, clientId, clientName }) 
               <CloseIcon />
             </button>
           </div>
+            {/* Time Frame for Upload */}
+            <section className="mt-8 rounded-3xl bg-[#f8f9fa] p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-6 w-1 rounded-full bg-[#003870]" />
+                <h3 className="text-[13px] font-extrabold uppercase tracking-[0.15em] text-[#003870]">
+                  Time Frame
+                </h3>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                    Posts newer than
+                  </label>
+                  <input
+                    type="date"
+                    value={newerThan}
+                    onChange={(e) => setNewerThan(e.target.value)}
+                    className="w-full rounded-2xl border-none bg-white px-5 py-4 text-sm font-semibold text-slate-700 outline-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
+                    Posts older than
+                  </label>
+                  <input
+                    type="date"
+                    value={olderThan}
+                    onChange={(e) => setOlderThan(e.target.value)}
+                    className="w-full rounded-2xl border-none bg-white px-5 py-4 text-sm font-semibold text-slate-700 outline-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all"
+                  />
+                </div>
+              </div>
+              <p className="mt-4 text-[10px] text-slate-400 font-medium italic">
+                * Optional: Tag these posts with a specific date range label.
+              </p>
+            </section>
         </div>
 
         {/* Body */}

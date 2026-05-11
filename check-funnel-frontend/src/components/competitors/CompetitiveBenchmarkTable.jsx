@@ -20,7 +20,7 @@ export default function CompetitiveBenchmarkTable({ data, activeTab }) {
               <th className="pb-3 px-2 font-semibold">
                 {isAudienceBased ? 'Top Post Eng.' : 'Top Post Views'}
               </th>
-              <th className="pb-3 px-2 font-semibold text-center">Posts/Week</th>
+              <th className="pb-3 px-2 font-semibold text-center">Posts/Month</th>
               <th className="pb-3 px-2 font-semibold text-center">Rank</th>
             </tr>
           </thead>
@@ -40,7 +40,7 @@ export default function CompetitiveBenchmarkTable({ data, activeTab }) {
                   {row.topValue}
                 </td>
                 <td className={`py-3 px-2 text-sm font-semibold text-center ${row.isMain ? 'text-[#0f3d91]' : 'text-slate-600'}`}>
-                  {row.postsPerWeek}
+                  {row.postsPerMonth}
                 </td>
                 <td className={`py-3 px-2 text-sm font-bold text-center ${row.isMain ? 'text-[#0f3d91]' : 'text-blue-600'}`}>
                   {row.rank}

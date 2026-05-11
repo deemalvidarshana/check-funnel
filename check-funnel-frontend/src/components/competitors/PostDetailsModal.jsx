@@ -6,7 +6,7 @@ const cleanFbUrl = (url) => {
   return url.split('&fbclid=')[0].split('?fbclid=')[0].split('/&fbclid=')[0];
 };
 
-export default function PostDetailsModal({ postId, onClose }) {
+export default function PostDetailsModal({ postId, onClose, isApify }) {
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [thumbnail, setThumbnail] = useState('');
@@ -17,7 +17,8 @@ export default function PostDetailsModal({ postId, onClose }) {
     async function fetchDetails() {
       setLoading(true);
       try {
-        const res = await api.get(`/competitors/post/${postId}`);
+        const endpoint = isApify ? `/apify/post/${postId}` : `/competitors/post/${postId}`;
+        const res = await api.get(endpoint);
         const postData = res.data;
         setPost(postData);
 
@@ -141,7 +142,7 @@ export default function PostDetailsModal({ postId, onClose }) {
             <div className="space-y-2">
                <p className="text-[11px] font-bold text-[#727782] uppercase tracking-widest">Original Caption</p>
                <p className="text-sm text-slate-600 leading-relaxed font-medium">
-                 {post?.rawExtensionData?.caption || post?.rawExtensionData?.caption_text || post?.rawExtensionData?.Description || 'No caption available'}
+                 {post?.caption || post?.rawExtensionData?.caption || post?.rawExtensionData?.caption_text || post?.rawExtensionData?.Description || 'No caption available'}
                </p>
             </div>
           </div>

@@ -8,7 +8,7 @@ const fmt = (num) => {
   return num.toLocaleString();
 };
 
-export default function TopVideosTable({ allPosts, competitors }) {
+export default function TopVideosTable({ allPosts, competitors, isApify }) {
   const [selectedBrand, setSelectedBrand] = useState('all');
   const [isOpen, setIsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -59,7 +59,7 @@ export default function TopVideosTable({ allPosts, competitors }) {
       })
       .map((p, idx) => {
         const name = p.trackedAccount?.displayName || p.trackedAccount?.username || '';
-        const caption = p.rawExtensionData?.caption || p.rawExtensionData?.caption_text || p.rawExtensionData?.Description || '';
+        const caption = p.caption || p.rawExtensionData?.caption || p.rawExtensionData?.caption_text || p.rawExtensionData?.Description || '';
         const likes = Number(p.likes) || 0;
         const comments = Number(p.commentsCount) || 0;
         const shares = Number(p.shares) || 0;
@@ -371,6 +371,7 @@ export default function TopVideosTable({ allPosts, competitors }) {
         <PostDetailsModal 
           postId={selectedPostId} 
           onClose={() => setSelectedPostId(null)} 
+          isApify={isApify}
         />
       )}
     </div>
