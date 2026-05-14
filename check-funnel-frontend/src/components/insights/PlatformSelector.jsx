@@ -6,7 +6,7 @@ const platforms = [
 
 export default function PlatformSelector({ activePlatform, setActivePlatform }) {
   return (
-    <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap items-center gap-2 rounded-full bg-[#f3f4f5] p-1">
+    <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap items-center gap-2 rounded-full bg-[#f3f4f5] p-1 w-full sm:w-auto">
       {platforms.map((platform) => (
         <button
           key={platform.key}

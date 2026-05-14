@@ -41,9 +41,12 @@ export default function UserSettingsModal({ open, onClose }) {
   const [apifyApiKey, setApifyApiKey] = useState("");
   const [competitorAnalyzeMethod, setCompetitorAnalyzeMethod] = useState("upload");
   const [apifyDefaultResultsLimit, setApifyDefaultResultsLimit] = useState(100);
+  const [openRouterApiKey, setOpenRouterApiKey] = useState("");
+  const [openRouterModel, setOpenRouterModel] = useState("google/gemini-2.0-flash-001");
   const [lastModifiedBy, setLastModifiedBy] = useState("");
   const [updatedAt, setUpdatedAt] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
   const [isMethodDropdownOpen, setIsMethodDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -60,6 +63,8 @@ export default function UserSettingsModal({ open, onClose }) {
     try {
       const data = await getSystemSettings();
       setApifyApiKey(data.apifyApiKey || "");
+      setOpenRouterApiKey(data.openRouterApiKey || "");
+      setOpenRouterModel(data.openRouterModel || "google/gemini-2.0-flash-001");
       setCompetitorAnalyzeMethod(data.competitorAnalyzeMethod || "upload");
       setApifyDefaultResultsLimit(data.apifyDefaultResultsLimit || 100);
       setLastModifiedBy(data.lastModifiedBy || "");
@@ -77,6 +82,8 @@ export default function UserSettingsModal({ open, onClose }) {
     try {
       await updateSystemSettings({
         apifyApiKey,
+        openRouterApiKey,
+        openRouterModel,
         competitorAnalyzeMethod,
         apifyDefaultResultsLimit: Number(apifyDefaultResultsLimit),
       });
@@ -141,6 +148,43 @@ export default function UserSettingsModal({ open, onClose }) {
                     <EyeIcon />
                   </button>
                 </div>
+              </div>
+
+              {/* OpenRouter API Key */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
+                  OpenRouter API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showOpenRouterKey ? "text" : "password"}
+                    value={openRouterApiKey}
+                    onChange={(e) => setOpenRouterApiKey(e.target.value)}
+                    placeholder="Enter OpenRouter API Key"
+                    className="w-full px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-300 pr-12"
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#003870] transition-colors"
+                  >
+                    <EyeIcon />
+                  </button>
+                </div>
+              </div>
+
+              {/* OpenRouter Model */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
+                  AI Model (OpenRouter)
+                </label>
+                <input
+                  type="text"
+                  value={openRouterModel}
+                  onChange={(e) => setOpenRouterModel(e.target.value)}
+                  placeholder="e.g. google/gemini-2.0-flash-001"
+                  className="w-full px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-300"
+                />
               </div>
 
               {/* Competitor Analyze Method */}

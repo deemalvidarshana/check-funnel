@@ -50,17 +50,12 @@ const CustomDropdown = ({ options, value, onChange, placeholder, minWidth }) => 
   );
 };
 
-const FilterBar = () => {
-  const [platform, setPlatform] = useState('All Platforms');
-  const [contentType, setContentType] = useState('All Content Types');
-  const [client, setClient] = useState('All Clients');
-  const [status, setStatus] = useState('All Statuses');
-
+const FilterBar = ({ filters, onFilterChange, clients }) => {
   const resetFilters = () => {
-    setPlatform('All Platforms');
-    setContentType('All Content Types');
-    setClient('All Clients');
-    setStatus('All Statuses');
+    onFilterChange('platform', 'All Platforms');
+    onFilterChange('contentType', 'All Content Types');
+    onFilterChange('client', 'All Clients');
+    onFilterChange('status', 'All Statuses');
   };
 
   return (
@@ -83,29 +78,29 @@ const FilterBar = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-4 flex-1">
         <CustomDropdown 
           options={['All Platforms', 'Meta', 'Instagram', 'TikTok', 'LinkedIn']}
-          value={platform}
-          onChange={setPlatform}
+          value={filters.platform}
+          onChange={(val) => onFilterChange('platform', val)}
           placeholder="All Platforms"
           minWidth="140"
         />
         <CustomDropdown 
           options={['All Content Types', 'Video', 'Image', 'Carousel']}
-          value={contentType}
-          onChange={setContentType}
+          value={filters.contentType}
+          onChange={(val) => onFilterChange('contentType', val)}
           placeholder="All Content Types"
           minWidth="160"
         />
         <CustomDropdown 
-          options={['All Clients', 'Luxe Living Real Estate', 'TechFlow Solutions', 'Global Eats Agency']}
-          value={client}
-          onChange={setClient}
+          options={['All Clients', ...clients]}
+          value={filters.client}
+          onChange={(val) => onFilterChange('client', val)}
           placeholder="All Clients"
           minWidth="150"
         />
         <CustomDropdown 
           options={['All Statuses', 'Published', 'Scheduled', 'Needs Approval']}
-          value={status}
-          onChange={setStatus}
+          value={filters.status}
+          onChange={(val) => onFilterChange('status', val)}
           placeholder="All Statuses"
           minWidth="140"
         />

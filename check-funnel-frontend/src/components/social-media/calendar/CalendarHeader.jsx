@@ -1,6 +1,9 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const CalendarHeader = ({ view, setView }) => {
+const CalendarHeader = ({ view, setView, currentDate, onPrev, onNext }) => {
+  const navigate = useNavigate();
+
   return (
     <section className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
       <div className="space-y-2">
@@ -14,21 +17,30 @@ const CalendarHeader = ({ view, setView }) => {
       </div>
       <div className="flex flex-col sm:flex-row sm:items-center lg:items-end gap-4 w-full lg:w-auto">
         {/* CTA */}
-        <button className="bg-[#003870] text-white font-bold px-6 py-2.5 rounded-full flex items-center justify-center gap-2 hover:bg-[#003870]/90 hover:shadow-lg hover:shadow-[#003870]/20 transition-all active:scale-95 text-sm w-full sm:w-auto order-last sm:order-first">
-          <span className="material-symbols-outlined text-[18px]">add</span>
-          Schedule Post
+        <button 
+          onClick={() => navigate('/content-calendar/create')}
+          className="bg-[#003870] text-white font-bold px-6 py-2.5 rounded-full flex items-center justify-center gap-2 hover:bg-[#003870]/90 hover:shadow-lg hover:shadow-[#003870]/20 transition-all active:scale-95 text-sm w-full sm:w-auto order-last sm:order-first"
+        >
+          <span className="material-symbols-outlined text-[18px]">magic_button</span>
+          Generate
         </button>
 
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
           {/* Date Navigation */}
           <div className="flex items-center justify-between bg-white rounded-full p-1 shadow-sm border border-slate-100 w-full sm:w-auto">
-            <button className="p-2 rounded-full text-slate-400 hover:text-[#003870] hover:bg-slate-50 transition-colors material-symbols-outlined">
+            <button 
+              onClick={onPrev}
+              className="p-2 rounded-full text-slate-400 hover:text-[#003870] hover:bg-slate-50 transition-colors material-symbols-outlined"
+            >
               chevron_left
             </button>
-            <span className="font-headline font-bold text-slate-800 min-w-[130px] text-center px-2 text-sm sm:text-base">
-              February 2024
+            <span className="font-headline font-bold text-slate-800 min-w-[130px] text-center px-2 text-sm sm:text-base uppercase tracking-tight">
+              {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
             </span>
-            <button className="p-2 rounded-full text-slate-400 hover:text-[#003870] hover:bg-slate-50 transition-colors material-symbols-outlined">
+            <button 
+              onClick={onNext}
+              className="p-2 rounded-full text-slate-400 hover:text-[#003870] hover:bg-slate-50 transition-colors material-symbols-outlined"
+            >
               chevron_right
             </button>
           </div>
@@ -62,3 +74,4 @@ const CalendarHeader = ({ view, setView }) => {
 };
 
 export default CalendarHeader;
+

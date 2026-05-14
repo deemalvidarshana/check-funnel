@@ -5,6 +5,8 @@ import { ClientModule } from '../client/client.module';
 import { FacebookModule } from '../facebook/facebook.module';
 import { InstagramModule } from '../instagram/instagram.module';
 import { TiktokModule } from '../tiktok/tiktok.module';
+import { CompetitorModule } from '../competitor/competitor.module';
+import { ApifyModule } from '../apify/apify.module';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { TiktokModule } from '../tiktok/tiktok.module';
     FacebookModule,
     InstagramModule,
     TiktokModule,
+    CompetitorModule,
+    ApifyModule,
   ],
 
   controllers: [PublicInsightsController],

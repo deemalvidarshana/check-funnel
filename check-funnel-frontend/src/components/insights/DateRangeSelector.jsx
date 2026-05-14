@@ -13,10 +13,10 @@ export default function DateRangeSelector({ selectedRange, onRangeChange }) {
 
 
   return (
-    <div className="relative">
+    <div className="relative w-full sm:w-auto">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 sm:px-5 py-2 sm:py-2.5 transition hover:bg-[#f3f4f5] border-transparent"
+        className="flex w-full sm:w-auto items-center justify-between sm:justify-start gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 sm:px-5 py-2 sm:py-2.5 transition hover:bg-[#f3f4f5] border-transparent"
       >
         <svg
           width="18"
@@ -53,7 +53,7 @@ export default function DateRangeSelector({ selectedRange, onRangeChange }) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl">
+        <div className="absolute left-0 sm:right-0 top-full z-50 mt-2 w-48 max-h-64 overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200 no-scrollbar">
           {ranges.map((range) => (
             <button
               key={range.value}

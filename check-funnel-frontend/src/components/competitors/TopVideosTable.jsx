@@ -110,7 +110,8 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
           saves: fmt(p.rawExtensionData?.saves || 0),
           engRate,
           postUrl: p.postUrl,
-          caption: caption.substring(0, 80) + (caption.length > 80 ? '...' : ''),
+          date: p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-CA') : 'N/A', // YYYY-MM-DD
+          caption: caption,
         };
       });
   }, [allPosts, selectedBrand, competitors]);
@@ -143,40 +144,103 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
   const pf = allPosts[0]?.platform?.toLowerCase();
   const isAudienceBased = pf === 'instagram' || pf === 'facebook';
 
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  const downloadExcel = () => {
+    const headers = ['Rank', 'Date', 'Brand', 'Views', 'Likes', 'Comments', 'Shares', 'Saves', 'Engagement Rate', 'Caption', 'Post URL'];
+    const rows = allRankedData.map(row => [
+      row.rank,
+      row.date,
+      row.brand,
+      row.views,
+      row.likes,
+      row.comments,
+      row.shares,
+      row.saves,
+      row.engRate,
+      `"${row.caption.replace(/"/g, '""').replace(/\r?\n|\r/g, ' ')}"`,
+      row.postUrl
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const BOM = "\uFEFF"; // Add BOM so Excel opens it with UTF-8
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Top_Content_${selectedBrand}_${new Date().toLocaleDateString()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="bg-white rounded-3xl border border-[#c2c6d3]/30 p-6 shadow-sm overflow-hidden flex flex-col h-full">
+    <div className={`bg-white shadow-sm flex flex-col transition-all duration-300 ${
+      isMaximized 
+        ? 'fixed inset-0 z-[9999] rounded-none p-8 overflow-y-auto bg-slate-50' 
+        : 'relative rounded-3xl border border-[#c2c6d3]/30 p-6 overflow-hidden h-full'
+    }`}>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-[#191c1d] flex items-center gap-2">
-            Top {isAudienceBased ? 'Engagement Content' : 'Performing Videos'}
-            <svg className="w-4 h-4 text-[#727782] cursor-pointer" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M12 16v-4"></path>
-              <path d="M12 8h.01"></path>
-            </svg>
-          </h2>
-          <p className="text-xs text-[#727782] font-medium mt-1">
-            {allRankedData.length > 0 
-              ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, allRankedData.length)} of ${allRankedData.length} posts ranked by performance`
-              : 'Top posts ranked by performance across selection'
-            }
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#191c1d] flex items-center gap-2">
+              Top {isAudienceBased ? 'Engagement Content' : 'Performing Videos'}
+            </h2>
+            <p className="text-xs text-[#727782] font-medium mt-1">
+              {allRankedData.length > 0 
+                ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, allRankedData.length)} of ${allRankedData.length} posts ranked by performance`
+                : 'Top posts ranked by performance across selection'
+              }
+            </p>
+          </div>
         </div>
 
-        {/* Custom Stylized Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex h-10 items-center gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] shadow-sm"
-          >
-            <span className="text-sm">{currentSelection}</span>
-            <svg 
-              width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" 
-              className={`text-[#727782] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        {/* Action Controls & Dropdown */}
+        <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+          <div className="flex items-center gap-1 p-1 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 shadow-sm h-10">
+            <button 
+              onClick={() => setIsMaximized(!isMaximized)}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white text-[#003870] transition-all hover:shadow-sm active:scale-95"
+              title={isMaximized ? "Minimize" : "Maximize"}
             >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
+              {isMaximized ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5" />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+              )}
+            </button>
+            <div className="w-[1px] h-4 bg-[#c2c6d3]/30"></div>
+            <button 
+              onClick={downloadExcel}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white text-[#003870] transition-all hover:shadow-sm active:scale-95"
+              title="Download as CSV"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex h-10 items-center gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] shadow-sm"
+            >
+              <span className="text-sm">{currentSelection}</span>
+              <svg 
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" 
+                className={`text-[#727782] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
 
           {isOpen && (
             <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
@@ -211,6 +275,7 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
           )}
         </div>
       </div>
+    </div>
       
       <div className="overflow-x-auto w-full flex-1 min-h-[400px]">
         <table className={`w-full ${isAudienceBased ? 'min-w-[700px]' : 'min-w-[900px]'} text-left border-collapse`}>
@@ -259,8 +324,8 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
                 <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.shares}</td>
                 {!isAudienceBased && <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.saves}</td>}
                 <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.engRate}</td>
-                <td className="py-3 px-4 text-xs font-medium text-slate-500 max-w-xs truncate" title={row.caption}>
-                  {row.caption}
+                <td className={`py-3 px-4 text-xs font-medium text-slate-500 ${isMaximized ? 'whitespace-normal min-w-[300px]' : 'max-w-xs truncate'}`} title={row.caption}>
+                  {isMaximized ? row.caption : (row.caption.length > 80 ? row.caption.substring(0, 80) + '...' : row.caption)}
                 </td>
                 <td className="py-3 px-4 text-center relative">
                   <button 

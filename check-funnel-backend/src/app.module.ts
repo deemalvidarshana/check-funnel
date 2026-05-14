@@ -18,6 +18,10 @@ import { SystemSettingsModule } from './system-settings/system-settings.module';
 import { ApifyModule } from './apify/apify.module';
 import { ApifyPost } from './apify/entities/apify-post.entity';
 import { ApifyTrackedAccount } from './apify/entities/apify-tracked-account.entity';
+import { AiModule } from './ai/ai.module';
+import { CalendarModule } from './calendar/calendar.module';
+import { Calendar } from './calendar/entities/calendar.entity';
+import { CalendarPost } from './calendar/entities/calendar-post.entity';
 
 
 @Module({
@@ -32,7 +36,7 @@ import { ApifyTrackedAccount } from './apify/entities/apify-tracked-account.enti
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [User, Client, TrackedAccount, SocialMediaPost, SystemSettings, ApifyPost, ApifyTrackedAccount],
+        entities: [User, Client, TrackedAccount, SocialMediaPost, SystemSettings, ApifyPost, ApifyTrackedAccount, Calendar, CalendarPost],
         synchronize: true,
         logging: true,
       }),
@@ -48,6 +52,8 @@ import { ApifyTrackedAccount } from './apify/entities/apify-tracked-account.enti
     CompetitorModule,
     SystemSettingsModule,
     ApifyModule,
+    AiModule,
+    CalendarModule,
   ],
 })
 

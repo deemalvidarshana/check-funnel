@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api';
+import { getPublicPostDetails } from '../../api/publicInsights';
 
 const cleanFbUrl = (url) => {
   if (!url) return '#';
@@ -17,18 +18,30 @@ export default function PostDetailsModal({ postId, onClose, isApify }) {
     async function fetchDetails() {
       setLoading(true);
       try {
-        const endpoint = isApify ? `/apify/post/${postId}` : `/competitors/post/${postId}`;
-        const res = await api.get(endpoint);
-        const postData = res.data;
+        let postData;
+        if (postId && window.location.pathname.includes('/public-')) {
+          // Extract shareToken from URL if not passed as prop
+          const token = postId.shareToken || window.location.pathname.split('/').pop();
+          postData = await getPublicPostDetails(token, postId);
+        } else {
+          const endpoint = isApify ? `/apify/post/${postId}` : `/competitors/post/${postId}`;
+          const res = await api.get(endpoint);
+          postData = res.data;
+        }
+        
         setPost(postData);
 
         if (postData.postUrl) {
           try {
-            const thumbRes = await api.get(`/competitors/thumbnail?url=${encodeURIComponent(postData.postUrl)}`);
-            if (thumbRes.data?.thumbnail) {
-              const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
-              const proxyUrl = `${baseUrl}/competitors/proxy-image?url=${encodeURIComponent(thumbRes.data.thumbnail)}`;
-              setThumbnail(proxyUrl);
+            // Thumbnails are public in CompetitorController
+            const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+            const thumbRes = await fetch(`${baseUrl}/competitors/thumbnail?url=${encodeURIComponent(postData.postUrl)}`);
+            if (thumbRes.ok) {
+              const thumbData = await thumbRes.json();
+              if (thumbData.thumbnail) {
+                const proxyUrl = `${baseUrl}/competitors/proxy-image?url=${encodeURIComponent(thumbData.thumbnail)}`;
+                setThumbnail(proxyUrl);
+              }
             }
           } catch (err) {
             console.error("Failed to fetch modal thumbnail", err);
@@ -41,7 +54,7 @@ export default function PostDetailsModal({ postId, onClose, isApify }) {
       }
     }
     fetchDetails();
-  }, [postId]);
+  }, [postId, isApify]);
 
   if (!postId) return null;
 

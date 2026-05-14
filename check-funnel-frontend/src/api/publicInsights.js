@@ -28,3 +28,21 @@ export const getPublicTiktokInsights = async (shareToken) => {
   return response.data;
 };
 
+export const getPublicCompetitorSummary = async (shareToken, platform) => {
+  const response = await publicApi.get(`/public-insights/competitor-summary/${shareToken}`, {
+    params: { platform }
+  });
+  return response.data;
+};
+
+export const getPublicCompetitorPosts = async (shareToken, platform, from, to) => {
+  const response = await publicApi.get(`/public-insights/competitor-posts/${shareToken}`, {
+    params: { platform, from, to }
+  });
+  return response.data;
+};
+
+export const getPublicPostDetails = async (shareToken, postId) => {
+  const response = await publicApi.get(`/public-insights/post-details/${shareToken}/${postId}`);
+  return response.data;
+};

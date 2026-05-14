@@ -1,9 +1,11 @@
-import { Controller, Get, Param, NotFoundException, Query, Res } from '@nestjs/common';
+import { Controller, Get, Param, NotFoundException, Query, Res, ParseIntPipe } from '@nestjs/common';
 import * as express from 'express';
 import { ClientService } from '../client/client.service';
 import { FacebookService } from '../facebook/facebook.service';
 import { InstagramService } from '../instagram/instagram.service';
 import { TiktokService } from '../tiktok/tiktok.service';
+import { CompetitorService } from '../competitor/competitor.service';
+import { ApifyService } from '../apify/apify.service';
 
 @Controller('public-insights')
 export class PublicInsightsController {
@@ -12,6 +14,8 @@ export class PublicInsightsController {
     private readonly facebookService: FacebookService,
     private readonly instagramService: InstagramService,
     private readonly tiktokService: TiktokService,
+    private readonly competitorService: CompetitorService,
+    private readonly apifyService: ApifyService,
   ) {}
 
 
@@ -106,6 +110,111 @@ export class PublicInsightsController {
     }
     
     return insights;
+  }
+
+  @Get('competitor-summary/:shareToken')
+  async getPublicCompetitorSummary(
+    @Param('shareToken') shareToken: string,
+    @Query('platform') platform?: string,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    
+    // Fetch from both sources
+    const [apifySummary, csvSummary] = await Promise.all([
+      this.apifyService.getSummary(client.id, platform),
+      this.competitorService.getSummaryForClient(client.id, platform)
+    ]);
+
+    // Merge them by username
+    const summaryMap = new Map();
+
+    const addToMap = (items: any[]) => {
+      if (!Array.isArray(items)) return;
+      items.forEach(item => {
+        const username = item.username?.toLowerCase();
+        if (!username) return;
+        
+        if (!summaryMap.has(username)) {
+          summaryMap.set(username, { ...item });
+        } else {
+          const existing = summaryMap.get(username);
+          existing.totalPosts = (Number(existing.totalPosts) || 0) + (Number(item.totalPosts) || 0);
+          existing.totalViews = (Number(existing.totalViews) || 0) + (Number(item.totalViews) || 0);
+          existing.totalLikes = (Number(existing.totalLikes) || 0) + (Number(item.totalLikes) || 0);
+          existing.totalComments = (Number(existing.totalComments) || 0) + (Number(item.totalComments) || 0);
+          existing.totalShares = (Number(existing.totalShares) || 0) + (Number(item.totalShares) || 0);
+          // For followers and avg, we can just keep the one with higher followers or from Apify
+          if (Number(item.followerCount) > (Number(existing.followerCount) || 0)) {
+            existing.followerCount = item.followerCount;
+          }
+        }
+      });
+    };
+
+    addToMap(apifySummary);
+    addToMap(csvSummary);
+
+    return Array.from(summaryMap.values());
+  }
+
+  @Get('competitor-posts/:shareToken')
+  async getPublicCompetitorPosts(
+    @Param('shareToken') shareToken: string,
+    @Query('platform') platform?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+
+    // Fetch from both sources
+    const [apifyPosts, csvPosts] = await Promise.all([
+      this.apifyService.getPosts(client.id, platform),
+      this.competitorService.getPostsForClient(client.id, platform, from, to)
+    ]);
+
+    // Combine and sort by createdAt
+    const allPosts = [
+      ...(apifyPosts || []).map(p => ({ ...p, trackedAccount: p.trackedAccount || {} })),
+      ...(csvPosts || [])
+    ];
+
+    return allPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  @Get('post-details/:shareToken/:postId')
+  async getPublicPostDetails(
+    @Param('shareToken') shareToken: string,
+    @Param('postId', ParseIntPipe) postId: number,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    
+    // Try Apify first
+    try {
+      const post = await this.apifyService.getPostById(postId);
+      if (post && post.clientId === client.id) return post;
+    } catch (e) {
+      // Not in Apify
+    }
+
+    // Try CSV
+    const post = await this.competitorService.getPostById(postId);
+    if (post && post.clientId === client.id) return post;
+
+    throw new NotFoundException('Post not found');
+  }
+
+  @Get('logo/:shareToken')
+  async getPublicLogo(
+    @Param('shareToken') shareToken: string,
+    @Res() res: express.Response,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    if (!client.logoData) {
+      throw new NotFoundException('Logo not found');
+    }
+    // Set appropriate content type
+    res.set('Content-Type', 'image/png'); // Default to PNG, or detect from buffer if needed
+    res.send(client.logoData);
   }
 }
 

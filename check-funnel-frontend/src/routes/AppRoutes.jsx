@@ -14,9 +14,12 @@ import Reports from "../pages/reporting/Reports";
 import UserManagement from "../pages/users/UserManagement";
 import NotFound from "../pages/not-found/NotFound";
 import PublicReport from "../pages/public/PublicReport";
+import PublicCompetitorReport from "../pages/public/PublicCompetitorReport";
 import CompetitorAnalysis from "../pages/competitors/CompetitorAnalysis";
 import CompetitorPortfolio from "../pages/competitors/CompetitorPortfolio";
 import ContentCalendar from "../pages/social-media/ContentCalendar";
+import CreateContentCalendar from "../pages/social-media/CreateContentCalendar";
+
 /**
  * PublicRoute component that prevents logged-in users from accessing auth pages.
  */
@@ -38,6 +41,7 @@ export default function AppRoutes() {
 
       {/* Publicly accessible report routes (Sidebar-less) */}
       <Route path="/public-report/:shareToken" element={<PublicReport />} />
+      <Route path="/public-competitor-report/:shareToken" element={<PublicCompetitorReport />} />
 
       {/* Protected application routes */}
       <Route element={<ProtectedRoute />}>
@@ -45,6 +49,8 @@ export default function AppRoutes() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/content-calendar" element={<ContentCalendar />} />
+          <Route path="/content-calendar/create" element={<CreateContentCalendar />} />
+
           <Route path="/social-media" element={<SocialMediaAnalytics />} />
           <Route path="/competitors" element={<CompetitorPortfolio />} />
           <Route path="/competitors/:id" element={<CompetitorAnalysis />} />

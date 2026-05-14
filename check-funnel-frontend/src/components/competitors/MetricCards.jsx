@@ -46,7 +46,7 @@ const icons = {
   )
 };
 
-export default function MetricCards({ data }) {
+export default function MetricCards({ data, showProgress = true }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
       {data.map((card, index) => (
@@ -70,24 +70,30 @@ export default function MetricCards({ data }) {
           
           <div className="mt-auto">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[12px] font-bold text-[#727782]">Target {card.targetValue || '0'}+</span>
-              {card.change && card.change !== "0" && (
-                <div className={`flex items-center gap-1 text-[11px] font-bold ${card.isPositive ? 'text-green-600' : 'text-red-500'}`}>
-                  <svg className={`w-3 h-3 ${!card.isPositive ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <polyline points="5 12 12 5 19 12" />
-                  </svg>
-                  {card.change}
-                </div>
+              {showProgress && (
+                <>
+                  <span className="text-[12px] font-bold text-[#727782]">Target {card.targetValue || '0'}+</span>
+                  {card.change && card.change !== "0" && (
+                    <div className={`flex items-center gap-1 text-[11px] font-bold ${card.isPositive ? 'text-green-600' : 'text-red-500'}`}>
+                      <svg className={`w-3 h-3 ${!card.isPositive ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="5 12 12 5 19 12" />
+                      </svg>
+                      {card.change}
+                    </div>
+                  )}
+                </>
               )}
             </div>
             
             {/* Progress Bar */}
-            <div className="w-full h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-[#2563eb] rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${Math.min(Math.max(card.progress || 0, 5), 100)}%` }}
-              />
-            </div>
+            {showProgress && (
+              <div className="w-full h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-[#2563eb] rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${Math.min(Math.max(card.progress || 0, 5), 100)}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
       ))}

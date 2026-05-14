@@ -9,7 +9,7 @@ import TopVideosTable from '../../components/competitors/TopVideosTable';
 import CSVUploadModal from '../../components/competitors/CSVUploadModal';
 import ApifyFetchModal from '../../components/competitors/ApifyFetchModal';
 import FollowersVsAvgViewsChart from '../../components/competitors/FollowersVsAvgViewsChart';
-import { getClientById } from '../../api/client';
+import { getClientById, toggleShare } from '../../api/client';
 import { getSystemSettings } from '../../api/systemSettings';
 import api from '../../api';
 
@@ -68,6 +68,8 @@ export default function CompetitorAnalysis() {
   const [analyzeMethod, setAnalyzeMethod] = useState('upload');
   const [apifyDefaultLimit, setApifyDefaultLimit] = useState(100);
   const [toast, setToast] = useState(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [showCopied, setShowCopied] = useState(false);
 
   const [dateRange, setDateRange] = useState('all');
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
@@ -124,6 +126,38 @@ export default function CompetitorAnalysis() {
     }
     if (id) fetchData();
   }, [id, platformKey, analyzeMethod]);
+
+  const handleShare = async () => {
+    setShareLoading(true);
+    try {
+      const updatedClient = await toggleShare(id, true);
+      const shareUrl = `${window.location.origin}/public-competitor-report/${updatedClient.shareToken}`;
+      
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+
+      setShowCopied(true);
+      setTimeout(() => setShowCopied(false), 2000);
+      setToast({ message: "Share link copied to clipboard!", type: "success" });
+    } catch (error) {
+      console.error("Failed to share report", error);
+      setToast({ message: "Failed to generate share link.", type: "error" });
+    } finally {
+      setShareLoading(false);
+    }
+  };
 
   // Refresh data after upload
   const handleUploadClose = () => {
@@ -245,7 +279,7 @@ export default function CompetitorAnalysis() {
     const avgViews = Math.round(selectedSummary.totalViews / totalPosts);
     const avgLikes = Math.round(selectedSummary.totalLikes / totalPosts);
     const topViews = filteredPosts.length > 0
-      ? Math.max(...filteredPosts.map(p => p.views || 0))
+      ? filteredPosts.reduce((max, p) => { const v = p.views || 0; return v > max ? v : max; }, 0)
       : 0;
 
     // Calculate rank among competitors (by avg views or engagement)
@@ -287,7 +321,10 @@ export default function CompetitorAnalysis() {
       
       // Top Engagement per post - Use filteredPosts which already handles the platform and competitor filter
       topMetricValue = filteredPosts.length > 0 
-        ? Math.max(...filteredPosts.map(p => (p.likes || 0) + (p.commentsCount || 0) + (p.shares || 0))) 
+        ? filteredPosts.reduce((max, p) => {
+            const eng = (p.likes || 0) + (p.commentsCount || 0) + (p.shares || 0);
+            return eng > max ? eng : max;
+          }, 0)
         : 0;
     }
 
@@ -405,12 +442,20 @@ export default function CompetitorAnalysis() {
             sum + (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0), 0);
           avgValue = tp > 0 ? Math.round(totalEng / tp) : 0;
           topValue = accountPosts.length > 0 
-            ? Math.max(...accountPosts.map(p => (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0))) 
+            ? accountPosts.reduce((max, p) => {
+                const eng = (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0);
+                return eng > max ? eng : max;
+              }, 0)
             : 0;
         } else {
           const totalViews = accountPosts.reduce((sum, p) => sum + (Number(p.views) || 0), 0);
           avgValue = tp > 0 ? Math.round(totalViews / tp) : 0;
-          topValue = accountPosts.length > 0 ? Math.max(...accountPosts.map(p => Number(p.views) || 0)) : 0;
+          topValue = accountPosts.length > 0 
+            ? accountPosts.reduce((max, p) => {
+                const v = Number(p.views) || 0;
+                return v > max ? v : max;
+              }, 0)
+            : 0;
         }
 
         return {
@@ -659,7 +704,7 @@ export default function CompetitorAnalysis() {
 
         {/* Row 2: Sub-header, Mobile Actions & Platform Tabs */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 md:gap-6">
-          <div className="flex flex-col gap-6 md:gap-5">
+          <div className="flex flex-col md:gap-5">
             <p className="text-base leading-7 text-[#424751] sm:text-lg max-w-2xl">
               {clientName ? `Dashboard for ${clientName} — ` : ""}Track and analyze your competitors' performance across platforms.
             </p>
@@ -670,20 +715,46 @@ export default function CompetitorAnalysis() {
             </div>
           </div>
 
-          <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap items-center gap-2 rounded-full bg-[#f3f4f5] p-1 self-start lg:self-auto">
-            {['Facebook', 'Instagram', 'TikTok'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-shrink-0 rounded-full px-5 py-2 text-sm transition ${
-                  activeTab === tab 
-                    ? 'bg-[#003870] font-semibold text-white shadow-sm' 
-                    : 'font-medium text-[#727782] hover:bg-[#e7e8e9]'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 self-start lg:self-auto w-full lg:w-auto">
+            <button
+              onClick={handleShare}
+              disabled={shareLoading}
+              className="flex h-10 items-center gap-2 rounded-full border border-[#c2c6d3]/20 bg-white px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50 shadow-sm"
+            >
+              {shareLoading ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#003870] border-t-transparent"></div>
+              ) : showCopied ? (
+                <div className="flex items-center gap-2 text-[#003870] animate-in fade-in zoom-in duration-300">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm">Copied!</span>
+                </div>
+              ) : (
+                <>
+                  <svg className="h-4 w-4 text-[#003870]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  <span className="text-sm">Share Report</span>
+                </>
+              )}
+            </button>
+
+            <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap items-center gap-1 rounded-full bg-[#f3f4f5] p-1 flex-1 sm:flex-initial">
+              {['Facebook', 'Instagram', 'TikTok'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-shrink-0 rounded-full px-4 sm:px-5 py-2 text-xs sm:text-sm transition ${
+                    activeTab === tab 
+                      ? 'bg-[#003870] font-semibold text-white shadow-sm' 
+                      : 'font-medium text-[#727782] hover:bg-[#e7e8e9]'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -23,11 +23,14 @@ function TopContentCard({ data, onInfoClick }) {
 
     async function fetchThumb() {
       try {
-        const res = await api.get(`/competitors/thumbnail?url=${encodeURIComponent(data.postUrl)}`);
-        if (!ignore && res.data?.thumbnail) {
-          const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
-          const proxyUrl = `${baseUrl}/competitors/proxy-image?url=${encodeURIComponent(res.data.thumbnail)}`;
-          setThumbnail(proxyUrl);
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+        const res = await fetch(`${baseUrl}/competitors/thumbnail?url=${encodeURIComponent(data.postUrl)}`);
+        if (res.ok && !ignore) {
+          const thumbData = await res.json();
+          if (thumbData.thumbnail) {
+            const proxyUrl = `${baseUrl}/competitors/proxy-image?url=${encodeURIComponent(thumbData.thumbnail)}`;
+            setThumbnail(proxyUrl);
+          }
         }
       } catch {
         // Silently fail — fallback will show

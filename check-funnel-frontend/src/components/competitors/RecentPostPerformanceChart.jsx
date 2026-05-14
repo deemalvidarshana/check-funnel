@@ -81,7 +81,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
   // Calculate max value across only ACTIVE visible data
   const allValues = activeGroups.flatMap(g => g.data.map(d => d.value));
   // Calculate max value across only ACTIVE visible data with 15% buffer
-  const rawMax = Math.max(...allValues, 0);
+  const rawMax = allValues.reduce((max, val) => val > max ? val : max, 0);
   const maxValue = rawMax > 100 
     ? Math.ceil((rawMax * 1.15) / 100) * 100 
     : Math.max(Math.ceil((rawMax * 1.15) / 10) * 10, 10);

@@ -16,6 +16,8 @@ export class SystemSettingsService implements OnModuleInit {
     if (count === 0) {
       const settings = this.systemSettingsRepository.create({
         apifyApiKey: '',
+        openRouterApiKey: '',
+        openRouterModel: 'google/gemini-2.0-flash-001',
         competitorAnalyzeMethod: 'upload',
         apifyDefaultResultsLimit: 100,
         lastModifiedBy: 'System',
@@ -30,12 +32,24 @@ export class SystemSettingsService implements OnModuleInit {
   }
 
   async updateSettings(
-    updateData: { apifyApiKey?: string; competitorAnalyzeMethod?: string; apifyDefaultResultsLimit?: number },
+    updateData: { 
+      apifyApiKey?: string; 
+      openRouterApiKey?: string;
+      openRouterModel?: string;
+      competitorAnalyzeMethod?: string; 
+      apifyDefaultResultsLimit?: number 
+    },
     adminEmail: string,
   ): Promise<SystemSettings> {
     const settings = await this.getSettings();
     if (updateData.apifyApiKey !== undefined) {
       settings.apifyApiKey = updateData.apifyApiKey;
+    }
+    if (updateData.openRouterApiKey !== undefined) {
+      settings.openRouterApiKey = updateData.openRouterApiKey;
+    }
+    if (updateData.openRouterModel !== undefined) {
+      settings.openRouterModel = updateData.openRouterModel;
     }
     if (updateData.competitorAnalyzeMethod !== undefined) {
       settings.competitorAnalyzeMethod = updateData.competitorAnalyzeMethod;

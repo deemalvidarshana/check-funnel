@@ -3,59 +3,49 @@ import CalendarDay from './CalendarDay';
 import CalendarPost from './CalendarPost';
 import PostDetailsModal from './PostDetailsModal';
 
-const CalendarGrid = ({ view }) => {
+const CalendarGrid = ({ view, currentDate, posts, filters, isLoading }) => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const daysInMonth = 29; // Feb 2024
-  const startDay = 4; // Starts on Thursday
+  // ── Dynamic Date Calculations ──
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth(); // 0-indexed
+  
+  // Get number of days in current month
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // Get starting day of the month (0=Sun, 1=Mon, ...)
+  const startDay = new Date(year, month, 1).getDay();
 
-  const posts = [
-    { 
-      day: 1, 
-      type: 'Published', 
-      title: 'Poya Day Greeting', 
-      pillar: 'Poya Content', 
-      contentType: 'Static', 
-      time: '09:00 AM',
-      visualCopy: 'May this Poya Day be a moment to pause and reflect.',
-      caption: 'Wishing you peace and mindfulness today 🙏 #PoyaDay #Mindfulness',
-      icon: 'temple_buddhist'
-    },
-    { 
-      day: 5, 
-      type: 'Published', 
-      title: 'Unexpected Expenses', 
-      pillar: 'Risk & Life Event Triggers', 
-      contentType: 'Static', 
-      time: '10:30 AM',
-      visualCopy: 'Did you know? 70% of families face unexpected expenses yearly',
-      caption: 'Planning ahead reduces stress and surprises 💡 #RelianceInsuranceBrokers',
-      icon: 'savings'
-    },
-    { 
-      day: 14, 
-      type: 'Published', 
-      title: 'Valentine\'s Special', 
-      pillar: 'Risk & Life Event Triggers', 
-      contentType: 'Static', 
-      time: '03:15 PM',
-      visualCopy: 'Roses fade. Plans don\'t. Love your people, plan ahead',
-      caption: 'This Valentine\'s, show love the smart way! It\'s not just about flowers, it\'s about being there when it matters most 💙 #RelianceInsuranceBrokers #Valentines',
-      icon: 'favorite'
-    },
-    { 
-      day: 25, 
-      type: 'Published', 
-      title: 'Myth vs Fact Reel', 
-      pillar: 'Educational Content', 
-      contentType: 'Reel', 
-      time: '06:00 PM',
-      visualCopy: 'Myth vs Fact: Insurance Edition',
-      caption: 'Some myths are hard to shake! Planning ahead isn\'t complicated; it just takes small, simple steps 👊 #InsuranceFacts #MythBuster',
-      icon: 'movie'
-    },
-  ];
+  // ── Filter and Parse Posts ──
+  const filteredPosts = posts.filter(p => {
+    // 1. Basic Filters
+    if (filters.platform !== 'All Platforms' && p.platforms && !p.platforms.includes(filters.platform)) return false;
+    if (filters.contentType !== 'All Content Types' && p.contentType !== filters.contentType) return false;
+    if (filters.status !== 'All Statuses' && p.status !== filters.status) return false;
+
+    // 2. Date Filter (Check if post date matches current month/year)
+    if (!p.date) return false;
+
+    // Check if it's in YYYY-MM-DD format
+    if (p.date.includes('-') && p.date.split('-')[0].length === 4) {
+      const postDate = new Date(p.date);
+      if (!isNaN(postDate.getTime())) {
+         return postDate.getMonth() === month && postDate.getFullYear() === year;
+      }
+    }
+    
+    // Fallback for 'DD-Mon' format (e.g., '01-May')
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const currentMonthName = monthNames[month];
+    
+    if (p.date.includes(currentMonthName) || p.date.toLowerCase().includes(currentMonthName.toLowerCase())) {
+       // It matches the month, assume it belongs to the current year being viewed
+       return true;
+    }
+
+    return false;
+  });
 
   const handlePostClick = (post) => {
     setSelectedPost(post);
@@ -65,34 +55,106 @@ const CalendarGrid = ({ view }) => {
   const renderDays = () => {
     const days = [];
     
+    if (isLoading) {
+      return Array(35).fill(0).map((_, i) => (
+        <div key={i} className="h-32 rounded-2xl bg-slate-100 animate-pulse border border-slate-200/50"></div>
+      ));
+    }
+
     if (view === 'month') {
       // Empty days from previous month
+      const prevMonthLastDay = new Date(year, month, 0).getDate();
       for (let i = 0; i < startDay; i++) {
-        days.push(<CalendarDay key={`prev-${i}`} isCurrentMonth={false} day={28 + i} view={view} />);
+        const dayNum = prevMonthLastDay - startDay + i + 1;
+        days.push(<CalendarDay key={`prev-${i}`} isCurrentMonth={false} day={dayNum} view={view} />);
       }
 
       // Days of current month
       for (let d = 1; d <= daysInMonth; d++) {
-        const dayPosts = posts.filter(p => p.day === d);
+        const dayPosts = filteredPosts.filter(p => {
+          if (!p.date) return false;
+          
+          // YYYY-MM-DD format
+          if (p.date.includes('-') && p.date.split('-')[0].length === 4) {
+             const parts = p.date.split('-');
+             if (parts.length === 3) {
+                return parseInt(parts[2], 10) === d;
+             }
+          }
+
+          // Fallback for DD-Mon
+          const pDate = new Date(p.date);
+          if (!isNaN(pDate.getTime())) {
+             return pDate.getDate() === d;
+          }
+          
+          const dayStr = d < 10 ? `0${d}` : `${d}`;
+          return p.date.startsWith(dayStr);
+        });
+
+        const isToday = d === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
+
         days.push(
-          <CalendarDay key={d} day={d} isToday={d === 9} isCurrentMonth={true} view={view}>
+          <CalendarDay key={d} day={d} isToday={isToday} isCurrentMonth={true} view={view}>
             {dayPosts.map((post, idx) => (
               <div key={idx} onClick={(e) => { e.stopPropagation(); handlePostClick(post); }}>
-                <CalendarPost {...post} view={view} />
+                <CalendarPost 
+                  {...post} 
+                  title={post.visualCopy || post.title}
+                  type={post.status || post.type}
+                  view={view} 
+                />
               </div>
             ))}
           </CalendarDay>
         );
       }
     } else {
-      // Week view: Feb 4 to Feb 10
-      for (let d = 4; d <= 10; d++) {
-        const dayPosts = posts.filter(p => p.day === d);
+      // Week view
+      const startOfWeek = new Date(currentDate);
+      startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startOfWeek);
+        d.setDate(startOfWeek.getDate() + i);
+        
+        const dayNum = d.getDate();
+        const isToday = d.toDateString() === new Date().toDateString();
+        
+        const dayPosts = filteredPosts.filter(p => {
+          if (!p.date) return false;
+          
+          if (p.date.includes('-') && p.date.split('-')[0].length === 4) {
+             const parts = p.date.split('-');
+             if (parts.length === 3) {
+                 const postYear = parseInt(parts[0], 10);
+                 const postMonth = parseInt(parts[1], 10) - 1;
+                 const postDay = parseInt(parts[2], 10);
+                 return postYear === d.getFullYear() && postMonth === d.getMonth() && postDay === d.getDate();
+             }
+          }
+
+          // Fallback for DD-Mon
+          const pDate = new Date(p.date);
+          if (!isNaN(pDate.getTime())) {
+             // If the day and month match, consider it a match for the week view too
+             return pDate.getDate() === d.getDate() && pDate.getMonth() === d.getMonth();
+          }
+          
+          const dayStr = d.getDate() < 10 ? `0${d.getDate()}` : `${d.getDate()}`;
+          return p.date.startsWith(dayStr);
+        });
+
         days.push(
-          <CalendarDay key={d} day={d} isToday={d === 9} isCurrentMonth={true} view={view}>
+          <CalendarDay key={i} day={dayNum} isToday={isToday} isCurrentMonth={d.getMonth() === month} view={view}>
             {dayPosts.map((post, idx) => (
               <div key={idx} onClick={(e) => { e.stopPropagation(); handlePostClick(post); }}>
-                <CalendarPost {...post} view={view} />
+                <CalendarPost 
+                  {...post} 
+                  title={post.visualCopy || post.title}
+                  type={post.status || post.type}
+                  view={view} 
+                />
               </div>
             ))}
           </CalendarDay>
