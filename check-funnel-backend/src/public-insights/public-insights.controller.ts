@@ -116,24 +116,30 @@ export class PublicInsightsController {
   async getPublicCompetitorSummary(
     @Param('shareToken') shareToken: string,
     @Query('platform') platform?: string,
+    @Query('method') method?: string,
   ) {
     const client = await this.clientService.findByShareToken(shareToken);
     
-    // Fetch from both sources
+    if (method === 'apify') {
+      return this.apifyService.getSummary(client.id, platform);
+    }
+    
+    if (method === 'upload') {
+      return this.competitorService.getSummaryForClient(client.id, platform);
+    }
+
+    // Default: Merge both (Fallback)
     const [apifySummary, csvSummary] = await Promise.all([
       this.apifyService.getSummary(client.id, platform),
       this.competitorService.getSummaryForClient(client.id, platform)
     ]);
 
-    // Merge them by username
     const summaryMap = new Map();
-
     const addToMap = (items: any[]) => {
       if (!Array.isArray(items)) return;
       items.forEach(item => {
         const username = item.username?.toLowerCase();
         if (!username) return;
-        
         if (!summaryMap.has(username)) {
           summaryMap.set(username, { ...item });
         } else {
@@ -143,7 +149,6 @@ export class PublicInsightsController {
           existing.totalLikes = (Number(existing.totalLikes) || 0) + (Number(item.totalLikes) || 0);
           existing.totalComments = (Number(existing.totalComments) || 0) + (Number(item.totalComments) || 0);
           existing.totalShares = (Number(existing.totalShares) || 0) + (Number(item.totalShares) || 0);
-          // For followers and avg, we can just keep the one with higher followers or from Apify
           if (Number(item.followerCount) > (Number(existing.followerCount) || 0)) {
             existing.followerCount = item.followerCount;
           }
@@ -153,7 +158,6 @@ export class PublicInsightsController {
 
     addToMap(apifySummary);
     addToMap(csvSummary);
-
     return Array.from(summaryMap.values());
   }
 
@@ -161,18 +165,29 @@ export class PublicInsightsController {
   async getPublicCompetitorPosts(
     @Param('shareToken') shareToken: string,
     @Query('platform') platform?: string,
+    @Query('method') method?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
     const client = await this.clientService.findByShareToken(shareToken);
 
-    // Fetch from both sources
+    if (method === 'apify') {
+      const apifyPosts = await this.apifyService.getPosts(client.id, platform);
+      return (apifyPosts || []).map(p => ({ ...p, trackedAccount: p.trackedAccount || {} }))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    if (method === 'upload') {
+      const csvPosts = await this.competitorService.getPostsForClient(client.id, platform, from, to);
+      return (csvPosts || []).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    // Default: Combine and sort (Fallback)
     const [apifyPosts, csvPosts] = await Promise.all([
       this.apifyService.getPosts(client.id, platform),
       this.competitorService.getPostsForClient(client.id, platform, from, to)
     ]);
 
-    // Combine and sort by createdAt
     const allPosts = [
       ...(apifyPosts || []).map(p => ({ ...p, trackedAccount: p.trackedAccount || {} })),
       ...(csvPosts || [])

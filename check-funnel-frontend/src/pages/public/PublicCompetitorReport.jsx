@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import MetricCards from '../../components/competitors/MetricCards';
 import AverageViewsChart from '../../components/competitors/AverageViewsChart';
 import RecentPostPerformanceChart from '../../components/competitors/RecentPostPerformanceChart';
@@ -23,6 +23,8 @@ function ordinal(n) {
 
 export default function PublicCompetitorReport() {
   const { shareToken } = useParams();
+  const location = useLocation();
+  const queryMethod = new URLSearchParams(location.search).get('method');
   const [activeTab, setActiveTab] = useState('TikTok');
   const [client, setClient] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -58,8 +60,8 @@ export default function PublicCompetitorReport() {
       setLoading(true);
       try {
         const [postsRes, summaryRes] = await Promise.all([
-          getPublicCompetitorPosts(shareToken, platformKey),
-          getPublicCompetitorSummary(shareToken, platformKey),
+          getPublicCompetitorPosts(shareToken, platformKey, queryMethod),
+          getPublicCompetitorSummary(shareToken, platformKey, queryMethod),
         ]);
         setPosts(postsRes);
         setSummary(summaryRes);
@@ -73,7 +75,7 @@ export default function PublicCompetitorReport() {
       }
     }
     if (client) fetchData();
-  }, [client, platformKey, shareToken]);
+  }, [client, platformKey, shareToken, queryMethod]);
 
   // ─── Derived Data ──────────────────────────────────────
   const competitors = useMemo(() => {

@@ -131,7 +131,7 @@ export default function CompetitorAnalysis() {
     setShareLoading(true);
     try {
       const updatedClient = await toggleShare(id, true);
-      const shareUrl = `${window.location.origin}/public-competitor-report/${updatedClient.shareToken}`;
+      const shareUrl = `${window.location.origin}/public-competitor-report/${updatedClient.shareToken}?method=${analyzeMethod}`;
       
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareUrl);
