@@ -715,11 +715,11 @@ export default function CompetitorAnalysis() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 self-start lg:self-auto w-full lg:w-auto">
+          <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto">
             <button
               onClick={handleShare}
               disabled={shareLoading}
-              className="flex h-10 items-center gap-2 rounded-full border border-[#c2c6d3]/20 bg-white px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50 shadow-sm"
+              className="flex h-10 items-center gap-2 rounded-full border border-[#c2c6d3]/20 bg-white px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50 shadow-sm shrink-0"
             >
               {shareLoading ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#003870] border-t-transparent"></div>
@@ -728,24 +728,24 @@ export default function CompetitorAnalysis() {
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="text-sm">Copied!</span>
+                  <span className="text-xs sm:text-sm">Copied!</span>
                 </div>
               ) : (
                 <>
                   <svg className="h-4 w-4 text-[#003870]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                   </svg>
-                  <span className="text-sm">Share Report</span>
+                  <span className="text-xs sm:text-sm">Share</span>
                 </>
               )}
             </button>
 
-            <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap items-center gap-1 rounded-full bg-[#f3f4f5] p-1 flex-1 sm:flex-initial">
+            <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap items-center gap-1 rounded-full bg-[#f3f4f5] p-1 flex-1">
               {['Facebook', 'Instagram', 'TikTok'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-shrink-0 rounded-full px-4 sm:px-5 py-2 text-xs sm:text-sm transition ${
+                  className={`flex-1 rounded-full px-3 sm:px-5 py-2 text-[10px] sm:text-sm transition text-center whitespace-nowrap ${
                     activeTab === tab 
                       ? 'bg-[#003870] font-semibold text-white shadow-sm' 
                       : 'font-medium text-[#727782] hover:bg-[#e7e8e9]'
