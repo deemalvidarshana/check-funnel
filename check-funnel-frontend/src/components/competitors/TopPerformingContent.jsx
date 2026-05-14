@@ -50,6 +50,19 @@ function TopContentCard({ data, onInfoClick }) {
 
   const showFallback = !imgSrc || imgError;
 
+  const isVideo = React.useMemo(() => {
+    if (data.platform?.toLowerCase() === 'tiktok') return true;
+    const url = data.postUrl || '';
+    if (url.includes('/reel/') || url.includes('/tv/') || url.includes('/video/') || url.includes('/watch') || url.includes('/videos/')) return true;
+    const type = data.rawExtensionData?.Type || data.rawExtensionData?.type || data.rawExtensionData?.media_type || data.rawExtensionData?.['Media Type'];
+    if (type) {
+      const typeLower = String(type).toLowerCase();
+      if (typeLower.includes('video') || typeLower.includes('reel') || typeLower.includes('tv')) return true;
+      if (typeLower.includes('image') || typeLower.includes('photo') || typeLower.includes('album') || typeLower.includes('carousel')) return false;
+    }
+    return false;
+  }, [data]);
+
   return (
     <div className="flex flex-col w-[180px] shrink-0">
       <div className="relative w-full aspect-[9/16] rounded-[24px] overflow-hidden shadow-sm group bg-[#f3f4f5] mb-3">
@@ -92,9 +105,17 @@ function TopContentCard({ data, onInfoClick }) {
         >
           <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity" />
           <div className="absolute bottom-3 left-3 w-8 h-8 rounded-full border-2 border-white flex items-center justify-center bg-black/20 backdrop-blur-sm">
-            <svg className="w-4 h-4 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+            {isVideo ? (
+              <svg className="w-4 h-4 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            )}
           </div>
         </a>
       </div>
@@ -210,6 +231,7 @@ export default function TopPerformingContent({ allPosts, competitors, isApify })
           shares: fmt(post.shares),
           postUrl: post.postUrl,
           imageUrl: post.imageUrl,
+          rawExtensionData: post.rawExtensionData,
         };
       });
   }, [allPosts, selectedBrand]);

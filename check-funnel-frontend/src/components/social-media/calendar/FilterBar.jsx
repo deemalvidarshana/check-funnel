@@ -27,8 +27,8 @@ const CustomDropdown = ({ options, value, onChange, placeholder, minWidth }) => 
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)}></div>
-          <div className="absolute left-0 lg:left-0 right-0 lg:right-auto top-full z-50 mt-2 min-w-full lg:min-w-[200px] overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)}></div>
+          <div className="absolute left-0 lg:left-0 right-0 lg:right-auto top-full z-[110] mt-2 min-w-full lg:min-w-[200px] max-h-[400px] overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 no-scrollbar">
             {options.map((option) => (
               <button
                 key={option}
@@ -59,7 +59,7 @@ const FilterBar = ({ filters, onFilterChange, clients }) => {
   };
 
   return (
-    <section className="glass-panel rounded-2xl p-3 sm:p-4 shadow-sm border border-white flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
+    <section className="glass-panel relative z-[60] rounded-2xl p-3 sm:p-4 shadow-sm border border-white flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-bold text-[#003870]">
           <span className="material-symbols-outlined text-[20px]">filter_list</span>
@@ -77,14 +77,7 @@ const FilterBar = ({ filters, onFilterChange, clients }) => {
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-4 flex-1">
         <CustomDropdown 
-          options={['All Platforms', 'Meta', 'Instagram', 'TikTok', 'LinkedIn']}
-          value={filters.platform}
-          onChange={(val) => onFilterChange('platform', val)}
-          placeholder="All Platforms"
-          minWidth="140"
-        />
-        <CustomDropdown 
-          options={['All Content Types', 'Video', 'Image', 'Carousel']}
+          options={['All Content Types', 'Video', 'Image', 'Carousel', 'Static']}
           value={filters.contentType}
           onChange={(val) => onFilterChange('contentType', val)}
           placeholder="All Content Types"
@@ -98,10 +91,17 @@ const FilterBar = ({ filters, onFilterChange, clients }) => {
           minWidth="150"
         />
         <CustomDropdown 
-          options={['All Statuses', 'Published', 'Scheduled', 'Needs Approval']}
+          options={['All Statuses', 'PUBLISHED', 'SCHEDULED', 'DRAFT']}
           value={filters.status}
           onChange={(val) => onFilterChange('status', val)}
           placeholder="All Statuses"
+          minWidth="140"
+        />
+        <CustomDropdown 
+          options={['Calendar View', 'Row View']}
+          value={filters.viewType || 'Calendar View'}
+          onChange={(val) => onFilterChange('viewType', val)}
+          placeholder="View Type"
           minWidth="140"
         />
       </div>

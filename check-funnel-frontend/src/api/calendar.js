@@ -16,3 +16,18 @@ export const getCalendarById = async (id) => {
   const response = await api.get(`/calendars/${id}`);
   return response.data;
 };
+
+export const deleteCalendar = async (id) => {
+  const response = await api.delete(`/calendars/${id}`);
+  return response.data;
+};
+
+export const deletePost = async (id) => {
+  const response = await api.delete(`/calendars/posts/${id}`);
+  return response.data;
+};
+
+export const updatePost = async (id, data) => {
+  const response = await api.patch(`/calendars/posts/${id}`, data);
+  return response.data;
+};

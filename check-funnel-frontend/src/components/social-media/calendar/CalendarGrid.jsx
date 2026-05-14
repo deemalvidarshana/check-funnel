@@ -19,10 +19,16 @@ const CalendarGrid = ({ view, currentDate, posts, filters, isLoading }) => {
 
   // ── Filter and Parse Posts ──
   const filteredPosts = posts.filter(p => {
-    // 1. Basic Filters
-    if (filters.platform !== 'All Platforms' && p.platforms && !p.platforms.includes(filters.platform)) return false;
-    if (filters.contentType !== 'All Content Types' && p.contentType !== filters.contentType) return false;
-    if (filters.status !== 'All Statuses' && p.status !== filters.status) return false;
+    // 1. Basic Filters (Case-Insensitive)
+    const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' || (p.platforms && p.platforms.some(plat => plat.toLowerCase() === filters.platform.toLowerCase()));
+    
+    const matchesType = !filters.contentType || filters.contentType === 'All Content Types' || 
+                        (p.contentType && p.contentType.toLowerCase() === filters.contentType.toLowerCase());
+    
+    const matchesStatus = !filters.status || filters.status === 'All Statuses' || 
+                         (p.status && p.status.toLowerCase() === filters.status.toLowerCase());
+
+    if (!matchesPlatform || !matchesType || !matchesStatus) return false;
 
     // 2. Date Filter (Check if post date matches current month/year)
     if (!p.date) return false;

@@ -465,8 +465,9 @@ export default function PublicReport() {
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
                   </div>
                   <a 
-                    href="#" 
-                    onClick={(e) => e.preventDefault()}
+                    href="https://check-funnel.odoo.com/book/cb4461cd" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
                     className="w-full py-3 rounded-2xl bg-white text-[#003870] font-black text-xs uppercase tracking-widest shadow-lg hover:shadow-white/10 transition-all text-center active:scale-95"
                   >
                     Book Now

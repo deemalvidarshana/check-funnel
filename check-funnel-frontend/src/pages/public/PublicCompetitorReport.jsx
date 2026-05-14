@@ -502,8 +502,9 @@ export default function PublicCompetitorReport() {
                   <p className="text-[11px] font-bold text-white/60">Let's talk strategy</p>
                 </div>
                 <a 
-                  href="#" 
-                  onClick={(e) => e.preventDefault()}
+                  href="https://check-funnel.odoo.com/book/cb4461cd" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
                   className="px-10 py-3.5 rounded-2xl bg-white text-[#003870] font-black text-xs uppercase tracking-[0.15em] shadow-lg hover:shadow-white/10 hover:-translate-y-0.5 active:translate-y-0 transition-all"
                 >
                   Book Now

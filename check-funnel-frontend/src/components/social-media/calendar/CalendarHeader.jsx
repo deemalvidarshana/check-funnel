@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const CalendarHeader = ({ view, setView, currentDate, onPrev, onNext }) => {
+const CalendarHeader = ({ view, setView, currentDate, onPrev, onNext, showViewToggle }) => {
   const navigate = useNavigate();
 
   return (
@@ -45,28 +45,30 @@ const CalendarHeader = ({ view, setView, currentDate, onPrev, onNext }) => {
             </button>
           </div>
           {/* View Toggles */}
-          <div className="flex bg-slate-100/80 p-1 rounded-full border border-slate-200/50 w-full sm:w-auto justify-center">
-            <button 
-              onClick={() => setView('month')}
-              className={`flex-1 sm:flex-initial px-5 py-2 rounded-full text-sm font-bold transition-all ${
-                view === 'month' 
-                  ? "bg-white shadow-sm text-[#003870]" 
-                  : "text-slate-500 hover:text-[#003870]"
-              }`}
-            >
-              Month
-            </button>
-            <button 
-              onClick={() => setView('week')}
-              className={`flex-1 sm:flex-initial px-5 py-2 rounded-full text-sm font-bold transition-all ${
-                view === 'week' 
-                  ? "bg-white shadow-sm text-[#003870]" 
-                  : "text-slate-500 hover:text-[#003870]"
-              }`}
-            >
-              Week
-            </button>
-          </div>
+          {showViewToggle !== false && (
+            <div className="flex bg-slate-100/80 p-1 rounded-full border border-slate-200/50 w-full sm:w-auto justify-center">
+              <button 
+                onClick={() => setView('month')}
+                className={`flex-1 sm:flex-initial px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                  view === 'month' 
+                    ? "bg-white shadow-sm text-[#003870]" 
+                    : "text-slate-500 hover:text-[#003870]"
+                }`}
+              >
+                Month
+              </button>
+              <button 
+                onClick={() => setView('week')}
+                className={`flex-1 sm:flex-initial px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                  view === 'week' 
+                    ? "bg-white shadow-sm text-[#003870]" 
+                    : "text-slate-500 hover:text-[#003870]"
+                }`}
+              >
+                Week
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </section>

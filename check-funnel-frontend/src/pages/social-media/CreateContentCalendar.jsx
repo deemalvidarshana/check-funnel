@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { getClients } from '../../services/clientService';
 import api from '../../services/api';
 import { generateCalendarAI } from '../../api/ai';
-import { saveCalendar, getCalendars } from '../../api/calendar';
+import { saveCalendar, getCalendars, deleteCalendar, deletePost, updatePost } from '../../api/calendar';
 import CalendarTable from './components/CalendarTable';
 import HistoryFilters from './components/HistoryFilters';
+import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
 
 /* ──────────── SVG Icons for Social Platforms ──────────── */
 const FacebookIcon = ({ active }) => (
@@ -47,6 +48,10 @@ const CreateContentCalendar = () => {
   const [savedCalendars, setSavedCalendars] = useState([]);
   const [selectedHistoryFilter, setSelectedHistoryFilter] = useState({ client: '', date: '' });
   const [refinementOffset, setRefinementOffset] = useState(0);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [calendarToDelete, setCalendarToDelete] = useState(null);
+  const [isDeleteRowModalOpen, setIsDeleteRowModalOpen] = useState(false);
+  const [rowToDeleteIndex, setRowToDeleteIndex] = useState(null);
 
   const fetchSavedCalendars = async (clientId) => {
     try {
@@ -526,6 +531,112 @@ MANDATORY RULES:
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDeleteCalendar = () => {
+    if (!selectedHistoryFilter.date) return;
+    
+    const [month, year] = selectedHistoryFilter.date.split(' ');
+    const calendar = savedCalendars.find(c => {
+      const isMonthYearMatch = c.month === month && c.year.toString() === year;
+      if (!isMonthYearMatch) return false;
+      if (!selectedHistoryFilter.client) return true;
+      const calendarClientName = c.name ? c.name.split(' - ')[0] : '';
+      return calendarClientName === selectedHistoryFilter.client;
+    });
+
+    if (!calendar) return;
+
+    setCalendarToDelete(calendar);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteCalendar = async () => {
+    if (!calendarToDelete) return;
+
+    try {
+      await deleteCalendar(calendarToDelete.id);
+      setToast({ message: "Calendar deleted successfully!", type: "success" });
+      
+      // Reset view
+      setIsGenerated(false);
+      setGeneratedData([]);
+      setSelectedHistoryFilter({ client: '', date: '' });
+      
+      // Refresh calendar list
+      if (selectedClient) {
+        fetchSavedCalendars(selectedClient.id);
+      } else {
+        fetchAllCalendars();
+      }
+    } catch (err) {
+      console.error("Failed to delete calendar", err);
+      setToast({ message: "Failed to delete calendar.", type: "error" });
+    } finally {
+      setIsDeleteModalOpen(false);
+      setCalendarToDelete(null);
+    }
+  };
+
+  const handleDeleteRow = (index) => {
+    setRowToDeleteIndex(index);
+    setIsDeleteRowModalOpen(true);
+  };
+
+  const confirmDeleteRow = async () => {
+    if (rowToDeleteIndex === null) return;
+
+    const row = generatedData[rowToDeleteIndex];
+    
+    try {
+      if (row.id) {
+        await deletePost(row.id);
+      }
+      
+      const newData = [...generatedData];
+      newData.splice(rowToDeleteIndex, 1);
+      setGeneratedData(newData);
+    } finally {
+      setIsDeleteRowModalOpen(false);
+      setRowToDeleteIndex(null);
+    }
+  };
+
+  const handleUpdateRow = async (index, updatedFields) => {
+    const row = generatedData[index];
+    
+    // Optimistic Update
+    const newData = [...generatedData];
+    newData[index] = { ...row, ...updatedFields };
+    setGeneratedData(newData);
+
+    try {
+      if (row.id) {
+        // Filter only valid database columns to avoid TypeORM errors
+        const validFields = {};
+        const dbColumns = ['pillar', 'visualCopy', 'caption', 'status', 'date', 'time', 'contentType'];
+        
+        Object.keys(updatedFields).forEach(key => {
+          if (dbColumns.includes(key)) {
+            validFields[key] = updatedFields[key];
+          }
+        });
+
+        if (Object.keys(validFields).length > 0) {
+          await updatePost(row.id, validFields);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update post", err);
+      setToast({ message: "Failed to auto-update post. Please check your connection.", type: "error" });
+    }
+  };
+
+  const handleAiEdit = (index, e) => {
+    const row = e.currentTarget.closest('tr');
+    // Use offsetTop to align perfectly with the row
+    setRefinementOffset(row.offsetTop);
+    setAiEditModal({ ...aiEditModal, isOpen: true, rowIndex: index });
   };
 
   const selectClient = async (client) => {
@@ -1028,6 +1139,7 @@ MANDATORY RULES:
               dates={historyDates}
               isSaving={isSaving}
               onSave={() => handleSaveToDatabase()}
+              onDelete={handleDeleteCalendar}
               onExport={() => {/* Export Logic */}}
             />
 
@@ -1036,13 +1148,10 @@ MANDATORY RULES:
                 <div className="flex-1 min-w-[1000px]">
                   {isGenerated ? (
                     <CalendarTable 
-                      data={generatedData}
-                      onAiEdit={(index, e) => {
-                        const row = e.currentTarget.closest('tr');
-                        // Use offsetTop to align perfectly with the row
-                        setRefinementOffset(row.offsetTop);
-                        setAiEditModal({ ...aiEditModal, isOpen: true, rowIndex: index });
-                      }}
+                      data={generatedData} 
+                      onAiEdit={handleAiEdit}
+                      onDeleteRow={handleDeleteRow}
+                      onUpdateRow={handleUpdateRow}
                       getStatusColor={getStatusColor}
                       editingIndex={aiEditModal.rowIndex}
                     />
@@ -1159,6 +1268,22 @@ MANDATORY RULES:
            </button>
         </div>
       )}
+
+      <DeleteConfirmationModal 
+        open={isDeleteRowModalOpen}
+        onClose={() => setIsDeleteRowModalOpen(false)}
+        onConfirm={confirmDeleteRow}
+        title="Delete Post?"
+        message="Are you sure you want to delete this post? This will remove it from the calendar permanently."
+      />
+
+      <DeleteConfirmationModal 
+        open={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDeleteCalendar}
+        title="Delete Content Calendar?"
+        message={`Are you sure you want to permanently delete the calendar "${calendarToDelete?.name}"? This action cannot be undone.`}
+      />
     </div>
   );
 };

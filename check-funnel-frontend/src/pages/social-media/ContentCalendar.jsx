@@ -1,21 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import CalendarHeader from '../../components/social-media/calendar/CalendarHeader';
 import FilterBar from '../../components/social-media/calendar/FilterBar';
 import CalendarGrid from '../../components/social-media/calendar/CalendarGrid';
-import { getCalendars } from '../../api/calendar';
+import CalendarTable from './components/CalendarTable';
+import Toast from '../../components/common/Toast';
+import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
+import PostDetailsModal from '../../components/social-media/calendar/PostDetailsModal';
+import { getCalendars, updatePost, deletePost } from '../../api/calendar';
 import { getClients } from '../../api/client';
 
 const ContentCalendar = () => {
   const [view, setView] = useState('month');
-  const [currentDate, setCurrentDate] = useState(new Date()); // May 2026
+  const [currentDate, setCurrentDate] = useState(new Date()); 
   const [posts, setPosts] = useState([]);
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  
+  // Modal states
+  const [deleteModal, setDeleteModal] = useState({ open: false, index: null });
+  const [detailsModal, setDetailsModal] = useState({ open: false, post: null });
+  
   const [filters, setFilters] = useState({
     platform: 'All Platforms',
     contentType: 'All Content Types',
     client: 'All Clients',
-    status: 'All Statuses'
+    status: 'All Statuses',
+    viewType: 'Calendar View'
   });
 
   useEffect(() => {
@@ -24,7 +35,7 @@ const ContentCalendar = () => {
 
   useEffect(() => {
     fetchPosts();
-  }, [currentDate, filters.client]);
+  }, [filters.client]);
 
   const fetchInitialData = async () => {
     try {
@@ -38,12 +49,9 @@ const ContentCalendar = () => {
   const fetchPosts = async () => {
     setIsLoading(true);
     try {
-      // Find selected client ID if not 'All Clients'
       const selectedClient = clients.find(c => c.displayName === filters.client || c.name === filters.client);
       const data = await getCalendars(selectedClient?.id);
       
-      // Flatten all posts from all calendars for this client
-      // (Normally you'd filter by month/year in the API, but for now we flatten)
       let allPosts = [];
       data.forEach(cal => {
         if (cal.posts) {
@@ -59,39 +67,166 @@ const ContentCalendar = () => {
     }
   };
 
+  const filteredPosts = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const currentMonthName = monthNames[month];
+
+    return posts.filter(p => {
+      const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' || 
+                             (p.platforms && p.platforms.some(plat => plat.toLowerCase() === filters.platform.toLowerCase()));
+      
+      const matchesType = !filters.contentType || filters.contentType === 'All Content Types' || 
+                         (p.contentType && p.contentType.toLowerCase() === filters.contentType.toLowerCase());
+      
+      const matchesStatus = !filters.status || filters.status === 'All Statuses' || 
+                           (p.status && p.status.toLowerCase() === filters.status.toLowerCase());
+
+      if (!matchesPlatform || !matchesType || !matchesStatus) return false;
+
+      if (!p.date) return false;
+
+      if (p.date.includes('-') && p.date.split('-')[0].length === 4) {
+        const postDate = new Date(p.date);
+        if (!isNaN(postDate.getTime())) {
+           return postDate.getMonth() === month && postDate.getFullYear() === year;
+        }
+      }
+      
+      if (p.date.includes(currentMonthName) || p.date.toLowerCase().includes(currentMonthName.toLowerCase())) {
+         return true;
+      }
+
+      return false;
+    });
+  }, [posts, currentDate, filters]);
+
+  const handleUpdateRow = async (index, updatedFields) => {
+    const postToUpdate = filteredPosts[index];
+    if (!postToUpdate || !postToUpdate.id) return;
+
+    const newPosts = posts.map(p => p.id === postToUpdate.id ? { ...p, ...updatedFields } : p);
+    setPosts(newPosts);
+
+    try {
+      const dbColumns = ['date', 'contentType', 'pillar', 'visualCopy', 'visual', 'caption', 'status', 'platforms'];
+      const filteredFields = Object.keys(updatedFields)
+        .filter(key => dbColumns.includes(key))
+        .reduce((obj, key) => {
+          obj[key] = updatedFields[key];
+          return obj;
+        }, {});
+
+      await updatePost(postToUpdate.id, filteredFields);
+    } catch (err) {
+      console.error("Failed to update post", err);
+      setToast({ message: "Failed to auto-update post.", type: "error" });
+      fetchPosts();
+    }
+  };
+
+  const handleDeleteClick = (index) => {
+    setDeleteModal({ open: true, index });
+  };
+
+  const handleConfirmDelete = async () => {
+    const postToDelete = filteredPosts[deleteModal.index];
+    setDeleteModal({ open: false, index: null });
+
+    if (!postToDelete || !postToDelete.id) return;
+
+    try {
+      await deletePost(postToDelete.id);
+      setPosts(posts.filter(p => p.id !== postToDelete.id));
+      setToast({ message: "Post deleted", type: "success" });
+    } catch (err) {
+      console.error("Failed to delete post", err);
+      setToast({ message: "Failed to delete post", type: "error" });
+    }
+  };
+
+  const handleViewPost = (index) => {
+    setDetailsModal({ open: true, post: filteredPosts[index] });
+  };
+
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)));
+    setCurrentDate(new Date(new Date(currentDate).setMonth(currentDate.getMonth() - 1)));
   };
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)));
+    setCurrentDate(new Date(new Date(currentDate).setMonth(currentDate.getMonth() + 1)));
   };
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
+  const getStatusColor = (status) => {
+    switch (status?.toUpperCase()) {
+      case 'PUBLISHED': return 'bg-green-50 text-green-700 border-green-200';
+      case 'SCHEDULED': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'DRAFT': return 'bg-slate-100 text-slate-600 border-slate-200';
+      default: return 'bg-slate-50 text-slate-500 border-slate-200';
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto w-full pb-24">
+    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto w-full pb-24 px-4">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      
+      <DeleteConfirmationModal 
+        open={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, index: null })}
+        onConfirm={handleConfirmDelete}
+        title="Delete Post"
+        message="Are you sure you want to delete this post? This action cannot be undone."
+      />
+
+      <PostDetailsModal 
+        isOpen={detailsModal.open}
+        onClose={() => setDetailsModal({ open: false, post: null })}
+        post={detailsModal.post}
+      />
+      
       <CalendarHeader 
         view={view} 
         setView={setView} 
         currentDate={currentDate}
         onPrev={handlePrevMonth}
         onNext={handleNextMonth}
+        showViewToggle={filters.viewType !== 'Row View'}
       />
       <FilterBar 
         filters={filters} 
         onFilterChange={handleFilterChange} 
         clients={clients.map(c => c.displayName || c.name)}
       />
-      <CalendarGrid 
-        view={view} 
-        currentDate={currentDate} 
-        posts={posts} 
-        filters={filters}
-        isLoading={isLoading}
-      />
+      
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003870]"></div>
+        </div>
+      ) : filters.viewType === 'Row View' ? (
+        <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+          <CalendarTable 
+            data={filteredPosts}
+            onUpdateRow={handleUpdateRow}
+            onDeleteRow={handleDeleteClick}
+            onViewRow={handleViewPost}
+            getStatusColor={getStatusColor}
+            onAiEdit={() => {}} 
+          />
+        </div>
+      ) : (
+        <CalendarGrid 
+          view={view} 
+          currentDate={currentDate} 
+          posts={filteredPosts} 
+          filters={filters}
+          isLoading={isLoading}
+        />
+      )}
       
       {/* Contextual FAB */}
       <button className="fixed bottom-8 right-8 h-14 w-14 rounded-2xl bg-[#003870] text-white shadow-xl shadow-[#003870]/20 flex items-center justify-center hover:scale-105 hover:shadow-2xl hover:shadow-[#003870]/30 active:scale-95 transition-all z-50">
