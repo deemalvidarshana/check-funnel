@@ -27,6 +27,6 @@ export class CalendarPost {
   @Column({ default: 'DRAFT' })
   status: string;
 
-  @ManyToOne(() => Calendar, (calendar) => calendar.posts)
+  @ManyToOne(() => Calendar, (calendar) => calendar.posts, { onDelete: 'CASCADE' })
   calendar: Calendar;
 }

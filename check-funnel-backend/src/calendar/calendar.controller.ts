@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Patch, Body, Param, Query, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { CalendarService } from './calendar.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -20,5 +20,23 @@ export class CalendarController {
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.calendarService.getCalendarById(id);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    return this.calendarService.deleteCalendar(id);
+  }
+
+  @Delete('posts/:id')
+  async removePost(@Param('id', ParseIntPipe) id: number) {
+    return this.calendarService.deletePost(id);
+  }
+
+  @Patch('posts/:id')
+  async updatePost(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() data: any,
+  ) {
+    return this.calendarService.updatePost(id, data);
   }
 }

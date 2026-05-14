@@ -75,4 +75,17 @@ export class CalendarService {
       relations: ['posts'],
     });
   }
+
+  async deleteCalendar(id: number): Promise<void> {
+    await this.calendarRepository.delete(id);
+  }
+
+  async deletePost(id: number): Promise<void> {
+    await this.calendarPostRepository.delete(id);
+  }
+
+  async updatePost(id: number, data: Partial<CalendarPost>): Promise<CalendarPost | null> {
+    await this.calendarPostRepository.update(id, data);
+    return this.calendarPostRepository.findOne({ where: { id } });
+  }
 }
