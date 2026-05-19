@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import MetricTabs from "../../components/insights/MetricTabs";
 import PlatformSelector from "../../components/insights/PlatformSelector";
 import ContentVelocityChart from "../../components/insights/ContentVelocityChart";
@@ -445,6 +445,17 @@ export default function ClientInsights() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            to={`/clients/${id}/targets?platform=${activePlatform}`}
+            className="flex h-11 items-center gap-2 rounded-full border border-[#c2c6d3]/20 bg-white px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95"
+          >
+            <svg className="h-4 w-4 text-[#003870]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="8" />
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" strokeLinecap="round" />
+            </svg>
+            <span className="text-base sm:text-lg">Targets</span>
+          </Link>
           <button
             onClick={handleShare}
             disabled={shareLoading}

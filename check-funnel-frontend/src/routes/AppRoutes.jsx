@@ -19,6 +19,7 @@ import CompetitorAnalysis from "../pages/competitors/CompetitorAnalysis";
 import CompetitorPortfolio from "../pages/competitors/CompetitorPortfolio";
 import ContentCalendar from "../pages/social-media/ContentCalendar";
 import CreateContentCalendar from "../pages/social-media/CreateContentCalendar";
+import TargetPlanner from "../pages/targets/TargetPlanner";
 
 /**
  * PublicRoute component that prevents logged-in users from accessing auth pages.
@@ -57,6 +58,8 @@ export default function AppRoutes() {
           <Route path="/clients" element={<ClientDirectory />} />
           <Route path="/clients/:id" element={<ClientProfile />} />
           <Route path="/clients/:id/insights" element={<ClientInsights />} />
+          <Route path="/clients/:id/targets" element={<TargetPlanner />} />
+          <Route path="/targets" element={<TargetPlanner />} />
           <Route path="/reports" element={<Reports />} />
           
           {/* Admin-only routes */}

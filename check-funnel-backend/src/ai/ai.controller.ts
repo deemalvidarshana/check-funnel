@@ -6,6 +6,29 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
+  private parseJsonContent(result: string) {
+    try {
+      return JSON.parse(result);
+    } catch {
+      const jsonObjectMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonObjectMatch) {
+        try {
+          return JSON.parse(jsonObjectMatch[0]);
+        } catch {
+          // Keep deterministic targets visible if AI wraps JSON badly.
+        }
+      }
+
+      return {
+        summary: 'AI returned a non-JSON response, but deterministic targets were calculated successfully.',
+        confidence: 'low',
+        priorities: [],
+        risks: ['AI response could not be parsed.'],
+        raw: result,
+      };
+    }
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('generate-calendar')
   async generateCalendar(@Body('prompt') prompt: string) {
@@ -95,5 +118,66 @@ export class AiController {
       console.log('Raw Result was:', result);
       return { raw: result, error: 'Failed to parse JSON' };
     }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('generate-targets')
+  async generateTargets(@Body() payload: any) {
+    const targetSchema = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'target_recommendations',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            summary: { type: 'string' },
+            confidence: { type: 'string' },
+            priorities: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  clientName: { type: 'string' },
+                  metric: { type: 'string' },
+                  target: { type: 'string' },
+                  rationale: { type: 'string' },
+                  action: { type: 'string' },
+                },
+                required: ['clientName', 'metric', 'target', 'rationale', 'action'],
+                additionalProperties: false,
+              },
+            },
+            risks: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+          },
+          required: ['summary', 'confidence', 'priorities', 'risks'],
+          additionalProperties: false,
+        },
+      },
+    };
+
+    const safePayload = {
+      platform: payload?.platform,
+      generatedAt: payload?.generatedAt,
+      rule: payload?.rule,
+      clients: Array.isArray(payload?.clients) ? payload.clients.slice(0, 12) : [],
+    };
+
+    const prompt = `
+You are Check Funnel's performance target analyst.
+Use only the supplied live target data. Do not invent clients, months, or metrics.
+The deterministic targets are already calculated as max(completed-month average * 1.4, small-account minimum floor).
+Review the target set, identify practical priorities, and explain any small-account floor usage in plain business language.
+Return compact JSON that matches the schema.
+
+TARGET DATA:
+${JSON.stringify(safePayload, null, 2)}
+`;
+
+    const result = await this.aiService.generateCompletion(prompt, targetSchema);
+    return this.parseJsonContent(result);
   }
 }

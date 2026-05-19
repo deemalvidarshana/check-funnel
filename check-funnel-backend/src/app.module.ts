@@ -22,7 +22,8 @@ import { AiModule } from './ai/ai.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { Calendar } from './calendar/entities/calendar.entity';
 import { CalendarPost } from './calendar/entities/calendar-post.entity';
-
+import { TargetsModule } from './targets/targets.module';
+import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
 
 @Module({
   imports: [
@@ -36,7 +37,18 @@ import { CalendarPost } from './calendar/entities/calendar-post.entity';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [User, Client, TrackedAccount, SocialMediaPost, SystemSettings, ApifyPost, ApifyTrackedAccount, Calendar, CalendarPost],
+        entities: [
+          User,
+          Client,
+          TrackedAccount,
+          SocialMediaPost,
+          SystemSettings,
+          ApifyPost,
+          ApifyTrackedAccount,
+          Calendar,
+          CalendarPost,
+          TargetSnapshot,
+        ],
         synchronize: true,
         logging: true,
       }),
@@ -54,9 +66,8 @@ import { CalendarPost } from './calendar/entities/calendar-post.entity';
     ApifyModule,
     AiModule,
     CalendarModule,
+    TargetsModule,
   ],
 })
-
 export class AppModule {}
 // Triggering rebuild
-
