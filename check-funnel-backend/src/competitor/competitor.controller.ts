@@ -78,13 +78,38 @@ export class CompetitorController {
     if (!url) return { thumbnail: '' };
 
     try {
+      const getPreviewFallback = async () => {
+        try {
+          const previewUrl = `https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true`;
+          const response = await fetch(previewUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+          });
+
+          if (!response.ok) return '';
+
+          const data = await response.json();
+          return (
+            data?.data?.image?.url ||
+            data?.data?.screenshot?.url ||
+            data?.data?.logo?.url ||
+            ''
+          );
+        } catch {
+          return '';
+        }
+      };
+
       // TikTok oEmbed API (public, no auth needed)
       if (url.includes('tiktok.com')) {
         const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
         const response = await fetch(oembedUrl);
         if (response.ok) {
           const data = await response.json();
-          return { thumbnail: data.thumbnail_url || '' };
+          const thumbnail = data.thumbnail_url || '';
+          if (thumbnail) return { thumbnail };
         }
       }
 
@@ -129,7 +154,7 @@ export class CompetitorController {
         if (thumb) return { thumbnail: thumb };
       }
 
-      return { thumbnail: '' };
+      return { thumbnail: await getPreviewFallback() };
     } catch {
       return { thumbnail: '' };
     }

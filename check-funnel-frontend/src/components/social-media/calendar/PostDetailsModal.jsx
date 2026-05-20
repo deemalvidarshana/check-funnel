@@ -53,6 +53,15 @@ const getPlatformPreviews = (links) => (
     .filter((field) => field.href)
 );
 
+const getContentTypeIcon = (type) => {
+  const normalizedType = String(type || '').toLowerCase();
+
+  if (normalizedType.includes('carousel')) return 'view_carousel';
+  if (normalizedType.includes('reel') || normalizedType.includes('video')) return 'play_arrow';
+  if (normalizedType.includes('photo') || normalizedType.includes('image') || normalizedType.includes('static')) return 'image';
+  return 'article';
+};
+
 const formatPostDate = (post) => {
   if (!post?.date) return `Feb ${post?.day || ''}, 2024`;
 
@@ -94,22 +103,28 @@ const PlatformPreview = ({ post, links }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [thumbnails, setThumbnails] = useState({});
   const [imageErrors, setImageErrors] = useState({});
+  const [loadingThumbnails, setLoadingThumbnails] = useState(false);
   const linkedPlatforms = getPlatformPreviews(links);
   const activePlatform = linkedPlatforms[activeIndex % Math.max(linkedPlatforms.length, 1)];
   const activeThumbnail = activePlatform ? thumbnails[activePlatform.id] : post?.thumbnail;
   const hasImageError = activePlatform ? imageErrors[activePlatform.id] : false;
+  const contentTypeIcon = getContentTypeIcon(post?.contentType || post?.type);
 
   useEffect(() => {
     setActiveIndex(0);
     setThumbnails({});
     setImageErrors({});
+    setLoadingThumbnails(linkedPlatforms.length > 0);
 
-    if (linkedPlatforms.length === 0) return undefined;
+    if (linkedPlatforms.length === 0) {
+      setLoadingThumbnails(false);
+      return undefined;
+    }
 
     let ignore = false;
     const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
 
-    linkedPlatforms.forEach(async (platform) => {
+    Promise.all(linkedPlatforms.map(async (platform) => {
       try {
         const response = await fetch(`${baseUrl}/competitors/thumbnail?url=${encodeURIComponent(platform.href)}`);
         if (!response.ok || ignore) return;
@@ -124,12 +139,23 @@ const PlatformPreview = ({ post, links }) => {
       } catch {
         // Keep the platform fallback card if the thumbnail endpoint cannot resolve an image.
       }
+    })).finally(() => {
+      if (!ignore) setLoadingThumbnails(false);
     });
 
     return () => {
       ignore = true;
     };
   }, [links.fbLink, links.igLink, links.ttLink]);
+
+  useEffect(() => {
+    if (!activePlatform || activeThumbnail || loadingThumbnails) return;
+
+    const thumbnailPlatformIndex = linkedPlatforms.findIndex((platform) => thumbnails[platform.id]);
+    if (thumbnailPlatformIndex >= 0 && thumbnailPlatformIndex !== activeIndex) {
+      setActiveIndex(thumbnailPlatformIndex);
+    }
+  }, [activePlatform, activeThumbnail, activeIndex, linkedPlatforms, loadingThumbnails, thumbnails]);
 
   useEffect(() => {
     if (linkedPlatforms.length <= 1) return undefined;
@@ -155,12 +181,12 @@ const PlatformPreview = ({ post, links }) => {
   const openLabel = `Open ${activePlatform.label}`;
 
   return (
-    <div className="flex w-full flex-col md:h-full md:min-h-[520px]">
+    <div className="flex w-full flex-col md:min-h-0">
       <a
         href={activePlatform.href}
         target="_blank"
         rel="noreferrer"
-        className="group relative block w-full overflow-hidden rounded-3xl bg-[#003870] shadow-xl shadow-slate-300/60 aspect-[4/5] sm:aspect-[16/10] md:aspect-auto md:min-h-0 md:flex-1"
+        className="group relative block w-full overflow-hidden rounded-[28px] bg-[#003870] shadow-xl shadow-slate-300/60 aspect-[4/5] sm:aspect-[16/10] md:aspect-[9/16] md:max-h-[620px]"
         title={openLabel}
       >
         {activeThumbnail && !hasImageError ? (
@@ -171,30 +197,42 @@ const PlatformPreview = ({ post, links }) => {
             onError={() => setImageErrors((prev) => ({ ...prev, [activePlatform.id]: true }))}
             referrerPolicy="no-referrer"
           />
+        ) : loadingThumbnails ? (
+          <div className="flex h-full w-full flex-col items-center justify-center bg-[linear-gradient(160deg,#003870_0%,#064f91_100%)] px-8 text-white">
+            <div className="mb-4 h-10 w-10 animate-spin rounded-full border-2 border-white/25 border-t-white"></div>
+            <span className="text-center text-xs font-black uppercase tracking-[0.22em] text-blue-50">
+              Loading Preview
+            </span>
+            <span className="mt-3 max-w-[210px] text-center text-xs font-semibold leading-5 text-white/70">
+              Fetching the latest thumbnail for this post.
+            </span>
+          </div>
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center bg-[linear-gradient(135deg,#003870_0%,#005cb8_100%)] text-white">
-            <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
+          <div className="flex h-full w-full flex-col items-center justify-center bg-[linear-gradient(160deg,#003870_0%,#064f91_100%)] px-8 text-white">
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 text-white shadow-lg shadow-black/10 backdrop-blur-sm">
               <activePlatform.Icon />
             </div>
-            <span className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">
+            <span className="text-center text-xs font-black uppercase tracking-[0.22em] text-blue-50">
               {activePlatform.label}
             </span>
-            <span className="mt-2 max-w-[180px] text-center text-xs font-semibold text-white/70">
+            <span className="mt-3 max-w-[210px] text-center text-xs font-semibold leading-5 text-white/70">
               Thumbnail unavailable. Click to open the post.
             </span>
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-transparent to-slate-950/20 opacity-90"></div>
-        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-white/90 px-2.5 py-1.5 text-[#003870] shadow-lg backdrop-blur-md sm:left-4 sm:top-4 sm:px-3 sm:py-2">
+        {activeThumbnail && !hasImageError && (
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-transparent to-slate-950/20 opacity-90"></div>
+        )}
+        <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/95 px-3.5 py-2 text-[#003870] shadow-lg backdrop-blur-md">
           <activePlatform.Icon />
-          <span className="text-[9px] font-black uppercase tracking-widest sm:text-[10px]">{activePlatform.label}</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">{activePlatform.label.replace(' Link', '')}</span>
         </div>
-        <div className="absolute bottom-3 left-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-black/25 text-white shadow-lg backdrop-blur-md transition-transform group-hover:scale-105 sm:bottom-4 sm:left-4 sm:h-11 sm:w-11">
-          <svg className="h-4 w-4 ml-0.5 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        </div>
+        {activeThumbnail && !hasImageError && (
+          <div className="absolute bottom-4 left-4 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-black/25 text-white shadow-lg backdrop-blur-md transition-transform group-hover:scale-105">
+            <span className="material-symbols-outlined text-[23px]">{contentTypeIcon}</span>
+          </div>
+        )}
         <div className="absolute bottom-4 right-4 rounded-full bg-white/90 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-[#003870] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
           View Post
         </div>
@@ -241,6 +279,8 @@ const PostDetailsModal = ({
 
   if (!isOpen || !post) return null;
 
+  const modalTitle = post.title || `${post.contentType || 'Content'} Post`;
+
   const updateLink = (key, value) => {
     setLinks((prev) => ({ ...prev, [key]: value }));
   };
@@ -276,16 +316,16 @@ const PostDetailsModal = ({
         onClick={onClose}
       ></div>
 
-      <div className={`relative bg-white rounded-[28px] border border-white/80 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.65)] w-full ${hidePreview ? 'max-w-2xl' : 'max-w-2xl'} overflow-hidden animate-in zoom-in-95 duration-200 max-h-[calc(100vh-1rem)] sm:max-h-[90vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}>
+      <div className={`relative bg-white rounded-[28px] border border-white/80 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.65)] w-full ${hidePreview ? 'max-w-2xl' : 'max-w-5xl'} overflow-hidden animate-in zoom-in-95 duration-200 max-h-[calc(100vh-1rem)] sm:max-h-[88vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}>
         <div className={hidePreview ? 'h-full' : 'flex flex-col md:flex-row h-full'}>
           {!hidePreview && (
-            <div className="md:w-5/12 bg-slate-50 flex items-stretch justify-center p-4 sm:p-6 border-b md:border-b-0 md:border-r border-slate-100">
+            <div className="md:w-[34%] bg-slate-50 flex items-center justify-center p-4 sm:p-6 border-b md:border-b-0 md:border-r border-slate-100">
               <PlatformPreview post={post} links={links} />
             </div>
           )}
 
-          <div className={`${hidePreview ? 'p-6 sm:p-8' : 'p-6 sm:p-8 md:w-7/12'} flex flex-col`}>
-            <div className="flex items-start justify-between gap-4 mb-6 pb-5 border-b border-slate-100">
+          <div className={`${hidePreview ? 'p-6 sm:p-8' : 'p-6 sm:p-8 md:w-[66%]'} flex flex-col`}>
+            <div className="flex items-start justify-between gap-4 mb-4 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
                   post.type === 'Published' || post.type === 'Completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-blue-50 text-blue-700 border border-blue-100'
@@ -299,14 +339,14 @@ const PostDetailsModal = ({
               </button>
             </div>
 
-            <h2 className="text-[28px] font-extrabold text-slate-950 mb-2 leading-tight">{post.title || post.visualCopy || post.contentType}</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-5">{post.pillar}</p>
+            <h2 className="text-2xl font-extrabold text-slate-950 mb-1.5 leading-tight sm:text-[26px]">{modalTitle}</h2>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4 break-words">{post.pillar}</p>
 
             <div className="space-y-4 flex-grow">
               {post.visualCopy && (
                 <div>
                   <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Visual Copy</h4>
-                  <p className="text-sm text-slate-900 font-bold leading-relaxed bg-[#003870]/5 p-4 rounded-2xl border border-[#003870]/10 shadow-inner shadow-white/60">
+                  <p className="text-sm text-slate-900 font-semibold leading-7 bg-[#003870]/5 p-4 rounded-2xl border border-[#003870]/10 shadow-inner shadow-white/60 break-words">
                     "{post.visualCopy}"
                   </p>
                 </div>
@@ -364,28 +404,17 @@ const PostDetailsModal = ({
               </div>
             </div>
 
-            {!hideFooter && (
+            {!hideFooter && linkEditMode && (
               <div className="mt-7 pt-5 border-t border-slate-100 flex gap-4">
-                {linkEditMode ? (
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex-grow h-12 bg-[#003870] text-white rounded-2xl text-sm font-bold shadow-lg shadow-[#003870]/20 hover:scale-[1.01] active:scale-95 transition-all hover:bg-[#002b56] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">{isSaving ? 'sync' : 'save'}</span>
-                    {isSaving ? 'Saving...' : 'Save Links'}
-                  </button>
-                ) : (
-                  <>
-                    <button className="flex-grow h-12 bg-[#003870] text-white rounded-2xl text-sm font-bold shadow-lg shadow-[#003870]/20 hover:scale-[1.02] active:scale-95 transition-all hover:bg-[#002b56]">
-                      Edit Strategy
-                    </button>
-                    <button className="w-12 h-12 border border-slate-200 text-slate-400 rounded-2xl hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[20px]">delete</span>
-                    </button>
-                  </>
-                )}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex-grow h-12 bg-[#003870] text-white rounded-2xl text-sm font-bold shadow-lg shadow-[#003870]/20 hover:scale-[1.01] active:scale-95 transition-all hover:bg-[#002b56] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[20px]">{isSaving ? 'sync' : 'save'}</span>
+                  {isSaving ? 'Saving...' : 'Save Links'}
+                </button>
               </div>
             )}
           </div>
