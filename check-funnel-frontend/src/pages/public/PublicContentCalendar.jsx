@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import FilterBar from '../../components/social-media/calendar/FilterBar';
 import CalendarGrid from '../../components/social-media/calendar/CalendarGrid';
+import ReferenceViewerModal from '../../components/social-media/calendar/ReferenceViewerModal';
 import CalendarTable from '../social-media/components/CalendarTable';
 import { getPublicClientInfo, getPublicContentCalendars } from '../../api/publicInsights';
 
@@ -104,6 +105,7 @@ const PublicContentCalendar = () => {
   const [view, setView] = useState(sharedView);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [referenceModal, setReferenceModal] = useState({ open: false, post: null });
   const [filters, setFilters] = useState({
     platform: 'All Platforms',
     contentType: 'All Content Types',
@@ -198,6 +200,10 @@ const PublicContentCalendar = () => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
+  const handleViewReference = (row) => {
+    setReferenceModal({ open: true, post: row });
+  };
+
   const getStatusColor = (status) => {
     switch (status?.toUpperCase()) {
       case 'PUBLISHED': return 'bg-green-50 text-green-700 border-green-200';
@@ -221,6 +227,12 @@ const PublicContentCalendar = () => {
 
   return (
     <main className="min-h-screen bg-[#f8fafc] px-4 py-8 sm:px-8">
+      <ReferenceViewerModal
+        isOpen={referenceModal.open}
+        onClose={() => setReferenceModal({ open: false, post: null })}
+        post={referenceModal.post}
+      />
+
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
         <section className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex items-center gap-4">
@@ -310,6 +322,7 @@ const PublicContentCalendar = () => {
             <CalendarTable
               data={filteredPosts}
               getStatusColor={getStatusColor}
+              onOpenReference={handleViewReference}
               variant="contentRow"
               readOnly
               hideActions

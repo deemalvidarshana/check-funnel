@@ -6,6 +6,7 @@ import CalendarTable from './components/CalendarTable';
 import Toast from '../../components/common/Toast';
 import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
 import PostDetailsModal from '../../components/social-media/calendar/PostDetailsModal';
+import ReferenceViewerModal from '../../components/social-media/calendar/ReferenceViewerModal';
 import { getCalendars, updatePost, deletePost } from '../../api/calendar';
 import { getClients, toggleShare } from '../../api/client';
 
@@ -37,6 +38,7 @@ const ContentCalendar = () => {
   // Modal states
   const [deleteModal, setDeleteModal] = useState({ open: false, index: null });
   const [detailsModal, setDetailsModal] = useState({ open: false, post: null });
+  const [referenceModal, setReferenceModal] = useState({ open: false, post: null });
   
   const [filters, setFilters] = useState({
     platform: 'All Platforms',
@@ -167,6 +169,10 @@ const ContentCalendar = () => {
     setDetailsModal({ open: true, post: filteredPosts[index] });
   };
 
+  const handleViewReference = (row) => {
+    setReferenceModal({ open: true, post: row });
+  };
+
   const copyToClipboard = async (text) => {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -290,6 +296,12 @@ const ContentCalendar = () => {
         hidePreview={filters.viewType === 'Row View'}
         onSave={handleSavePostDetails}
       />
+
+      <ReferenceViewerModal
+        isOpen={referenceModal.open}
+        onClose={() => setReferenceModal({ open: false, post: null })}
+        post={referenceModal.post}
+      />
       
       <CalendarHeader 
         view={view} 
@@ -319,6 +331,7 @@ const ContentCalendar = () => {
             onUpdateRow={handleUpdateRow}
             onDeleteRow={handleDeleteClick}
             onViewRow={handleViewPost}
+            onOpenReference={handleViewReference}
             getStatusColor={getStatusColor}
             onAiEdit={() => {}} 
             variant="contentRow"

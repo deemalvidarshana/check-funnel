@@ -381,7 +381,7 @@ const CalendarTable = ({
             <EditableCell 
               value={row.pillar} 
               onSave={(val) => onUpdateRow && onUpdateRow(i, { pillar: val })}
-              className="px-6 py-4 font-bold text-[#003870] border-r border-slate-100 whitespace-pre-wrap leading-tight"
+              className="px-6 py-4 font-bold text-[#003870] border-r border-slate-100 whitespace-pre-wrap leading-tight break-words overflow-hidden [overflow-wrap:anywhere]"
               readOnly={readOnly}
             />
             
