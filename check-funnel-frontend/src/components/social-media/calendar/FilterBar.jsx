@@ -50,11 +50,11 @@ const CustomDropdown = ({ options, value, onChange, placeholder, minWidth }) => 
   );
 };
 
-const FilterBar = ({ filters, onFilterChange, clients }) => {
+const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false }) => {
   const resetFilters = () => {
     onFilterChange('platform', 'All Platforms');
     onFilterChange('contentType', 'All Content Types');
-    onFilterChange('client', 'All Clients');
+    if (!hideClientFilter) onFilterChange('client', 'All Clients');
     onFilterChange('status', 'All Statuses');
   };
 
@@ -83,13 +83,15 @@ const FilterBar = ({ filters, onFilterChange, clients }) => {
           placeholder="All Content Types"
           minWidth="160"
         />
-        <CustomDropdown 
-          options={['All Clients', ...clients]}
-          value={filters.client}
-          onChange={(val) => onFilterChange('client', val)}
-          placeholder="All Clients"
-          minWidth="150"
-        />
+        {!hideClientFilter && (
+          <CustomDropdown
+            options={['All Clients', ...clients]}
+            value={filters.client}
+            onChange={(val) => onFilterChange('client', val)}
+            placeholder="All Clients"
+            minWidth="150"
+          />
+        )}
         <CustomDropdown 
           options={['All Statuses', 'PUBLISHED', 'SCHEDULED', 'DRAFT']}
           value={filters.status}

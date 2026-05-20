@@ -9,3 +9,8 @@ export const generateTargetsAI = async (payload) => {
   const response = await api.post('/ai/generate-targets', payload);
   return response.data;
 };
+
+export const generateReelScriptAI = async (payload) => {
+  const response = await api.post('/ai/generate-reel-script', payload);
+  return response.data;
+};

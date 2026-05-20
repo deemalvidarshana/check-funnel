@@ -7,6 +7,7 @@ import { InstagramModule } from '../instagram/instagram.module';
 import { TiktokModule } from '../tiktok/tiktok.module';
 import { CompetitorModule } from '../competitor/competitor.module';
 import { ApifyModule } from '../apify/apify.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ApifyModule } from '../apify/apify.module';
     TiktokModule,
     CompetitorModule,
     ApifyModule,
+    CalendarModule,
   ],
 
   controllers: [PublicInsightsController],

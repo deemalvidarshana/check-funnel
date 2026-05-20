@@ -22,8 +22,22 @@ import {
 } from "../../utils/targetMetrics";
 
 const PLATFORM_KEYS = ["facebook", "instagram", "tiktok"];
+const TARGET_VIEW_OPTIONS = [
+  { key: "platform", label: "Platform" },
+  { key: "competitor", label: "Competitor" },
+];
+const COMPETITOR_TARGET_COLUMNS = [
+  { key: "avgEngagementPerPost", label: "Avg Eng./Post" },
+  { key: "expectedAvgEngagementPerPost", label: "Expected Avg Eng./Post" },
+  { key: "avgViewsPerPost", label: "Avg Views/Post" },
+  { key: "expectedAvgViewsPerPost", label: "Expected Avg Views/Post" },
+];
 const TARGET_FETCH_TIMEOUT_MS = 45000;
 const TARGET_FETCH_CONCURRENCY = 2;
+
+function getCompetitorSnapshotPlatform(platform) {
+  return `${platform}-competitor-manual`;
+}
 
 function CalendarIcon() {
   return (
@@ -352,6 +366,112 @@ function prepareEditedRowsForSave(rows = []) {
   }));
 }
 
+function buildManualCompetitorTargetRow(client, platform, savedRow = {}) {
+  const readValue = (key) => (
+    savedRow[key] === undefined || savedRow[key] === null ? "" : savedRow[key]
+  );
+
+  return {
+    clientId: client.id,
+    clientName: client.name,
+    platform,
+    status: "ready",
+    avgEngagementPerPost: readValue("avgEngagementPerPost"),
+    expectedAvgEngagementPerPost: readValue("expectedAvgEngagementPerPost"),
+    avgViewsPerPost: readValue("avgViewsPerPost"),
+    expectedAvgViewsPerPost: readValue("expectedAvgViewsPerPost"),
+  };
+}
+
+function normalizeCompetitorTargetRows(rows = [], clients = [], platform) {
+  const rowsByClientId = new Map(rows.map((row) => [row.clientId, row]));
+  return clients.map((client) =>
+    buildManualCompetitorTargetRow(client, platform, rowsByClientId.get(client.id) || {})
+  );
+}
+
+function prepareCompetitorRowsForSave(rows = [], targetMonth) {
+  return rows.map((row) => ({
+    ...row,
+    status: "ready",
+    targetMonth,
+    targetMonthLabel: getMonthLabelFromKey(targetMonth),
+    avgEngagementPerPost: normalizeEditableNumber(row.avgEngagementPerPost),
+    expectedAvgEngagementPerPost: normalizeEditableNumber(row.expectedAvgEngagementPerPost),
+    avgViewsPerPost: normalizeEditableNumber(row.avgViewsPerPost),
+    expectedAvgViewsPerPost: normalizeEditableNumber(row.expectedAvgViewsPerPost),
+  }));
+}
+
+function renderCompetitorValue(value) {
+  if (value === "" || value === null || value === undefined) return "0";
+  return formatNumber(value);
+}
+
+function TargetViewDropdown({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const selectedOption = TARGET_VIEW_OPTIONS.find((option) => option.key === value) || TARGET_VIEW_OPTIONS[0];
+
+  useEffect(() => {
+    function handleOutsideClick(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  return (
+    <div className="relative w-36" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className="inline-flex h-11 w-full items-center justify-between gap-2 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 text-sm font-bold text-[#003870] shadow-sm transition hover:bg-[#f3f4f5]"
+      >
+        <span className="truncate">{selectedOption.label}</span>
+        <svg
+          className={`h-4 w-4 flex-shrink-0 text-[#727782] transition-transform ${isOpen ? "rotate-180" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full z-50 mt-2 w-40 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
+          {TARGET_VIEW_OPTIONS.map((option) => {
+            const isSelected = option.key === value;
+
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => {
+                  onChange(option.key);
+                  setIsOpen(false);
+                }}
+                className={`flex w-full items-center justify-between px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                  isSelected
+                    ? "bg-[#003870]/5 text-[#003870]"
+                    : "text-[#727782]"
+                }`}
+              >
+                <span>{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PlatformTabs({ activePlatform, onChange }) {
   return (
     <div className="flex w-full overflow-x-auto rounded-full bg-[#f3f4f5] p-1 sm:w-auto">
@@ -407,7 +527,7 @@ function MonthPicker({ value, onChange }) {
           setViewYear(Number(value.split("-")[0]) || new Date().getFullYear());
           setIsOpen((open) => !open);
         }}
-        className="inline-flex h-11 min-w-56 items-center justify-between gap-3 rounded-full border border-[#c2c6d3]/30 bg-white px-5 text-sm font-bold text-[#003870] shadow-sm transition hover:bg-[#f3f4f5]"
+        className="inline-flex h-11 w-44 items-center justify-between gap-3 rounded-full border border-[#c2c6d3]/30 bg-white px-5 text-sm font-bold text-[#003870] shadow-sm transition hover:bg-[#f3f4f5]"
       >
         <span className="inline-flex items-center gap-3">
           <CalendarIcon />
@@ -497,9 +617,17 @@ export default function TargetPlanner() {
   const [activePlatform, setActivePlatform] = useState(
     PLATFORM_KEYS.includes(requestedPlatform) ? requestedPlatform : "facebook"
   );
+  const [targetView, setTargetView] = useState("platform");
   const [clientsLoading, setClientsLoading] = useState(true);
   const [targetsLoading, setTargetsLoading] = useState(false);
   const [targetRows, setTargetRows] = useState([]);
+  const [competitorRows, setCompetitorRows] = useState([]);
+  const [competitorLoading, setCompetitorLoading] = useState(false);
+  const [competitorStatus, setCompetitorStatus] = useState("");
+  const [competitorSnapshot, setCompetitorSnapshot] = useState(null);
+  const [competitorSnapshotLoading, setCompetitorSnapshotLoading] = useState(false);
+  const [isEditingCompetitorValues, setIsEditingCompetitorValues] = useState(false);
+  const [editedCompetitorRows, setEditedCompetitorRows] = useState([]);
   const [selectedTargetMonth, setSelectedTargetMonth] = useState(() => getNextMonthKey());
   const [savedSnapshot, setSavedSnapshot] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
@@ -552,10 +680,12 @@ export default function TargetPlanner() {
   }, [clients, requestedPlatform]);
 
   const targetClients = useMemo(() => clients, [clients]);
+  const isCompetitorTargetView = targetView === "competitor";
 
   const metricConfigs = useMemo(() => getMetricConfigs(activePlatform), [activePlatform]);
   const readyRows = useMemo(() => targetRows.filter((row) => row.status === "ready"), [targetRows]);
   const isViewingSavedTarget = Boolean(savedSnapshot?.rows?.length);
+  const isViewingSavedCompetitorTarget = Boolean(competitorSnapshot?.rows?.length);
   const hasDraftRows = targetRows.length > 0;
   const selectedTargetMonthLabel = getMonthLabelFromKey(selectedTargetMonth);
   const nextTargetMonth = getNextMonthKey();
@@ -570,9 +700,20 @@ export default function TargetPlanner() {
   const displayRows = rawDisplayRows.filter((row) =>
     row.status === "ready" || row.status === "loading"
   );
-  const canEditSavedTarget = isViewingSavedTarget && displayRows.some((row) => row.status === "ready");
+  const competitorDisplayRows = isEditingCompetitorValues ? editedCompetitorRows : competitorRows;
+  const canEditSavedTarget = !isCompetitorTargetView
+    && isViewingSavedTarget
+    && displayRows.some((row) => row.status === "ready");
+  const canEditCompetitorTarget = isCompetitorTargetView
+    && competitorRows.some((row) => row.status === "ready")
+    && !clientsLoading
+    && !competitorSnapshotLoading;
   const hasAnyTargetClients = clients.length > 0;
-  const createTargetDisabled = savingTarget || savingEdits || targetsLoading || clientsLoading || !hasAnyTargetClients;
+  const createTargetDisabled = savingTarget
+    || savingEdits
+    || targetsLoading
+    || clientsLoading
+    || !hasAnyTargetClients;
   const createTargetTitle = !hasAnyTargetClients
     ? "Clients must load before targets can be created."
     : `Creates the target for ${nextTargetMonthLabel}`;
@@ -581,6 +722,11 @@ export default function TargetPlanner() {
     setIsEditingValues(false);
     setEditedRows([]);
   }, [activePlatform, selectedTargetMonth, savedSnapshot?.id]);
+
+  useEffect(() => {
+    setIsEditingCompetitorValues(false);
+    setEditedCompetitorRows([]);
+  }, [activePlatform, selectedTargetMonth, competitorSnapshot?.id, targetView]);
 
   const getClientsForPlatform = () => {
     return clients;
@@ -638,7 +784,139 @@ export default function TargetPlanner() {
     return completedRows;
   };
 
+  const handleStartCompetitorEditing = () => {
+    const rowsToEdit = competitorRows.length
+      ? competitorRows
+      : normalizeCompetitorTargetRows([], clients, activePlatform);
+
+    setEditedCompetitorRows(rowsToEdit.map((row) => ({ ...row })));
+    setIsEditingCompetitorValues(true);
+    setCompetitorStatus("Editing manual competitor targets. Save when finished.");
+  };
+
+  const handleCancelCompetitorEditing = () => {
+    setIsEditingCompetitorValues(false);
+    setEditedCompetitorRows([]);
+    setCompetitorStatus(
+      isViewingSavedCompetitorTarget
+        ? `Saved manual competitor targets for ${selectedTargetMonthLabel}.`
+        : `Click Edit to enter competitor target values for ${clients.length} clients.`
+    );
+  };
+
+  const handleCompetitorMetricEdit = (clientId, field, value) => {
+    setEditedCompetitorRows((previousRows) =>
+      previousRows.map((row) =>
+        row.clientId === clientId ? { ...row, [field]: value } : row
+      )
+    );
+  };
+
+  const handleSaveCompetitorTarget = async () => {
+    const rowsToSave = editedCompetitorRows.length
+      ? editedCompetitorRows
+      : competitorRows.length ? competitorRows
+      : normalizeCompetitorTargetRows([], clients, activePlatform);
+
+    if (!rowsToSave.length) {
+      setCompetitorStatus("No clients available to save competitor targets.");
+      return;
+    }
+
+    const generatedAt = new Date();
+    setCompetitorLoading(true);
+    setCompetitorStatus("");
+    try {
+      const snapshotRows = prepareCompetitorRowsForSave(rowsToSave, selectedTargetMonth);
+      const snapshot = await createTargetSnapshot({
+        platform: getCompetitorSnapshotPlatform(activePlatform),
+        targetMonth: selectedTargetMonth,
+        generatedMonth: formatMonthKey(generatedAt),
+        generatedAt: generatedAt.toISOString(),
+        scopeClientId: scopedClientId,
+        rows: snapshotRows,
+      });
+
+      setCompetitorSnapshot(snapshot);
+      setCompetitorRows(normalizeCompetitorTargetRows(snapshot.rows || snapshotRows, clients, activePlatform));
+      setEditedCompetitorRows([]);
+      setIsEditingCompetitorValues(false);
+      setCompetitorStatus(`Manual competitor targets saved for ${selectedTargetMonthLabel}.`);
+    } catch (error) {
+      console.error("Failed to save manual competitor targets", error);
+      setCompetitorStatus(`Save failed: ${errorMessage(error)}`);
+    } finally {
+      setCompetitorLoading(false);
+    }
+  };
+
   useEffect(() => {
+    if (!isCompetitorTargetView) {
+      setCompetitorRows([]);
+      setCompetitorStatus("");
+      setCompetitorSnapshot(null);
+      return;
+    }
+
+    if (clientsLoading) return;
+
+    let cancelled = false;
+
+    async function loadSavedCompetitorSnapshot() {
+      setCompetitorSnapshotLoading(true);
+      setCompetitorRows([]);
+      setCompetitorSnapshot(null);
+      try {
+        const snapshot = await getTargetSnapshot({
+          platform: getCompetitorSnapshotPlatform(activePlatform),
+          targetMonth: selectedTargetMonth,
+          scopeClientId: scopedClientId,
+        });
+
+        if (cancelled) return;
+
+        if (snapshot?.rows?.length) {
+          setCompetitorSnapshot(snapshot);
+          setCompetitorRows(normalizeCompetitorTargetRows(snapshot.rows, clients, activePlatform));
+          setCompetitorStatus(`Saved manual competitor targets for ${selectedTargetMonthLabel}.`);
+        } else {
+          setCompetitorRows(normalizeCompetitorTargetRows([], clients, activePlatform));
+          setCompetitorStatus(`Click Edit to enter competitor target values for ${clients.length} clients.`);
+        }
+      } catch (error) {
+        console.error("Failed to load saved competitor targets", error);
+        if (!cancelled) {
+          setCompetitorRows(normalizeCompetitorTargetRows([], clients, activePlatform));
+          setCompetitorStatus(`No saved manual competitor target for ${selectedTargetMonthLabel}. Click Edit to enter values.`);
+        }
+      } finally {
+        if (!cancelled) setCompetitorSnapshotLoading(false);
+      }
+    }
+
+    loadSavedCompetitorSnapshot();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activePlatform,
+    clients,
+    clientsLoading,
+    isCompetitorTargetView,
+    scopedClientId,
+    selectedTargetMonth,
+    selectedTargetMonthLabel,
+  ]);
+
+  useEffect(() => {
+    if (isCompetitorTargetView) {
+      setSnapshotLoading(false);
+      setStatusMessage("");
+      setTargetRows([]);
+      setSavedSnapshot(null);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadSavedSnapshot() {
@@ -668,7 +946,7 @@ export default function TargetPlanner() {
     return () => {
       cancelled = true;
     };
-  }, [activePlatform, scopedClientId, selectedTargetMonth]);
+  }, [activePlatform, isCompetitorTargetView, scopedClientId, selectedTargetMonth]);
 
   useEffect(() => {
     if (!savedSnapshot?.rows?.length || !clients.length) return;
@@ -871,23 +1149,27 @@ export default function TargetPlanner() {
     }
   };
 
+  const tableSubtitle = isCompetitorTargetView
+    ? `${PLATFORM_LABELS[activePlatform]} ${selectedTargetMonthLabel} Target Based on the competitor data`
+    : `${PLATFORM_LABELS[activePlatform]} ${selectedTargetMonthLabel} Target Based on the platform data`;
+
   return (
     <section className="w-full max-w-full overflow-hidden">
       <header className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-        <div className="max-w-4xl">
+        <div className="max-w-5xl">
           <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
             <span className="font-extrabold">Performance </span>
             <span className="font-medium">Targets</span>
           </h1>
-          <p className="mt-3 text-base font-medium leading-8 text-[#424751] sm:text-lg">
-            Targets are calculated from live platform insights. The current month is excluded from the baseline,
-            completed months are averaged, and each created target applies to the next month.
+          <p className="mt-3 text-base font-medium leading-7 text-[#424751] sm:text-lg">
+            Targets are planned from platform and competitor data to guide monthly growth, priorities, and performance goals.
           </p>
         </div>
 
         <div className="flex flex-col gap-4 sm:items-end">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <MonthPicker value={selectedTargetMonth} onChange={setSelectedTargetMonth} />
+            <TargetViewDropdown value={targetView} onChange={setTargetView} />
             {scopedClientId && (
               <Link
                 to={`/clients/${scopedClientId}/insights`}
@@ -896,20 +1178,24 @@ export default function TargetPlanner() {
                 Back to Insights
               </Link>
             )}
-            <button
-              onClick={handleCreateTarget}
-              disabled={createTargetDisabled}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#003870] px-5 text-sm font-bold text-white shadow-lg transition hover:bg-[#014f99] active:scale-95 disabled:opacity-60"
-              title={createTargetTitle}
-            >
-              <PlusIcon />
-              {savingTarget ? "Creating..." : "Create"}
-            </button>
+            {!isCompetitorTargetView && (
+              <button
+                onClick={handleCreateTarget}
+                disabled={createTargetDisabled}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#003870] px-5 text-sm font-bold text-white shadow-lg transition hover:bg-[#014f99] active:scale-95 disabled:opacity-60"
+                title={createTargetTitle}
+              >
+                <PlusIcon />
+                {savingTarget ? "Creating..." : "Create"}
+              </button>
+            )}
           </div>
 
           <PlatformTabs activePlatform={activePlatform} onChange={setActivePlatform} />
           <p className="text-xs font-bold uppercase tracking-widest text-[#727782]">
-            Create now applies to {nextTargetMonthLabel}
+            {isCompetitorTargetView
+              ? `Manual competitor targets for ${selectedTargetMonthLabel}`
+              : `Create now applies to ${nextTargetMonthLabel}`}
           </p>
         </div>
       </header>
@@ -918,15 +1204,8 @@ export default function TargetPlanner() {
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-2xl font-extrabold text-[#191c1d]">
-              {PLATFORM_LABELS[activePlatform]} {selectedTargetMonthLabel} Target Table
+              {tableSubtitle}
             </h2>
-            <p className="mt-1 text-sm font-semibold text-[#727782]">
-              {isViewingSavedTarget
-                ? `Saved target generated from ${getMonthLabelFromKey(savedSnapshot.generatedMonth)} data`
-                : hasDraftRows
-                  ? `${readyRows.length} of ${targetClients.length} client${targetClients.length === 1 ? "" : "s"} ready for saving`
-                  : `No saved target for ${selectedTargetMonthLabel} yet`}
-            </p>
             {statusMessage && (
               <p className="mt-1 text-sm font-bold text-[#003870]">{statusMessage}</p>
             )}
@@ -935,6 +1214,40 @@ export default function TargetPlanner() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {canEditCompetitorTarget && (
+              isEditingCompetitorValues ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCancelCompetitorEditing}
+                    disabled={competitorLoading}
+                    className="inline-flex h-9 items-center gap-2 rounded-full border border-[#c2c6d3]/40 bg-white px-4 text-xs font-bold uppercase tracking-widest text-[#424751] transition hover:bg-[#f3f4f5] disabled:opacity-60"
+                  >
+                    <CloseIcon />
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCompetitorTarget}
+                    disabled={competitorLoading}
+                    className="inline-flex h-9 items-center gap-2 rounded-full bg-[#003870] px-4 text-xs font-bold uppercase tracking-widest text-white transition hover:bg-[#014f99] disabled:opacity-60"
+                  >
+                    <SaveIcon />
+                    {competitorLoading ? "Saving" : "Save"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartCompetitorEditing}
+                  disabled={competitorLoading || competitorSnapshotLoading}
+                  className="inline-flex h-9 items-center gap-2 rounded-full border border-[#c2c6d3]/40 bg-white px-4 text-xs font-bold uppercase tracking-widest text-[#003870] transition hover:bg-[#f3f4f5] disabled:opacity-60"
+                >
+                  <EditIcon />
+                  Edit
+                </button>
+              )
+            )}
             {canEditSavedTarget && (
               isEditingValues ? (
                 <>
@@ -969,7 +1282,7 @@ export default function TargetPlanner() {
                 </button>
               )
             )}
-            {(targetsLoading || snapshotLoading) && (
+            {(targetsLoading || snapshotLoading || competitorLoading || competitorSnapshotLoading) && (
               <span className="self-start rounded-full bg-[#003870]/10 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#003870] md:self-auto">
                 Syncing
               </span>
@@ -978,21 +1291,93 @@ export default function TargetPlanner() {
         </div>
 
         <div className="overflow-x-auto border border-[#c2c6d3]/30 bg-white">
+          {isCompetitorTargetView ? (
+            <table className="w-full min-w-[900px] border-collapse text-left">
+              <thead>
+                <tr className="bg-[#f3f4f5] text-[10px] font-bold uppercase tracking-widest text-[#727782]">
+                  <th className="px-6 py-4">Client</th>
+                  {COMPETITOR_TARGET_COLUMNS.map((column, index) => (
+                    <th
+                      key={column.key}
+                      className={`px-4 py-4 text-center ${index === 0 ? "border-l border-[#c2c6d3]/20" : ""} ${
+                        column.key.startsWith("expected") ? "text-[#003870]" : ""
+                      }`}
+                    >
+                      {column.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="text-sm font-semibold text-[#424751]">
+                {clientsLoading || competitorLoading || competitorSnapshotLoading ? (
+                  <tr>
+                    <td className="px-6 py-8 text-[#727782]" colSpan={5}>
+                      Preparing manual competitor target table...
+                    </td>
+                  </tr>
+                ) : competitorDisplayRows.length === 0 ? (
+                  <tr>
+                    <td className="px-6 py-8 text-[#727782]" colSpan={5}>
+                      No clients available for competitor targets.
+                    </td>
+                  </tr>
+                ) : (
+                  competitorDisplayRows.map((row) => (
+                    <tr key={`${row.clientId}-${row.platform}-competitor`} className="border-b border-[#edeeef] last:border-b-0 hover:bg-[#f8f9fa]">
+                      <td className="px-6 py-5 align-top">
+                        <div className="font-extrabold text-[#191c1d]">{row.clientName}</div>
+                      </td>
+                      {COMPETITOR_TARGET_COLUMNS.map((column, index) => (
+                        <td
+                          key={`${row.clientId}-${column.key}`}
+                          className={`px-4 py-5 text-center align-top ${index === 0 ? "border-l border-[#c2c6d3]/10" : ""}`}
+                        >
+                          {isEditingCompetitorValues ? (
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={row[column.key] ?? ""}
+                              onChange={(event) => handleCompetitorMetricEdit(row.clientId, column.key, event.target.value)}
+                              className={`mx-auto h-10 w-32 rounded-xl border bg-white px-3 text-center font-extrabold outline-none transition focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/15 ${
+                                column.key.startsWith("expected")
+                                  ? "border-[#003870]/25 text-[#003870]"
+                                  : "border-[#c2c6d3]/40 text-[#191c1d]"
+                              }`}
+                            />
+                          ) : (
+                            <div className={`font-extrabold ${column.key.startsWith("expected") ? "text-[#003870]" : "text-[#191c1d]"}`}>
+                              {renderCompetitorValue(row[column.key])}
+                            </div>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
               <table className="w-full min-w-[900px] border-collapse text-left">
                 <thead>
                   <tr className="bg-[#f3f4f5] text-[10px] font-bold uppercase tracking-widest text-[#727782]">
                     <th className="px-6 py-4">Client</th>
                     {metricConfigs.map((metric) => (
                       <Fragment key={metric.key}>
-                        <th className="px-4 py-4 text-right border-l border-[#c2c6d3]/20">
-                          Average Monthly {metric.label}
+                        <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">
+                          Avg. {metric.label}
                         </th>
-                        <th className="px-4 py-4 text-right text-[#003870]">
-                          Expected Monthly {metric.label}
+                        <th className="px-4 py-4 text-center text-[#003870]">
+                          Target {metric.label}
                         </th>
                       </Fragment>
                     ))}
-                    <th className="px-6 py-4 border-l border-[#c2c6d3]/20">Basis</th>
+                    <th className="px-6 py-4 border-l border-[#c2c6d3]/20">
+                      <div>Basis</div>
+                      <div className="mt-1 text-[9px] font-bold uppercase tracking-widest text-[#003870]">
+                        {selectedTargetMonthLabel}
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="text-sm font-semibold text-[#424751]">
@@ -1021,7 +1406,7 @@ export default function TargetPlanner() {
                           <>
                             {row.metricTargets.map((metric) => (
                               <Fragment key={`${row.clientId}-${metric.key}`}>
-                                <td className="px-4 py-5 text-right align-top border-l border-[#c2c6d3]/10">
+                                <td className="px-4 py-5 text-center align-top border-l border-[#c2c6d3]/10">
                                   {isEditingValues ? (
                                     <input
                                       type="number"
@@ -1029,7 +1414,7 @@ export default function TargetPlanner() {
                                       step="1"
                                       value={metric.average ?? ""}
                                       onChange={(event) => handleMetricEdit(row.clientId, metric.key, "average", event.target.value)}
-                                      className="h-10 w-28 rounded-xl border border-[#c2c6d3]/40 bg-white px-3 text-right font-extrabold text-[#191c1d] outline-none transition focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/15"
+                                      className="mx-auto h-10 w-28 rounded-xl border border-[#c2c6d3]/40 bg-white px-3 text-center font-extrabold text-[#191c1d] outline-none transition focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/15"
                                     />
                                   ) : (
                                     <div className="font-extrabold text-[#191c1d]">{formatNumber(metric.average)}</div>
@@ -1038,7 +1423,7 @@ export default function TargetPlanner() {
                                     {row.completedMonthCount} month avg.
                                   </div>
                                 </td>
-                                <td className="px-4 py-5 text-right align-top">
+                                <td className="px-4 py-5 text-center align-top">
                                   {isEditingValues ? (
                                     <input
                                       type="number"
@@ -1046,12 +1431,12 @@ export default function TargetPlanner() {
                                       step="1"
                                       value={metric.target ?? ""}
                                       onChange={(event) => handleMetricEdit(row.clientId, metric.key, "target", event.target.value)}
-                                      className="h-10 w-28 rounded-xl border border-[#003870]/25 bg-white px-3 text-right font-extrabold text-[#003870] outline-none transition focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/15"
+                                      className="mx-auto h-10 w-28 rounded-xl border border-[#003870]/25 bg-white px-3 text-center font-extrabold text-[#003870] outline-none transition focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/15"
                                     />
                                   ) : (
                                     <div className="font-extrabold text-[#003870]">{formatNumber(metric.target)}</div>
                                   )}
-                                  <div className="mt-2 flex justify-end">
+                                  <div className="mt-2 flex justify-center">
                                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${
                                       metric.ruleApplied === "manual"
                                         ? "bg-[#ede7f6] text-[#4b3b78]"
@@ -1068,12 +1453,7 @@ export default function TargetPlanner() {
                               </Fragment>
                             ))}
                             <td className="px-6 py-5 align-top border-l border-[#c2c6d3]/10">
-                              <div className="text-xs font-bold uppercase tracking-widest text-[#727782]">
-                                {isViewingSavedTarget
-                                  ? `${row.basisStatus === "final" ? "Final" : row.basisStatus === "realtime" ? "Realtime" : "Pending"} basis: ${selectedTargetMonthLabel}`
-                                  : `Will apply to: ${nextTargetMonthLabel}`}
-                              </div>
-                              <div className="mt-3 space-y-2">
+                              <div className="space-y-2">
                                 {row.metricTargets.map((metric) => (
                                   <div key={`${row.clientId}-${metric.key}-progress`} className="flex items-center justify-between gap-4">
                                     <span className="text-xs font-bold text-[#727782]">{metric.shortLabel}</span>
@@ -1101,6 +1481,7 @@ export default function TargetPlanner() {
                   )}
                 </tbody>
               </table>
+          )}
         </div>
       </div>
     </section>

@@ -17,6 +17,16 @@ export const getCalendarById = async (id) => {
   return response.data;
 };
 
+export const getCalendarSettings = async (clientId) => {
+  const response = await api.get(`/calendars/settings/${clientId}`);
+  return response.data;
+};
+
+export const saveCalendarSettings = async (clientId, settingsData) => {
+  const response = await api.put(`/calendars/settings/${clientId}`, settingsData);
+  return response.data;
+};
+
 export const deleteCalendar = async (id) => {
   const response = await api.delete(`/calendars/${id}`);
   return response.data;

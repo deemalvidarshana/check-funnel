@@ -22,6 +22,7 @@ import { AiModule } from './ai/ai.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { Calendar } from './calendar/entities/calendar.entity';
 import { CalendarPost } from './calendar/entities/calendar-post.entity';
+import { CalendarSettings } from './calendar/entities/calendar-settings.entity';
 import { TargetsModule } from './targets/targets.module';
 import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
 
@@ -47,6 +48,7 @@ import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
           ApifyTrackedAccount,
           Calendar,
           CalendarPost,
+          CalendarSettings,
           TargetSnapshot,
         ],
         synchronize: true,

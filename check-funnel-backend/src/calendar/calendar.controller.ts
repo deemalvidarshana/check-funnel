@@ -1,4 +1,17 @@
-import { Controller, Post, Get, Delete, Patch, Body, Param, Query, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Delete,
+  Patch,
+  Put,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { CalendarService } from './calendar.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -14,7 +27,23 @@ export class CalendarController {
 
   @Get()
   async findAll(@Query('clientId') clientId?: string) {
-    return this.calendarService.getCalendars(clientId ? parseInt(clientId) : undefined);
+    return this.calendarService.getCalendars(
+      clientId ? parseInt(clientId) : undefined,
+    );
+  }
+
+  @Get('settings/:clientId')
+  async getSettings(@Param('clientId', ParseIntPipe) clientId: number) {
+    return this.calendarService.getSettings(clientId);
+  }
+
+  @Put('settings/:clientId')
+  async saveSettings(
+    @Param('clientId', ParseIntPipe) clientId: number,
+    @Body() data: any,
+    @Request() req,
+  ) {
+    return this.calendarService.upsertSettings(clientId, data, req.user.email);
   }
 
   @Get(':id')
@@ -33,10 +62,7 @@ export class CalendarController {
   }
 
   @Patch('posts/:id')
-  async updatePost(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() data: any,
-  ) {
+  async updatePost(@Param('id', ParseIntPipe) id: number, @Body() data: any) {
     return this.calendarService.updatePost(id, data);
   }
 }

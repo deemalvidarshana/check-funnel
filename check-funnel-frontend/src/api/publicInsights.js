@@ -28,6 +28,11 @@ export const getPublicTiktokInsights = async (shareToken) => {
   return response.data;
 };
 
+export const getPublicContentCalendars = async (shareToken) => {
+  const response = await publicApi.get(`/public-insights/content-calendars/${shareToken}`);
+  return response.data;
+};
+
 export const getPublicCompetitorSummary = async (shareToken, platform, method) => {
   const response = await publicApi.get(`/public-insights/competitor-summary/${shareToken}`, {
     params: { platform, method }

@@ -180,4 +180,28 @@ ${JSON.stringify(safePayload, null, 2)}
     const result = await this.aiService.generateCompletion(prompt, targetSchema);
     return this.parseJsonContent(result);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('generate-reel-script')
+  async generateReelScript(@Body() payload: any) {
+    const reelScriptSchema = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'reel_script',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            script: { type: 'string' },
+          },
+          required: ['script'],
+          additionalProperties: false,
+        },
+      },
+    };
+
+    const prompt = String(payload?.prompt || '').trim();
+    const result = await this.aiService.generateCompletion(prompt, reelScriptSchema);
+    return this.parseJsonContent(result);
+  }
 }

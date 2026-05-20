@@ -1,9 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  BarChart3,
+  Bot,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  Clock,
+  Cloud,
+  Lightbulb,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Send,
+  ShoppingBag,
+  Sparkles,
+  Table2,
+  Target,
+  User,
+  WandSparkles,
+  X,
+} from 'lucide-react';
 import { getClients } from '../../services/clientService';
 import api from '../../services/api';
-import { generateCalendarAI } from '../../api/ai';
-import { saveCalendar, getCalendars, deleteCalendar, deletePost, updatePost } from '../../api/calendar';
+import { generateCalendarAI, generateReelScriptAI } from '../../api/ai';
+import { saveCalendar, getCalendars, deleteCalendar, deletePost, updatePost, getCalendarSettings, saveCalendarSettings } from '../../api/calendar';
 import CalendarTable from './components/CalendarTable';
 import HistoryFilters from './components/HistoryFilters';
 import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
@@ -27,6 +51,146 @@ const TikTokIcon = ({ active }) => (
   </svg>
 );
 
+const PLATFORM_OPTIONS = [
+  { id: 'facebook', label: 'Facebook', Icon: FacebookIcon },
+  { id: 'instagram', label: 'Instagram', Icon: InstagramIcon },
+  { id: 'tiktok', label: 'TikTok', Icon: TikTokIcon }
+];
+
+const CONTENT_FRAMEWORK_OPTIONS = [
+  {
+    id: 'aida',
+    name: 'AIDA',
+    label: 'AIDA (Attention, Interest, Desire, Action)',
+    goal: 'Move cold audiences from attention to purchase intent.',
+    flow: 'Attention -> Interest -> Desire -> Action',
+    prompt: 'Best for product reveals, offers, launches, and hero posts. Open with a sharp attention trigger, build interest with proof/details, create desire with a clear benefit, and close with one purchase or enquiry action.'
+  },
+  {
+    id: 'pas',
+    name: 'PAS',
+    label: 'PAS (Problem, Agitate, Solution)',
+    goal: 'Connect emotionally and solve a customer pain point.',
+    flow: 'Problem -> Agitate -> Solution',
+    prompt: 'Best for pain-aware audiences. Name the real frustration, make the consequence feel familiar without overdrama, then position the brand, product, service, or tip as the practical fix.'
+  },
+  {
+    id: 'star',
+    name: 'STAR',
+    label: 'STAR (Situation, Task, Action, Result)',
+    goal: 'Tell a transformation, customer, or brand story.',
+    flow: 'Situation -> Task -> Action -> Result',
+    prompt: 'Best for case studies, founder/process stories, customer wins, and proof posts. Set the context, define the challenge, show the action taken, and close with a believable result or learning.'
+  },
+  {
+    id: 'hook-teach-reward',
+    name: 'Hook, Teach, Reward',
+    label: 'Hook, Teach, Reward',
+    goal: 'Educate, inspire, and encourage saves or follows.',
+    flow: 'Hook -> Teach -> Reward',
+    prompt: 'Best for educational reels, carousels, tips, and authority content. Start with a practical hook, teach one useful idea clearly, then reward the audience with a save-worthy takeaway, bonus, or follow CTA.'
+  },
+  {
+    id: 'myth-truth-how',
+    name: 'Myth, Truth, How',
+    label: 'Myth, Truth, How',
+    goal: 'Break misconceptions and educate the audience.',
+    flow: 'Myth -> Truth -> How',
+    prompt: 'Best for objection handling and thought leadership. State a common misconception, replace it with the truth, then show how the audience can apply it or how the brand proves it.'
+  },
+  {
+    id: 'before-after-bridge',
+    name: 'Before, After, Bridge',
+    label: 'Before, After, Bridge',
+    goal: 'Create visual transformation or upgrade content.',
+    flow: 'Before -> After -> Bridge',
+    prompt: 'Best for transformations, makeovers, upgrades, and before/after comparisons. Show the starting state, reveal the improved state, then explain the bridge: product, method, tip, or service.'
+  },
+  {
+    id: 'challenge-lesson-invite',
+    name: 'Challenge, Lesson, Invite',
+    label: 'Challenge, Lesson, Invite',
+    goal: 'Build engagement, community, and user participation.',
+    flow: 'Challenge -> Lesson -> Invite',
+    prompt: 'Best for engagement, UGC, comments, and community prompts. Present a simple challenge, share the lesson or example, then invite the audience to try, tag, comment, or participate.'
+  }
+];
+
+const formatDateInput = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateInput = (dateStr) => new Date(`${dateStr}T00:00:00`);
+
+const addDaysToDate = (dateStr, days) => {
+  if (!dateStr) return '';
+  const date = parseDateInput(dateStr);
+  date.setDate(date.getDate() + Number(days || 0));
+  return formatDateInput(date);
+};
+
+const getDateSpanDays = (startDate, endDate) => {
+  if (!startDate || !endDate) return 1;
+  const start = parseDateInput(startDate);
+  const end = parseDateInput(endDate);
+  const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+  return Math.max(1, diffDays);
+};
+
+const getPlatformContentCount = (formData, platformId) => Number(formData.platformContentCounts?.[platformId] || 0);
+
+const getTotalPlatformContentCount = (formData) => formData.platforms.reduce((sum, platformId) => {
+  const count = getPlatformContentCount(formData, platformId);
+  return sum + (Number.isFinite(count) ? count : 0);
+}, 0);
+
+const getMissingPlatformCountLabels = (formData) => formData.platforms
+  .filter(platformId => getPlatformContentCount(formData, platformId) <= 0)
+  .map(platformId => PLATFORM_OPTIONS.find(platform => platform.id === platformId)?.label || platformId);
+
+const getSelectedFrameworkIds = (formData) => {
+  if (Array.isArray(formData.contentFrameworks) && formData.contentFrameworks.length > 0) return formData.contentFrameworks;
+  return formData.contentFramework ? [formData.contentFramework] : [];
+};
+
+const getDefaultCalendarFormData = () => ({
+  clientId: '',
+  businessName: '',
+  businessWebsite: '',
+  businessLocation: '',
+  niche: '',
+  platforms: [],
+  targetAudience: '',
+  contentGoal: [],
+  contentFramework: '',
+  contentFrameworks: [],
+  contentPillars: '',
+  brandVoice: '',
+  postsPerWeek: 7,
+  durationDays: 30,
+  startDate: formatDateInput(new Date()),
+  endDate: addDaysToDate(formatDateInput(new Date()), 30),
+  language: 'English',
+  preferredFormats: [],
+  productsOrServices: '',
+  mainOffer: '',
+  competitorCsvUploaded: false,
+  includeCaptions: true,
+  includeHashtags: true,
+  includeVideoIdeas: true,
+  includeTrackingTemplate: true,
+  dataSource: 'apify',
+  analysisStartDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+  analysisEndDate: new Date().toISOString().split('T')[0],
+  platformContentCounts: {},
+  platformPostCounts: {},
+  competitors: [],
+  prompt: ''
+});
+
 const CreateContentCalendar = () => {
   const navigate = useNavigate();
   const [clients, setClients] = useState([]);
@@ -35,7 +199,10 @@ const CreateContentCalendar = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [isGenerated, setIsGenerated] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
+  const [settingsSaveStatus, setSettingsSaveStatus] = useState('idle');
   const [currentStep, setCurrentStep] = useState(1);
+  const [isFrameworkPickerOpen, setIsFrameworkPickerOpen] = useState(false);
   const [isTimeRangeDropdownOpen, setIsTimeRangeDropdownOpen] = useState(false);
   const [activeCompetitorDropdown, setActiveCompetitorDropdown] = useState(null);
   const [clientPerformanceData, setClientPerformanceData] = useState({ own: {}, competitors: {} });
@@ -52,6 +219,17 @@ const CreateContentCalendar = () => {
   const [calendarToDelete, setCalendarToDelete] = useState(null);
   const [isDeleteRowModalOpen, setIsDeleteRowModalOpen] = useState(false);
   const [rowToDeleteIndex, setRowToDeleteIndex] = useState(null);
+  const [referenceModal, setReferenceModal] = useState({
+    isOpen: false,
+    row: null,
+    rowIndex: null,
+    userPrompt: '',
+    refineInstruction: '',
+    showRefinePanel: false,
+  });
+  const [generatingScriptIndex, setGeneratingScriptIndex] = useState(null);
+  const [reelScriptSaveStatus, setReelScriptSaveStatus] = useState('idle');
+  const reelScriptSaveTimerRef = useRef(null);
 
   const fetchSavedCalendars = async (clientId) => {
     try {
@@ -71,35 +249,56 @@ const CreateContentCalendar = () => {
     }
   };
 
-  const [formData, setFormData] = useState({
-    clientId: '',
-    businessName: '',
-    businessWebsite: '',
-    businessLocation: '',
-    niche: '',
-    platforms: [],
-    targetAudience: '',
-    contentGoal: [],
-    brandVoice: '',
-    postsPerWeek: 7,
-    durationDays: 30,
-    startDate: new Date().toISOString().split('T')[0],
-    language: 'English',
-    preferredFormats: [],
-    productsOrServices: '',
-    mainOffer: '',
-    competitorCsvUploaded: false,
-    includeCaptions: true,
-    includeHashtags: true,
-    includeVideoIdeas: true,
-    includeTrackingTemplate: true,
-    dataSource: 'apify',
-    analysisStartDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    analysisEndDate: new Date().toISOString().split('T')[0],
-    platformPostCounts: {},
-    competitors: [],
-    prompt: ''
-  });
+  useEffect(() => {
+    return () => {
+      if (reelScriptSaveTimerRef.current) {
+        clearTimeout(reelScriptSaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const [formData, setFormData] = useState(() => getDefaultCalendarFormData());
+
+  const saveClientCalendarSettings = async (dataToSave = formData, options = {}) => {
+    if (!dataToSave?.clientId) return null;
+
+    setIsSettingsSaving(true);
+    setSettingsSaveStatus('saving');
+
+    try {
+      const savedSettings = await saveCalendarSettings(dataToSave.clientId, {
+        configData: dataToSave,
+        prompt: dataToSave.prompt || '',
+      });
+
+      setSettingsSaveStatus('saved');
+
+      if (!options.silent) {
+        setToast({ message: "Client calendar setup saved.", type: "success" });
+      }
+
+      return savedSettings;
+    } catch (err) {
+      console.error("Failed to save client calendar setup", err);
+      setSettingsSaveStatus('error');
+      if (!options.silent) {
+        setToast({ message: "Failed to save client calendar setup.", type: "error" });
+      }
+      return null;
+    } finally {
+      setIsSettingsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentStep !== 4 || !formData.clientId || !formData.prompt.trim()) return;
+
+    const saveTimer = setTimeout(() => {
+      saveClientCalendarSettings(formData, { silent: true });
+    }, 700);
+
+    return () => clearTimeout(saveTimer);
+  }, [currentStep, formData.clientId, formData.prompt]);
 
   const hardcodedData = [
     { date: '12-Mar', type: 'Static', pillar: 'Motor Insurance', visual: 'Smart drivers plan ahead', caption: 'Secure your journey with Comprehensive Motor Insurance.', status: 'Draft' },
@@ -172,6 +371,19 @@ const CreateContentCalendar = () => {
     return Array.from(clientNames);
   }, [savedCalendars]);
 
+  const findSelectedHistoryCalendar = () => {
+    if (!selectedHistoryFilter.date) return null;
+
+    const [month, year] = selectedHistoryFilter.date.split(' ');
+    return savedCalendars.find(c => {
+      const isMonthYearMatch = c.month === month && c.year.toString() === year;
+      if (!isMonthYearMatch) return false;
+      if (!selectedHistoryFilter.client) return true;
+      const calendarClientName = c.name ? c.name.split(' - ')[0] : '';
+      return calendarClientName === selectedHistoryFilter.client;
+    }) || null;
+  };
+
   useEffect(() => {
     if (selectedHistoryFilter.date) {
       const [month, year] = selectedHistoryFilter.date.split(' ');
@@ -198,7 +410,13 @@ const CreateContentCalendar = () => {
       ...prev,
       platforms: prev.platforms.includes(platform)
         ? prev.platforms.filter(p => p !== platform)
-        : [...prev.platforms, platform]
+        : [...prev.platforms, platform],
+      platformContentCounts: prev.platforms.includes(platform)
+        ? Object.fromEntries(Object.entries(prev.platformContentCounts || {}).filter(([key]) => key !== platform))
+        : {
+            ...(prev.platformContentCounts || {}),
+            [platform]: prev.platformContentCounts?.[platform] || '',
+          }
     }));
   };
 
@@ -222,7 +440,77 @@ const CreateContentCalendar = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const nextStep = () => {
+  const setContentFrameworks = (frameworkIds) => {
+    setFormData(prev => ({
+      ...prev,
+      contentFrameworks: frameworkIds,
+      contentFramework: frameworkIds[0] || '',
+    }));
+  };
+
+  const toggleContentFramework = (frameworkId) => {
+    setFormData(prev => {
+      const currentFrameworks = getSelectedFrameworkIds(prev);
+      const nextFrameworks = currentFrameworks.includes(frameworkId)
+        ? currentFrameworks.filter(id => id !== frameworkId)
+        : [...currentFrameworks, frameworkId];
+
+      return {
+        ...prev,
+        contentFrameworks: nextFrameworks,
+        contentFramework: nextFrameworks[0] || '',
+      };
+    });
+  };
+
+  const handleScheduleDateChange = (field, value) => {
+    setFormData(prev => {
+      if (field === 'startDate') {
+        const currentEndDate = prev.endDate && parseDateInput(prev.endDate) >= parseDateInput(value)
+          ? prev.endDate
+          : addDaysToDate(value, prev.durationDays || 30);
+
+        return {
+          ...prev,
+          startDate: value,
+          endDate: currentEndDate,
+          durationDays: getDateSpanDays(value, currentEndDate),
+        };
+      }
+
+      return {
+        ...prev,
+        endDate: value,
+        durationDays: getDateSpanDays(prev.startDate, value),
+      };
+    });
+  };
+
+  const handlePlatformContentCountChange = (platform, value) => {
+    const normalizedValue = value === '' ? '' : Math.max(0, Number(value));
+
+    setFormData(prev => ({
+      ...prev,
+      platformContentCounts: {
+        ...(prev.platformContentCounts || {}),
+        [platform]: normalizedValue,
+      }
+    }));
+  };
+
+  const nextStep = async () => {
+    if (currentStep === 2) {
+      const missingPlatformCounts = getMissingPlatformCountLabels(formData);
+
+      if (missingPlatformCounts.length > 0) {
+        setToast({
+          message: `Add post counts for ${missingPlatformCounts.join(', ')}.`,
+          type: "error",
+        });
+        return;
+      }
+    }
+
     if (currentStep === 3) {
       // ── Build Performance Strategy Summary ──
       const performanceStrategy = formData.platforms.map(p => {
@@ -250,130 +538,137 @@ const CreateContentCalendar = () => {
         });
       }
 
-      // ── Build Start Date for Calendar ──
+      // ── Build Date Range and Planned Platform Counts ──
       const calendarStartDate = formData.startDate || new Date().toISOString().split('T')[0];
+      const calendarEndDate = formData.endDate || addDaysToDate(calendarStartDate, formData.durationDays || 30);
+      const platformContentTargets = formData.platforms
+        .map(p => {
+          const option = PLATFORM_OPTIONS.find(platform => platform.id === p);
+          const count = Number(formData.platformContentCounts?.[p] || 0);
+          return count > 0 ? `${option?.label || p}: ${count} posts` : null;
+        })
+        .filter(Boolean);
+      const totalPostsToGenerate = getTotalPlatformContentCount(formData);
 
       // ── Build Platform Links Instruction ──
-      const platformLinksNote = formData.platforms.map(p => {
-        if (p === 'facebook') return '"fbLink"';
-        if (p === 'instagram') return '"igLink"';
-        if (p === 'tiktok') return '"ttLink"';
-        return `"${p}Link"`;
-      }).join(', ');
+      const targetPlatformLabels = formData.platforms
+        .map(p => PLATFORM_OPTIONS.find(platform => platform.id === p)?.label || p)
+        .join(', ');
+      const plannedPlatformCountText = platformContentTargets.length > 0
+        ? platformContentTargets.join(', ')
+        : 'No per-platform counts provided; distribute evenly across selected platforms.';
 
       // ── Build Inclusions Instruction ──
-      let inclusionNotes = [];
-      if (formData.includeCaptions) inclusionNotes.push('Write full, ready-to-post captions with hooks, emojis, and hashtags in the "caption" field');
-      if (formData.includeHashtags) inclusionNotes.push('Include 5-10 relevant hashtags at the end of every caption');
-      if (formData.includeVideoIdeas) inclusionNotes.push('For Reel/Video posts, include a brief scene-by-scene description or script outline in the "visualCopy" field');
-
-      const generatedPrompt = `You are an elite Social Media Content Strategist. Generate a deeply strategic ${formData.durationDays}-day Social Media Content Calendar for the brand "${formData.businessName}".
-
-══════════════════════════════════════
-SECTION 1: BRAND CONTEXT & STRATEGY
-══════════════════════════════════════
-
-[BRAND IDENTITY]
-- Business Name: ${formData.businessName} ${formData.businessWebsite ? `(${formData.businessWebsite})` : ''}
-- Industry/Niche: ${formData.niche || '(Not specified — infer from competitor data below)'}
-- Location: ${formData.businessLocation || '(Not specified)'}
-- Brand Voice: ${formData.brandVoice || 'Professional yet approachable'}
-- Target Audience: ${formData.targetAudience || '(General audience — infer from niche)'}
-- Products/Services: ${formData.productsOrServices || '(Not specified)'}
-- Current Offer/Promotion: ${formData.mainOffer || '(None currently)'}
-
-[CAMPAIGN OBJECTIVES]
-- Primary Goals: ${formData.contentGoal.join(', ') || 'Engagement & Brand Awareness'}
-- Target Platforms: ${formData.platforms.join(', ')}
-- Content Language: ${formData.language || 'English'}
-- Preferred Formats: ${formData.preferredFormats.length > 0 ? formData.preferredFormats.join(', ') : 'Static, Reel, Carousel (Auto-mix)'}
-- Calendar Duration: ${formData.durationDays} days starting from ${calendarStartDate}
-
-══════════════════════════════════════
-SECTION 2: COMPETITOR INTELLIGENCE
-══════════════════════════════════════
-
-${historicalInsights || "(No historical data available. Use general industry best practices for the niche.)"}
-
-[PERFORMANCE STRATEGY]
-- Market Reference: ${performanceStrategy}
-- Analysis Period: ${formData.analysisStartDate || 'N/A'} to ${formData.analysisEndDate || 'N/A'}
-
-══════════════════════════════════════
-SECTION 3: CONTENT STRATEGY FRAMEWORK
-══════════════════════════════════════
-
-Apply the following content strategy methodology:
-
-[CONTENT PILLARS]
-Design 4-5 content pillars with a balanced mix:
+      const selectedFrameworks = CONTENT_FRAMEWORK_OPTIONS.filter(option => getSelectedFrameworkIds(formData).includes(option.id));
+      const frameworkInstruction = selectedFrameworks.length > 0
+        ? `Use these selected frameworks as creative structures. Rotate them naturally by post goal, platform, and format. Do not repeat framework names in the final output unless it reads naturally:
+${selectedFrameworks.map(framework => `- ${framework.label}
+  Goal: ${framework.goal}
+  Flow: ${framework.flow}
+  Use: ${framework.prompt}`).join('\n')}`
+        : `No fixed framework was selected. Choose the best-fit framework for each post based on the goal, platform, format, offer, and competitor patterns.`;
+      const contentPillarsInstruction = formData.contentPillars?.trim()
+        ? `Use these client-provided content pillars as the primary pillar set. Keep the pillar names recognizable in the "pillar" field. Balance the calendar across them and only add a missing pillar if the strategy clearly needs it:
+${formData.contentPillars.trim()}`
+        : `Use this balanced pillar system:
 - Educational/How-To (30%): Establish authority, provide value, solve problems
 - Behind-the-Scenes/Personal (20%): Build connection and trust, humanize the brand
 - Entertainment/Trending (20%): Reach new audiences, increase shares, ride trends
 - Social Proof/Results (15%): Build credibility with testimonials, case studies, wins
-- Promotional/CTA (15%): Drive conversions with offers, launches, lead magnets
+- Promotional/CTA (15%): Drive conversions with offers, launches, lead magnets`;
+      const captionInstruction = formData.includeCaptions
+        ? 'Write a complete ready-to-post caption: first line hook, useful body, one clear CTA, and hashtags only when enabled.'
+        : 'The caption field is still required by the app. Write a concise caption direction with a hook and CTA, not a long caption.';
+      const hashtagInstruction = formData.includeHashtags
+        ? 'Include 5-10 relevant hashtags at the end of the caption. Mix niche and discovery tags.'
+        : 'Do not include hashtags.';
+      const videoInstruction = formData.includeVideoIdeas
+        ? 'For Reel/Video posts, include a short scene or shot plan in visualCopy along with on-screen text.'
+        : 'Keep visualCopy concise; do not add long video scripts.';
+      const trackingInstruction = formData.includeTrackingTemplate
+        ? 'Keep every row easy to track using only the fixed fields: date, platforms, contentType, pillar, visualCopy, caption, status. Do not add tracking columns.'
+        : 'Do not add tracking fields.';
 
-[HOOK STRATEGY]
-Every post MUST start with a powerful hook. Use these patterns:
-- Problem-Solution: "Stop [doing X]. Do this instead..."
-- Numbered List: "[X] ways to [achieve result]"
-- Myth-Busting: "The [topic] advice that's actually ruining your [outcome]"
-- POV/Relatable: "POV: You're a [role] who [situation]"
-- Transformation: "From [before state] to [after state] in [time]"
-- Hot Take: "[Controversial opinion] and here's why..."
+      const generatedPrompt = `You are an expert Social Media Content Strategist and content calendar planner. Build a practical, platform-native calendar for "${formData.businessName}".
 
-[CTA STRATEGY]
-Match CTAs to content type:
-- Educational → "Save this for later" / "Share with someone who needs this"
-- Entertainment → "Tag someone who relates" / "Comment your experience"
-- Social Proof → "DM us to get started" / "Link in bio"
-- Promotional → "Limited offer - Link in bio" / "Comment [KEYWORD] for details"
-- Engagement → "Which one are you? Comment below" / "Agree or disagree?"
-
-══════════════════════════════════════
-SECTION 4: OUTPUT FORMAT (CRITICAL)
-══════════════════════════════════════
-
-You MUST respond with a valid JSON array. Each object represents one day's post and MUST contain ALL of the following fields:
-
+CRITICAL OUTPUT CONTRACT
+Return ONLY one valid JSON object in this exact shape:
 {
-  "date": "YYYY-MM-DD",           // e.g. "2026-05-15"
-  "time": "HH:MM AM/PM",          // e.g. "09:30 AM", "03:00 PM"
-  "contentType": "Static|Reel|Carousel|Story|Video",
-  "pillar": "Content pillar name",
-  "visualCopy": "The text/concept that appears ON the visual creative itself (poster/video).",
-  "caption": "The full, ready-to-post social media caption including hook, body, CTA, and hashtags.",
-  "platforms": "${formData.platforms.join(', ')}",
-  "status": "Draft"
+  "posts": [
+    {
+      "date": "YYYY-MM-DD",
+      "contentType": "Static|Reel|Carousel|Story|Video",
+      "pillar": "Short pillar name",
+      "visualCopy": "Creative/on-screen text plus asset direction",
+      "caption": "Hook + body + one CTA, with hashtags only if enabled",
+      "platforms": "Facebook|Instagram|TikTok",
+      "status": "Draft"
+    }
+  ]
 }
 
-[FIELD DEFINITIONS]
-- "date": Sequential dates starting from ${calendarStartDate}
-- "time": A strategic time to post based on audience behavior (e.g. morning for motivation, evening for entertainment)
-- "contentType": The format of the post (Static image, Reel/short video, Carousel multi-slide, Story)
-- "pillar": The strategic content pillar this post belongs to
-- "visualCopy": SHORT text that goes ON the creative visual itself. Headline, bullet points, etc.
-- "caption": The FULL social media caption. Include hook, body, CTA, and hashtags.
-- "platforms": Which platforms to post on
-- "status": Always "Draft"
+Schema rules:
+- posts must contain exactly ${totalPostsToGenerate} objects.
+- Each post object must contain exactly these 7 keys: date, contentType, pillar, visualCopy, caption, platforms, status.
+- Do not add extra keys such as time, hook, cta, topic, angle, assetNotes, week, notes, or links.
+- Do not return a bare array. Do not include markdown, explanations, comments, or code fences.
 
-══════════════════════════════════════
-SECTION 5: QUALITY REQUIREMENTS
-══════════════════════════════════════
+SETUP INPUTS FROM THE USER FLOW
+[Brand]
+- Business Name: ${formData.businessName} ${formData.businessWebsite ? `(${formData.businessWebsite})` : ''}
+- Industry/Niche: ${formData.niche || '(Not specified; infer carefully from brand, products, and competitor data.)'}
+- Location: ${formData.businessLocation || '(Not specified)'}
+- Target Audience: ${formData.targetAudience || '(General audience; infer carefully from niche and competitor data.)'}
+- Brand Voice: ${formData.brandVoice || 'Professional yet approachable'}
+- Language: ${formData.language || 'English'}
 
-${inclusionNotes.length > 0 ? inclusionNotes.map((n, i) => `${i+1}. ${n}`).join('\n') : ''}
-${formData.includeHashtags ? `- Use 5-10 niche-relevant hashtags per caption. Mix popular and niche-specific tags.` : '- Do NOT include hashtags.'}
+[Campaign]
+- Primary Goals: ${formData.contentGoal.join(', ') || 'Engagement and Brand Awareness'}
+- Target Platforms: ${targetPlatformLabels || formData.platforms.join(', ')}
+- Calendar Date Range: ${calendarStartDate} to ${calendarEndDate}
+- Planned Platform Counts: ${plannedPlatformCountText}
+- Preferred Formats: ${formData.preferredFormats.length > 0 ? formData.preferredFormats.join(', ') : 'Use a natural mix of Static, Reel, Carousel, Story, and Video'}
 
-MANDATORY RULES:
-1. Deeply analyze ALL competitor captions and engagement data provided above. Identify winning patterns (tone, length, emoji usage, CTA style, content themes) and replicate what works.
-2. Every caption must be FULL and COMPLETE — ready to copy-paste and post. No placeholders like "[Insert CTA]" or "[Brand tagline]".
-3. "visualCopy" must be DIFFERENT from "caption". visualCopy = design text ON the image. caption = social media post text.
-4. Vary content types across the ${formData.durationDays} days: mix Static, Reel, Carousel, etc.
-5. Distribute content pillars evenly using the percentage ratios defined above.
-6. Each post must have a strong opening hook in the first line of the caption.
-7. Output ONLY a valid JSON object with a single key "posts" containing the array of ${formData.durationDays} post objects. Do not include any markdown, explanations, or code fences.`;
+[Offer Context]
+- Products/Services: ${formData.productsOrServices || '(Not specified; keep ideas aligned with the niche.)'}
+- Current Offer/Promotion: ${formData.mainOffer || '(No active offer; use soft CTAs and brand-building CTAs.)'}
+
+[Competitor Intelligence]
+${historicalInsights || "(No competitor post examples available. Use strong industry best practices without inventing unverifiable claims.)"}
+- Market Reference: ${performanceStrategy}
+- Analysis Period: ${formData.analysisStartDate || 'N/A'} to ${formData.analysisEndDate || 'N/A'}
+
+CONTENT STRATEGY
+[Creative Frameworks]
+${frameworkInstruction}
+
+[Content Pillars]
+${contentPillarsInstruction}
+
+[Execution Guidance]
+- Use the framework(s) to shape the post narrative. Do not duplicate the same hook, CTA, or angle across multiple posts.
+- Every caption must begin with a strong hook. Prefer one of these hook families when relevant: problem-solution, numbered list, myth-busting, POV/relatable, transformation, hot take.
+- Every caption must end with exactly one CTA matched to the pillar and goal: educational = save/share, entertainment = comment/tag, social proof = DM/link, promotional = offer/link, engagement = comment/tag.
+- Map the content-calendar concepts from the planning brief into the fixed schema: topic/angle/asset notes go inside visualCopy; hook/body/CTA/hashtags go inside caption.
+- ${captionInstruction}
+- ${hashtagInstruction}
+- ${videoInstruction}
+- ${trackingInstruction}
+
+CALENDAR PLANNING RULES
+1. Deeply use the provided brand, audience, goals, platform counts, preferred formats, products/offers, content pillars, framework selection, and competitor insights.
+2. Respect the planned platform counts exactly. The platforms field should identify the platform for that row.
+3. Spread posts across the selected date range; avoid clustering everything on the same date.
+4. Use platform-native content types and ideas. Reels/videos need motion or scene direction in visualCopy. Carousels need a slide/sequence concept in visualCopy. Static posts need a strong visual headline.
+5. visualCopy must be short and creative, not a duplicate of caption.
+6. caption must be ready to use, specific to the brand context, and free of placeholders like "[insert]", "[brand]", or "[link]".
+7. Do not invent testimonials, results, discounts, prices, guarantees, or claims that were not provided.
+8. Keep status exactly "Draft" for every post.`;
+
       
-      setFormData(prev => ({ ...prev, prompt: generatedPrompt }));
+      const updatedFormData = { ...formData, prompt: generatedPrompt };
+      setSettingsSaveStatus('dirty');
+      setFormData(updatedFormData);
     }
 
     setCurrentStep(prev => Math.min(prev + 1, 4));
@@ -417,6 +712,7 @@ MANDATORY RULES:
 
     setIsGenerating(true);
     try {
+      await saveClientCalendarSettings(formData, { silent: true });
       const data = await generateCalendarAI(formData.prompt);
       if (Array.isArray(data)) {
         setGeneratedData(data);
@@ -494,6 +790,26 @@ MANDATORY RULES:
       const newData = [...generatedData];
       newData[aiEditModal.rowIndex] = { ...currentRow, ...updatedRow, date: currentRow.date }; // Ensure date is preserved
       setGeneratedData(newData);
+
+      if (currentRow.id) {
+        const fieldsToPersist = Object.fromEntries(
+          Object.entries({
+            contentType: updatedRow.contentType,
+            pillar: updatedRow.pillar,
+            visualCopy: updatedRow.visualCopy,
+            caption: updatedRow.caption,
+            status: updatedRow.status,
+          }).filter(([, value]) => value !== undefined)
+        );
+        const savedPost = await updatePost(currentRow.id, fieldsToPersist);
+
+        if (savedPost) {
+          const savedData = [...newData];
+          savedData[aiEditModal.rowIndex] = { ...newData[aiEditModal.rowIndex], ...savedPost };
+          setGeneratedData(savedData);
+        }
+      }
+
       setToast({ message: "Post updated with AI successfully!", type: "success" });
       setAiEditModal(prev => ({ ...prev, instruction: '' }));
     } catch (err) {
@@ -504,18 +820,69 @@ MANDATORY RULES:
     }
   };
 
+  const getPostUpdatePayload = (post) => Object.fromEntries(
+    Object.entries({
+      date: post.date,
+      time: post.time,
+      contentType: post.contentType || post.type,
+      pillar: post.pillar,
+      visualCopy: post.visualCopy || post.visual,
+      caption: post.caption,
+      status: post.status,
+      platforms: post.platforms,
+      fbLink: post.fbLink || post.facebookLink,
+      igLink: post.igLink || post.instagramLink,
+      ttLink: post.ttLink || post.tiktokLink,
+      reelScript: post.reelScript,
+    }).filter(([, value]) => value !== undefined)
+  );
+
   const handleSaveToDatabase = async (postsToSave = null) => {
     const dataToUse = postsToSave || generatedData;
-    if (!selectedClient || !dataToUse || dataToUse.length === 0) return;
+    const selectedCalendar = findSelectedHistoryCalendar();
+    const activeClient = selectedClient
+      || clients.find((client) => Number(client.id) === Number(selectedCalendar?.clientId))
+      || clients.find((client) => client.name === selectedHistoryFilter.client)
+      || (selectedCalendar
+        ? { id: selectedCalendar.clientId, name: selectedCalendar.name?.split(' - ')[0] || 'Selected Client' }
+        : null);
+
+    if (!dataToUse || dataToUse.length === 0) {
+      setToast({ message: "No calendar rows available to save.", type: "error" });
+      return;
+    }
+
+    if (!activeClient?.id) {
+      setToast({ message: "Please select a client before saving the calendar.", type: "error" });
+      return;
+    }
 
     setIsSaving(true);
     try {
+      await saveClientCalendarSettings(formData, { silent: true });
+      const existingPosts = dataToUse.filter((post) => post.id);
+      if (existingPosts.length > 0) {
+        const savedPosts = await Promise.all(
+          existingPosts.map((post) => updatePost(post.id, getPostUpdatePayload(post)))
+        );
+        setGeneratedData(
+          dataToUse.map((post) => savedPosts.find((savedPost) => savedPost?.id === post.id) || post)
+        );
+        if (activeClient?.id) {
+          await fetchSavedCalendars(activeClient.id);
+        } else {
+          await fetchAllCalendars();
+        }
+        setToast({ message: "Content Calendar saved successfully!", type: "success" });
+        return;
+      }
+
       const startDate = formData.startDate ? new Date(formData.startDate) : new Date();
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
       
       const calendarData = {
-        clientId: selectedClient.id,
-        name: `${selectedClient.name} - ${monthNames[startDate.getMonth()]} ${startDate.getFullYear()}`,
+        clientId: activeClient.id,
+        name: `${activeClient.name} - ${monthNames[startDate.getMonth()]} ${startDate.getFullYear()}`,
         month: monthNames[startDate.getMonth()],
         year: startDate.getFullYear(),
         competitors: formData.competitors.map(c => ({ id: c.id, name: c.name })),
@@ -523,7 +890,16 @@ MANDATORY RULES:
         posts: dataToUse
       };
 
-      await saveCalendar(calendarData);
+      const savedCalendar = await saveCalendar(calendarData);
+      if (savedCalendar?.posts?.length) {
+        setGeneratedData(savedCalendar.posts);
+        setIsGenerated(true);
+      }
+      if (activeClient?.id) {
+        fetchSavedCalendars(activeClient.id);
+      } else {
+        fetchAllCalendars();
+      }
       setToast({ message: postsToSave ? "Calendar generated and auto-saved!" : "Content Calendar saved successfully!", type: "success" });
     } catch (err) {
       console.error("Failed to save calendar", err);
@@ -531,6 +907,111 @@ MANDATORY RULES:
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleExportCalendar = () => {
+    if (!generatedData.length) {
+      setToast({ message: "No calendar rows available to export.", type: "error" });
+      return;
+    }
+
+    const columns = [
+      { label: "Date", width: 90, value: (row) => row.date },
+      { label: "Content Type", width: 120, value: (row) => row.contentType || row.type },
+      { label: "Pillar", width: 180, value: (row) => row.pillar },
+      { label: "Visual Copy", width: 300, value: (row) => row.visualCopy || row.visual },
+      { label: "Caption", width: 420, value: (row) => row.caption },
+      {
+        label: "Platforms",
+        width: 140,
+        value: (row) => Array.isArray(row.platforms) ? row.platforms.join(", ") : row.platforms,
+      },
+      { label: "Status", width: 100, value: (row) => row.status },
+      { label: "Reel Script", width: 620, value: (row) => row.reelScript },
+    ];
+
+    const escapeHtml = (value) => String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+    const formatCell = (value) => escapeHtml(value).replace(/\r?\n/g, "<br>");
+
+    const tableHeader = columns
+      .map((column) => `<th style="width:${column.width}px">${escapeHtml(column.label)}</th>`)
+      .join("");
+
+    const tableRows = generatedData.map((row) => `
+      <tr>
+        ${columns.map((column) => `<td>${formatCell(column.value(row))}</td>`).join("")}
+      </tr>
+    `).join("");
+
+    const workbookHtml = `<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    table {
+      border-collapse: collapse;
+      font-family: Arial, sans-serif;
+      font-size: 11pt;
+      table-layout: fixed;
+      width: 100%;
+    }
+    th {
+      background: #003870;
+      color: #ffffff;
+      font-weight: 700;
+      text-align: left;
+      border: 1px solid #b7c4d6;
+      padding: 8px;
+      white-space: normal;
+      mso-style-parent: style0;
+    }
+    td {
+      border: 1px solid #d9e2ef;
+      padding: 8px;
+      vertical-align: top;
+      white-space: normal;
+      word-wrap: break-word;
+      mso-data-placement: same-cell;
+    }
+    tr {
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <table>
+    <thead>
+      <tr>${tableHeader}</tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+</body>
+</html>`;
+
+    const blob = new Blob([workbookHtml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeClientName = (selectedClient?.name || selectedHistoryFilter.client || "content-calendar")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase();
+    const safeDate = (selectedHistoryFilter.date || formData.startDate || "export")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase();
+
+    link.href = url;
+    link.download = `${safeClientName || "content-calendar"}-${safeDate || "export"}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setToast({ message: "Calendar exported successfully.", type: "success" });
   };
 
   const handleDeleteCalendar = () => {
@@ -614,7 +1095,7 @@ MANDATORY RULES:
       if (row.id) {
         // Filter only valid database columns to avoid TypeORM errors
         const validFields = {};
-        const dbColumns = ['pillar', 'visualCopy', 'caption', 'status', 'date', 'time', 'contentType'];
+        const dbColumns = ['pillar', 'visualCopy', 'caption', 'status', 'date', 'time', 'contentType', 'reelScript'];
         
         Object.keys(updatedFields).forEach(key => {
           if (dbColumns.includes(key)) {
@@ -632,6 +1113,281 @@ MANDATORY RULES:
     }
   };
 
+  const buildReelScriptPrompt = (row, userPrompt = '') => {
+    const selectedFrameworks = CONTENT_FRAMEWORK_OPTIONS.filter(option => getSelectedFrameworkIds(formData).includes(option.id));
+    const frameworkContext = selectedFrameworks.length > 0
+      ? selectedFrameworks.map(framework => `- ${framework.label}
+  Goal: ${framework.goal}
+  Flow: ${framework.flow}
+  Usage guidance: ${framework.prompt}`).join('\n')
+      : `No fixed framework was selected. Choose the best-fit structure for this reel from the row objective, pillar, caption, and brand context.`;
+
+    const pillarContext = formData.contentPillars?.trim()
+      ? formData.contentPillars.trim()
+      : `Use a balanced mix of Educational/How-To, Behind-the-Scenes, Entertainment/Trending, Social Proof/Results, and Promotional/CTA pillars.`;
+
+    return `You are a senior short-form video strategist, reel scriptwriter, and social media creative director.
+
+Create ONE production-ready reel script for the calendar row below.
+
+CRITICAL OUTPUT CONTRACT
+Return ONLY one valid JSON object in this exact shape:
+{
+  "script": "..."
+}
+Do not include markdown fences, explanations, comments, or extra JSON keys.
+
+BRAND AND CAMPAIGN CONTEXT
+- Business Name: ${formData.businessName || selectedClient?.name || 'Client'}
+- Website: ${formData.businessWebsite || '(Not provided)'}
+- Industry/Niche: ${formData.niche || '(Infer carefully from row and brand context)'}
+- Location: ${formData.businessLocation || '(Not provided)'}
+- Target Audience: ${formData.targetAudience || '(General audience; infer carefully)'}
+- Brand Voice: ${formData.brandVoice || 'Professional yet approachable'}
+- Language: ${formData.language || 'English'}
+- Campaign Goals: ${formData.contentGoal.join(', ') || 'Engagement and Brand Awareness'}
+- Products/Services: ${formData.productsOrServices || '(Not specified; keep aligned with the niche)'}
+- Current Offer/Promotion: ${formData.mainOffer || '(No active offer; use a soft CTA)'}
+- Target Platform(s): ${row.platforms || formData.platforms.join(', ') || 'Instagram/Facebook/TikTok'}
+
+CREATIVE FRAMEWORKS TO CONSIDER
+${frameworkContext}
+
+CONTENT PILLARS TO CONSIDER
+${pillarContext}
+
+USER DIRECTION FOR THIS REEL SCRIPT
+${userPrompt?.trim()
+  ? userPrompt.trim()
+  : 'No extra user direction was provided. Use the structured brand, framework, pillar, row visual copy, and caption context below.'}
+
+PRIORITY ORDER
+1. Follow the USER DIRECTION first and strongly. If the user asks for a tone, angle, hook style, length, audience, or emphasis, obey that request.
+2. Still use the brand, framework, content pillar, row visual copy, row caption, platform, and campaign context below.
+3. Do not satisfy the user direction by returning only a title, short summary, or caption. The output must always be a complete reel script.
+
+CALENDAR ROW TO EXPAND INTO A REEL SCRIPT
+- Date: ${row.date || '(Not specified)'}
+- Content Type: ${row.contentType || row.type || 'Reel'}
+- Pillar: ${row.pillar || '(Not specified)'}
+- Visual Copy / Direction: ${row.visualCopy || row.visual || '(Not specified)'}
+- Caption: ${row.caption || '(Not specified)'}
+- Status: ${row.status || 'Draft'}
+
+SCRIPT QUALITY REQUIREMENTS
+1. The script must deeply reflect the row pillar, visual direction, and caption. Do not drift into a generic topic.
+2. Use the selected creative framework(s) as narrative architecture, but do not name the framework in the script.
+3. Keep the script practical for a 30-40 second reel with clear scene-by-scene timing.
+4. Include: duration, tone, hook, scene timings, visual/action directions, on-screen text and/or voiceover, transition notes where useful, and end frame/CTA.
+5. Make the hook strong in the first 0-3 seconds.
+6. Keep claims conservative. Do not invent prices, guarantees, awards, testimonials, or performance results.
+7. Match the brand voice and target audience.
+8. Write in a clean, production-ready format that a videographer, editor, or social media executive can use immediately.
+9. The script must be specific to this row, not a reusable template.
+10. If the row or brand lacks details, make careful assumptions without creating unverifiable claims.
+11. The script string must be at least 120 words.
+12. The script string must include at least 5 timed beats, including Hook and End Frame.
+13. The script string must include multiple "Visual:" lines and multiple "Text on screen" or "Voiceover" lines.
+14. Never return only a title, one-liner, caption, summary, or concept. Return the full production script.
+
+FORMAT THE SCRIPT TEXT LIKE THIS:
+Reel Script: "[Specific Title]"
+
+Duration: 30-40 seconds
+Tone: ...
+
+Hook: 0-3 sec
+Visual: ...
+Text on screen / Voiceover:
+"..."
+
+[Scene Name]: 4-8 sec
+Visual: ...
+Text on screen:
+...
+
+[Continue with clear timed beats]
+
+End Frame: 33-37 sec
+Visual: ...
+Text on screen:
+...
+CTA:
+...`;
+  };
+
+  const handleGenerateReelScript = async (index, userPrompt = '') => {
+    const row = generatedData[index];
+    if (!row) return;
+
+    const rowType = String(row.contentType || row.type || '').toLowerCase();
+    if (rowType !== 'reel') {
+      setToast({ message: "Reel scripts can only be generated for Reel rows.", type: "error" });
+      return;
+    }
+
+    setGeneratingScriptIndex(index);
+    try {
+      const response = await generateReelScriptAI({ prompt: buildReelScriptPrompt(row, userPrompt) });
+      const script = response?.script || response?.raw;
+
+      validateReelScript(script);
+
+      const updatedRow = { ...row, reelScript: script };
+      let savedRow = updatedRow;
+
+      if (row.id) {
+        savedRow = await updatePost(row.id, { reelScript: script }) || updatedRow;
+      }
+
+      setGeneratedData((previousRows) =>
+        previousRows.map((item, rowIndex) => (rowIndex === index ? { ...updatedRow, ...savedRow } : item))
+      );
+      setReferenceModal({ isOpen: true, row: { ...updatedRow, ...savedRow }, rowIndex: index, userPrompt: '', refineInstruction: '', showRefinePanel: false });
+      setReelScriptSaveStatus('saved');
+      setToast({ message: "Reel script generated successfully.", type: "success" });
+    } catch (err) {
+      console.error("Failed to generate reel script", err);
+      setToast({ message: err.response?.data?.message || err.message || "Failed to generate reel script.", type: "error" });
+    } finally {
+      setGeneratingScriptIndex(null);
+    }
+  };
+
+  const validateReelScript = (script) => {
+    const normalizedScript = String(script || '').trim();
+    const wordCount = normalizedScript ? normalizedScript.split(/\s+/).length : 0;
+    const hasTimedSections = /\b\d+\s*-\s*\d+\s*sec\b/i.test(normalizedScript);
+    const visualCount = (normalizedScript.match(/Visual:/gi) || []).length;
+    const textCueCount = (normalizedScript.match(/Text on screen|Voiceover/gi) || []).length;
+
+    if (!normalizedScript) {
+      throw new Error("AI did not return a reel script.");
+    }
+
+    if (wordCount < 120 || !hasTimedSections || visualCount < 3 || textCueCount < 3) {
+      throw new Error("AI returned an incomplete reel script. Please generate again or add a more specific instruction.");
+    }
+  };
+
+  const persistReelScript = async (row, options = {}) => {
+    if (reelScriptSaveTimerRef.current) {
+      clearTimeout(reelScriptSaveTimerRef.current);
+      reelScriptSaveTimerRef.current = null;
+    }
+
+    if (!row?.id) {
+      if (!options.silent) {
+        setToast({ message: "Save the calendar before saving this reel script.", type: "error" });
+      }
+      return null;
+    }
+
+    setReelScriptSaveStatus('saving');
+    try {
+      const savedRow = await updatePost(row.id, { reelScript: row.reelScript || '' });
+      const nextRow = { ...row, ...(savedRow || {}) };
+
+      setGeneratedData((previousRows) =>
+        previousRows.map((item) => (item.id === row.id ? { ...item, ...nextRow } : item))
+      );
+      setReferenceModal((previous) => (
+        previous.row?.id === row.id ? { ...previous, row: { ...previous.row, ...nextRow } } : previous
+      ));
+      setReelScriptSaveStatus('saved');
+
+      if (!options.silent) {
+        setToast({ message: "Reel script saved successfully.", type: "success" });
+      }
+
+      return nextRow;
+    } catch (err) {
+      console.error("Failed to save reel script", err);
+      setReelScriptSaveStatus('error');
+      if (!options.silent) {
+        setToast({ message: "Failed to save reel script.", type: "error" });
+      }
+      return null;
+    }
+  };
+
+  const scheduleReelScriptAutoSave = (row) => {
+    if (reelScriptSaveTimerRef.current) {
+      clearTimeout(reelScriptSaveTimerRef.current);
+    }
+
+    if (!row?.id) return;
+
+    setReelScriptSaveStatus('dirty');
+    reelScriptSaveTimerRef.current = setTimeout(() => {
+      persistReelScript(row, { silent: true });
+    }, 800);
+  };
+
+  const handleReelScriptChange = (value) => {
+    const index = referenceModal.rowIndex;
+    const currentRow = referenceModal.row;
+    if (index === null || !currentRow) return;
+
+    const updatedRow = { ...currentRow, reelScript: value };
+    setReferenceModal((previous) => ({ ...previous, row: updatedRow }));
+    setGeneratedData((previousRows) =>
+      previousRows.map((item, rowIndex) => (rowIndex === index ? { ...item, reelScript: value } : item))
+    );
+    scheduleReelScriptAutoSave(updatedRow);
+  };
+
+  const handleRefineReelScript = async () => {
+    const index = referenceModal.rowIndex;
+    const row = referenceModal.row;
+    const instruction = referenceModal.refineInstruction?.trim();
+
+    if (index === null || !row?.reelScript || !instruction) return;
+
+    const refinePrompt = `${buildReelScriptPrompt(row, instruction)}
+
+REFINE MODE
+You are not creating from scratch. Rewrite and improve the existing reel script below according to the USER DIRECTION.
+Keep the same row strategy, content pillar, brand voice, and factual boundaries.
+Preserve useful timing structure if it works, but improve hooks, clarity, pacing, scene specificity, and CTA where the instruction requires it.
+Return ONLY the JSON object with the updated "script" string.
+
+EXISTING REEL SCRIPT TO REFINE
+${row.reelScript}`;
+
+    setGeneratingScriptIndex(index);
+    try {
+      const response = await generateReelScriptAI({ prompt: refinePrompt });
+      const script = response?.script || response?.raw;
+
+      validateReelScript(script);
+
+      const updatedRow = { ...row, reelScript: script };
+      let savedRow = updatedRow;
+
+      if (row.id) {
+        savedRow = await updatePost(row.id, { reelScript: script }) || updatedRow;
+      }
+
+      setGeneratedData((previousRows) =>
+        previousRows.map((item, rowIndex) => (rowIndex === index ? { ...updatedRow, ...savedRow } : item))
+      );
+      setReferenceModal((previous) => ({
+        ...previous,
+        row: { ...updatedRow, ...savedRow },
+        refineInstruction: '',
+        showRefinePanel: false,
+      }));
+      setReelScriptSaveStatus('saved');
+      setToast({ message: "Reel script refined successfully.", type: "success" });
+    } catch (err) {
+      console.error("Failed to refine reel script", err);
+      setToast({ message: err.response?.data?.message || err.message || "Failed to refine reel script.", type: "error" });
+    } finally {
+      setGeneratingScriptIndex(null);
+    }
+  };
+
   const handleAiEdit = (index, e) => {
     const row = e.currentTarget.closest('tr');
     // Use offsetTop to align perfectly with the row
@@ -641,8 +1397,36 @@ MANDATORY RULES:
 
   const selectClient = async (client) => {
     setSelectedClient(client);
-    setFormData({ ...formData, clientId: client.id, businessName: client.name });
     setIsDropdownOpen(false);
+    setCurrentStep(1);
+    setSettingsSaveStatus('idle');
+
+    const defaultClientFormData = {
+      ...getDefaultCalendarFormData(),
+      clientId: client.id,
+      businessName: client.name,
+    };
+
+    try {
+      const settings = await getCalendarSettings(client.id);
+      const savedConfig = settings?.configData;
+
+      if (savedConfig) {
+        setFormData({
+          ...defaultClientFormData,
+          ...savedConfig,
+          clientId: client.id,
+          businessName: savedConfig.businessName || client.name,
+          prompt: settings.prompt ?? savedConfig.prompt ?? '',
+        });
+      } else {
+        setFormData(defaultClientFormData);
+      }
+    } catch (err) {
+      console.error("Failed to load client calendar setup", err);
+      setFormData(defaultClientFormData);
+      setToast({ message: "Could not load saved setup for this client.", type: "error" });
+    }
     
     // Fetch saved calendars history
     fetchSavedCalendars(client.id);
@@ -676,6 +1460,15 @@ MANDATORY RULES:
   };
 
   const totalPercentage = formData.competitors.reduce((sum, c) => sum + c.percentage, 0);
+  const selectedFrameworkIds = getSelectedFrameworkIds(formData);
+  const selectedFrameworkNames = CONTENT_FRAMEWORK_OPTIONS
+    .filter(framework => selectedFrameworkIds.includes(framework.id))
+    .map(framework => framework.name);
+  const frameworkSummary = selectedFrameworkNames.length === 0
+    ? 'Auto select best framework'
+    : selectedFrameworkNames.length <= 2
+      ? selectedFrameworkNames.join(', ')
+      : `${selectedFrameworkNames.slice(0, 2).join(', ')} +${selectedFrameworkNames.length - 2}`;
 
   const getStatusColor = (status) => {
     switch(status) {
@@ -712,7 +1505,7 @@ MANDATORY RULES:
                     {/* Left Column */}
                     <div className="space-y-5">
                       <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-[#003870] text-[20px]">person</span>
+                        <User className="h-5 w-5 text-[#003870]" strokeWidth={2.4} />
                         Client Basics
                       </h3>
                       
@@ -733,7 +1526,7 @@ MANDATORY RULES:
                           ) : (
                             <span className="text-slate-400 font-medium text-sm">Choose a client...</span>
                           )}
-                          <span className="material-symbols-outlined text-slate-400 group-hover:text-[#003870] text-[18px]">expand_more</span>
+                          <ChevronDown className="h-4.5 w-4.5 text-slate-400 transition-colors group-hover:text-[#003870]" strokeWidth={2.4} />
                         </button>
 
                         {isDropdownOpen && (
@@ -780,7 +1573,7 @@ MANDATORY RULES:
                     {/* Right Column */}
                     <div className="space-y-5">
                       <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-[#003870] text-[20px]">target</span>
+                        <Target className="h-5 w-5 text-[#003870]" strokeWidth={2.4} />
                         Audience & Platforms
                       </h3>
                       <div className="space-y-1.5">
@@ -791,18 +1584,14 @@ MANDATORY RULES:
                       <div className="pt-2">
                         <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-[0.1em] mb-4">Select Platforms</p>
                         <div className="flex flex-wrap gap-5">
-                          {[
-                            { id: 'facebook', label: 'Facebook', Icon: FacebookIcon },
-                            { id: 'instagram', label: 'Instagram', Icon: InstagramIcon },
-                            { id: 'tiktok', label: 'TikTok', Icon: TikTokIcon }
-                          ].map(platform => {
+                          {PLATFORM_OPTIONS.map(platform => {
                             const isActive = formData.platforms.includes(platform.id);
                             return (
                               <label key={platform.id} className="flex items-center gap-2.5 cursor-pointer group">
                                 <div className="relative flex items-center">
                                   <input type="checkbox" className="sr-only" checked={isActive} onChange={() => togglePlatform(platform.id)} />
                                   <div className={`h-5 w-5 rounded-md border-2 transition-all duration-200 flex items-center justify-center ${isActive ? 'bg-[#003870] border-[#003870] shadow-sm shadow-[#003870]/20' : 'bg-white border-slate-200 group-hover:border-[#003870]/30'}`}>
-                                    {isActive && <span className="material-symbols-outlined text-white text-[16px] font-bold">check</span>}
+                                    {isActive && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -823,7 +1612,7 @@ MANDATORY RULES:
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="space-y-5">
                       <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-[#003870] text-[20px]">strategy</span>
+                        <Lightbulb className="h-5 w-5 text-[#003870]" strokeWidth={2.4} />
                         Content Strategy
                       </h3>
                       <div>
@@ -837,49 +1626,157 @@ MANDATORY RULES:
                         </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Brand Voice</label>
-                        <input type="text" placeholder="e.g. Casual, friendly" value={formData.brandVoice} onChange={e => handleInputChange('brandVoice', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Framework</label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setIsFrameworkPickerOpen(prev => !prev)}
+                            className="flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-bold text-slate-700 outline-none transition-all hover:border-[#003870]/30 focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/20"
+                          >
+                            <span className="min-w-0 truncate">{frameworkSummary}</span>
+                            <span className="flex shrink-0 items-center gap-2">
+                              {selectedFrameworkIds.length > 0 && (
+                                <span className="rounded-full bg-[#003870]/10 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#003870]">
+                                  {selectedFrameworkIds.length}
+                                </span>
+                              )}
+                              <ChevronDown className={`h-4.5 w-4.5 text-slate-500 transition-transform ${isFrameworkPickerOpen ? 'rotate-180' : ''}`} strokeWidth={2.4} />
+                            </span>
+                          </button>
+
+                          {isFrameworkPickerOpen && (
+                            <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/12">
+                              <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+                                <span className="text-xs font-extrabold text-slate-600">
+                                  {selectedFrameworkIds.length > 0 ? `${selectedFrameworkIds.length} selected` : 'Auto select when empty'}
+                                </span>
+                                <div className="flex gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setContentFrameworks(CONTENT_FRAMEWORK_OPTIONS.map(framework => framework.id))}
+                                    className="rounded-lg px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-[#003870] transition-colors hover:bg-[#003870]/10"
+                                  >
+                                    All
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setContentFrameworks([])}
+                                    className="rounded-lg px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid max-h-[220px] grid-cols-1 gap-2 overflow-y-auto p-3 sm:grid-cols-2">
+                                {CONTENT_FRAMEWORK_OPTIONS.map(framework => {
+                                  const isSelected = selectedFrameworkIds.includes(framework.id);
+
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={framework.id}
+                                      onClick={() => toggleContentFramework(framework.id)}
+                                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold transition-all ${
+                                        isSelected
+                                          ? 'border-[#003870] bg-[#003870] text-white shadow-sm shadow-[#003870]/15'
+                                          : 'border-slate-200 bg-white text-slate-600 hover:border-[#003870]/40 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                                        isSelected ? 'border-white bg-white/20' : 'border-slate-300 bg-slate-50'
+                                      }`}>
+                                        {isSelected && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />}
+                                      </span>
+                                      <span className="truncate">{framework.name}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div className="flex justify-end border-t border-slate-100 bg-slate-50 px-3 py-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFrameworkPickerOpen(false)}
+                                  className="rounded-lg bg-[#003870] px-4 py-2 text-xs font-extrabold text-white shadow-sm shadow-[#003870]/20 transition-colors hover:bg-[#003870]/90"
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Language</label>
-                        <input type="text" placeholder="e.g. English / Sinhala" value={formData.language} onChange={e => handleInputChange('language', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Content Pillars</label>
+                        <textarea
+                          placeholder="e.g. Educational tips, Product benefits, Social proof, Behind the scenes, Offers"
+                          value={formData.contentPillars || ''}
+                          onChange={e => handleInputChange('contentPillars', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm min-h-[92px] resize-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Brand Voice</label>
+                        <input type="text" placeholder="e.g. Casual, friendly" value={formData.brandVoice} onChange={e => handleInputChange('brandVoice', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
                       </div>
                     </div>
                     
                     <div className="space-y-5">
                       <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-[#003870] text-[20px]">calendar_month</span>
+                        <CalendarDays className="h-5 w-5 text-[#003870]" strokeWidth={2.4} />
                         Schedule & Formats
                       </h3>
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Posts Per Week</label>
-                            <input type="number" placeholder="e.g. 7" value={formData.postsPerWeek} onChange={e => handleInputChange('postsPerWeek', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Duration (Days)</label>
-                            <input type="number" placeholder="e.g. 30" value={formData.durationDays} onChange={e => handleInputChange('durationDays', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
                             <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Start Date</label>
-                            <input type="date" value={formData.startDate} onChange={e => handleInputChange('startDate', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
+                            <input type="date" value={formData.startDate} onChange={e => handleScheduleDateChange('startDate', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">End Date (Auto)</label>
-                            <input 
-                              type="text" 
-                              readOnly 
-                              value={formData.startDate && formData.durationDays ? new Date(new Date(formData.startDate).getTime() + (parseInt(formData.durationDays) * 24 * 60 * 60 * 1000)).toISOString().split('T')[0] : 'Calculating...'} 
-                              className="w-full bg-slate-100/50 border border-slate-200 rounded-xl px-4 py-3 outline-none text-slate-400 text-sm cursor-not-allowed" 
-                            />
+                            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">End Date</label>
+                            <input type="date" value={formData.endDate || ''} min={formData.startDate || undefined} onChange={e => handleScheduleDateChange('endDate', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
                           </div>
                         </div>
                       </div>
+
+                      <div>
+                        <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-[0.1em] mb-3">Platform Post Counts</p>
+                        {formData.platforms.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {formData.platforms.map(platformId => {
+                              const platform = PLATFORM_OPTIONS.find(item => item.id === platformId);
+                              if (!platform) return null;
+                              const PlatformIcon = platform.Icon;
+
+                              return (
+                                <div key={platform.id} className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-3">
+                                  <div className="mb-2 flex items-center gap-2">
+                                    <PlatformIcon active={true} />
+                                    <span className="text-xs font-extrabold text-slate-700">{platform.label}</span>
+                                  </div>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Count"
+                                    value={formData.platformContentCounts?.[platform.id] ?? ''}
+                                    onChange={(e) => handlePlatformContentCountChange(platform.id, e.target.value)}
+                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none transition-all focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/20"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-4 text-center text-xs font-bold uppercase tracking-wider text-slate-400">
+                            Select platforms in the first step
+                          </div>
+                        )}
+                      </div>
                       
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider ml-1">Language</label>
+                        <input type="text" placeholder="e.g. English / Sinhala" value={formData.language} onChange={e => handleInputChange('language', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm" />
+                      </div>
+
                       <div>
                         <p className="text-[11px] font-extrabold text-slate-400 uppercase tracking-[0.1em] mb-3">Preferred Formats</p>
                         <div className="flex flex-wrap gap-2">
@@ -899,7 +1796,7 @@ MANDATORY RULES:
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="space-y-5">
                       <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-2">
-                        <span className="material-symbols-outlined text-[#003870] text-[20px]">shopping_bag</span>
+                        <ShoppingBag className="h-5 w-5 text-[#003870]" strokeWidth={2.4} />
                         Products & Offers
                       </h3>
                       <div className="space-y-1.5">
@@ -934,7 +1831,7 @@ MANDATORY RULES:
                     <div>
                       <div className="mb-6 space-y-4">
                         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                          <span className="material-symbols-outlined text-[#003870] text-[20px]">analytics</span>
+                          <BarChart3 className="h-5 w-5 text-[#003870]" strokeWidth={2.4} />
                           Engagement Strategy (Competitor Data)
                         </h3>
                         
@@ -1023,20 +1920,38 @@ MANDATORY RULES:
                 {currentStep === 4 && (
                   <div className={`animate-in fade-in duration-300 transition-all ${
                     isPromptMaximized 
-                      ? 'fixed inset-0 z-[100] bg-white p-10 flex flex-col' 
+                      ? 'fixed inset-0 z-[100] bg-white p-4 sm:p-6 lg:p-10 flex flex-col'
                       : 'relative'
                   }`}>
                     {isPromptMaximized && (
                       <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm -z-10" onClick={() => setIsPromptMaximized(false)} />
                     )}
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[#003870] text-[20px]">smart_toy</span>
+                    <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-sm font-bold text-slate-800 flex min-w-0 items-center gap-2">
+                        <Bot className="h-5 w-5 text-[#003870]" strokeWidth={2.4} />
                         AI Prompt Focus
                       </h3>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
                           {formData.prompt.trim() ? formData.prompt.trim().split(/\s+/).length : 0} Words
+                        </span>
+                        <span className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider ${
+                          settingsSaveStatus === 'error'
+                            ? 'border-red-100 bg-red-50 text-red-600'
+                            : settingsSaveStatus === 'dirty'
+                              ? 'border-amber-100 bg-amber-50 text-amber-600'
+                              : 'border-blue-100 bg-blue-50 text-[#003870]'
+                        }`}>
+                          {isSettingsSaving ? (
+                            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} />
+                          ) : settingsSaveStatus === 'error' ? (
+                            <AlertTriangle className="h-4 w-4" strokeWidth={2.5} />
+                          ) : settingsSaveStatus === 'dirty' ? (
+                            <Clock className="h-4 w-4" strokeWidth={2.5} />
+                          ) : (
+                            <Cloud className="h-4 w-4" strokeWidth={2.5} />
+                          )}
+                          {isSettingsSaving ? 'Auto Saving' : settingsSaveStatus === 'error' ? 'Auto Save Failed' : settingsSaveStatus === 'dirty' ? 'Saving Soon' : 'Auto Saved'}
                         </span>
                         <button 
                           type="button"
@@ -1044,9 +1959,11 @@ MANDATORY RULES:
                           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-[#003870] transition-colors flex items-center justify-center"
                           title={isPromptMaximized ? "Minimize" : "Maximize"}
                         >
-                          <span className="material-symbols-outlined text-[20px]">
-                            {isPromptMaximized ? 'close_fullscreen' : 'open_in_full'}
-                          </span>
+                          {isPromptMaximized ? (
+                            <Minimize2 className="h-5 w-5" strokeWidth={2.3} />
+                          ) : (
+                            <Maximize2 className="h-5 w-5" strokeWidth={2.3} />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1054,13 +1971,16 @@ MANDATORY RULES:
                     <textarea
                       required
                       value={formData.prompt}
-                      onChange={(e) => setFormData({ ...formData, prompt: e.target.value })}
-                      className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm resize-none transition-all leading-relaxed ${
-                        isPromptMaximized ? 'flex-1 text-base' : 'min-h-[160px]'
+                      onChange={(e) => {
+                        setSettingsSaveStatus('dirty');
+                        setFormData({ ...formData, prompt: e.target.value });
+                      }}
+                      className={`w-full min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 sm:px-5 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 text-sm resize-none transition-all leading-relaxed ${
+                        isPromptMaximized ? 'flex-1 sm:text-base' : 'min-h-[160px]'
                       }`}
                     />
                     {isPromptMaximized && (
-                      <div className="mt-6 flex justify-end">
+                      <div className="mt-4 flex justify-end sm:mt-6">
                         <button
                           type="button"
                           onClick={() => setIsPromptMaximized(false)}
@@ -1083,7 +2003,7 @@ MANDATORY RULES:
                       onClick={prevStep}
                       className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-white hover:bg-slate-50 border border-slate-200 shadow-sm transition-all"
                     >
-                      <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                      <ArrowLeft className="h-5 w-5" strokeWidth={2.4} />
                       Back
                     </button>
                   )}
@@ -1105,7 +2025,7 @@ MANDATORY RULES:
                       className="flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-extrabold text-white bg-gradient-to-r from-[#003870] to-[#0055a5] shadow-lg shadow-[#003870]/20 hover:shadow-xl hover:-translate-y-0.5 transition-all"
                     >
                       Next
-                      <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                      <ArrowRight className="h-5 w-5" strokeWidth={2.4} />
                     </button>
                   ) : (
                     <button
@@ -1115,9 +2035,9 @@ MANDATORY RULES:
                       className="flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-extrabold text-white bg-gradient-to-r from-[#003870] to-[#0055a5] shadow-lg shadow-[#003870]/20 hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {isGenerating ? (
-                        <><span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span> Generating...</>
+                        <><Loader2 className="h-4.5 w-4.5 animate-spin" strokeWidth={2.5} /> Generating...</>
                       ) : (
-                        <><span className="material-symbols-outlined text-[18px]">auto_awesome</span> Generate Calendar</>
+                        <><Sparkles className="h-4.5 w-4.5" strokeWidth={2.5} /> Generate Calendar</>
                       )}
                     </button>
                   )}
@@ -1140,7 +2060,7 @@ MANDATORY RULES:
               isSaving={isSaving}
               onSave={() => handleSaveToDatabase()}
               onDelete={handleDeleteCalendar}
-              onExport={() => {/* Export Logic */}}
+              onExport={handleExportCalendar}
             />
 
             <div className="flex-1 overflow-auto relative p-1">
@@ -1152,14 +2072,20 @@ MANDATORY RULES:
                       onAiEdit={handleAiEdit}
                       onDeleteRow={handleDeleteRow}
                       onUpdateRow={handleUpdateRow}
+                      onOpenReference={(row, rowIndex) => {
+                        setReferenceModal({ isOpen: true, row, rowIndex, userPrompt: '', refineInstruction: '', showRefinePanel: false });
+                        setReelScriptSaveStatus(row?.reelScript ? 'saved' : 'idle');
+                      }}
+                      onGenerateScript={handleGenerateReelScript}
                       getStatusColor={getStatusColor}
                       editingIndex={aiEditModal.rowIndex}
+                      generatingScriptIndex={generatingScriptIndex}
                     />
                   ) : (
                     /* Empty State */
                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-50/30">
                       <div className="w-24 h-24 mb-6 rounded-full bg-gradient-to-tr from-[#003870]/10 to-[#0066cc]/10 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-5xl text-[#003870]/40">table_chart</span>
+                        <Table2 className="h-12 w-12 text-[#003870]/40" strokeWidth={1.8} />
                       </div>
                       <h3 className="text-xl font-bold text-slate-700 mb-2">No Content Generated Yet</h3>
                       <p className="text-slate-500 max-w-sm mx-auto text-sm">
@@ -1177,14 +2103,14 @@ MANDATORY RULES:
                   >
                     <div className="px-6 py-5 bg-[#003870] flex justify-between items-center shrink-0">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-white text-[20px]">auto_fix_high</span>
+                        <WandSparkles className="h-5 w-5 text-white" strokeWidth={2.4} />
                         <h3 className="text-sm font-black text-white uppercase tracking-wider">Refine Post</h3>
                       </div>
                       <button 
                         onClick={() => setAiEditModal({ ...aiEditModal, isOpen: false, rowIndex: null })}
                         className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
                       >
-                        <span className="material-symbols-outlined text-[18px]">close</span>
+                        <X className="h-4.5 w-4.5" strokeWidth={2.5} />
                       </button>
                     </div>
 
@@ -1215,7 +2141,7 @@ MANDATORY RULES:
                             {aiEditModal.isProcessing ? (
                               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                             ) : (
-                              <span className="material-symbols-outlined">send</span>
+                              <Send className="h-5 w-5" strokeWidth={2.4} />
                             )}
                           </button>
                         </div>
@@ -1249,6 +2175,203 @@ MANDATORY RULES:
         </div>
       </div>
 
+      {referenceModal.isOpen && (
+        <div className="fixed inset-0 z-[100] bg-white p-4 sm:p-6 lg:p-10 flex flex-col">
+          <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm -z-10" onClick={() => setReferenceModal({ isOpen: false, row: null, rowIndex: null, userPrompt: '', refineInstruction: '', showRefinePanel: false })} />
+          <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-sm font-bold text-slate-800 flex min-w-0 items-center gap-2">
+              <span className="material-symbols-outlined text-[#003870] text-[20px]">movie</span>
+              Reference
+            </h3>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                {(referenceModal.row?.reelScript || '').trim() ? referenceModal.row.reelScript.trim().split(/\s+/).length : 0} Words
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-amber-600">
+                  <Clock className="h-4 w-4" strokeWidth={2.5} />
+                  Reference
+                </span>
+              {referenceModal.row?.reelScript && (
+                <>
+                  <span className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider ${
+                    reelScriptSaveStatus === 'error'
+                      ? 'border-red-100 bg-red-50 text-red-600'
+                      : reelScriptSaveStatus === 'dirty'
+                        ? 'border-amber-100 bg-amber-50 text-amber-600'
+                        : 'border-blue-100 bg-blue-50 text-[#003870]'
+                  }`}>
+                    {reelScriptSaveStatus === 'saving' ? (
+                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} />
+                    ) : reelScriptSaveStatus === 'error' ? (
+                      <AlertTriangle className="h-4 w-4" strokeWidth={2.5} />
+                    ) : reelScriptSaveStatus === 'dirty' ? (
+                      <Clock className="h-4 w-4" strokeWidth={2.5} />
+                    ) : (
+                      <Cloud className="h-4 w-4" strokeWidth={2.5} />
+                    )}
+                    {reelScriptSaveStatus === 'saving' ? 'Saving' : reelScriptSaveStatus === 'error' ? 'Save Failed' : reelScriptSaveStatus === 'dirty' ? 'Saving Soon' : 'Saved'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => persistReelScript(referenceModal.row)}
+                    disabled={reelScriptSaveStatus === 'saving'}
+                    className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#003870] shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                    title="Save reel script"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">save</span>
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReferenceModal((previous) => ({ ...previous, showRefinePanel: !previous.showRefinePanel }))}
+                    className={`p-1.5 rounded-lg transition-colors flex items-center justify-center ${
+                      referenceModal.showRefinePanel
+                        ? 'bg-[#003870] text-white'
+                        : 'hover:bg-slate-100 text-slate-400 hover:text-[#003870]'
+                    }`}
+                    title="Refine Script"
+                  >
+                    <WandSparkles className="h-5 w-5" strokeWidth={2.3} />
+                  </button>
+                </>
+              )}
+                <button
+                  type="button"
+                  onClick={() => setReferenceModal({ isOpen: false, row: null, rowIndex: null, userPrompt: '', refineInstruction: '', showRefinePanel: false })}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-[#003870] transition-colors flex items-center justify-center"
+                  title="Close"
+                >
+                <Minimize2 className="h-5 w-5" strokeWidth={2.3} />
+                </button>
+              </div>
+            </div>
+          <p className="text-xs text-slate-500 mb-4">
+            {referenceModal.row?.reelScript
+              ? 'Generated reel script reference for this row.'
+              : 'Add an optional direction before generating the reel script for this row.'}
+          </p>
+
+          {referenceModal.row?.reelScript ? (
+            <div className={`grid min-h-0 flex-1 gap-5 ${
+              referenceModal.showRefinePanel ? 'lg:grid-cols-[minmax(0,1fr)_380px]' : 'grid-cols-1'
+            }`}>
+              <textarea
+                value={referenceModal.row.reelScript}
+                onChange={(event) => handleReelScriptChange(event.target.value)}
+                className="w-full min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-4 py-4 sm:px-5 outline-none focus:ring-2 focus:ring-[#003870]/20 focus:border-[#003870] text-slate-700 resize-none transition-all leading-relaxed flex-1 text-sm sm:text-base"
+              />
+              {referenceModal.showRefinePanel && (
+              <div className="flex min-h-[520px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl animate-in slide-in-from-right-6 duration-300">
+                <div className="flex shrink-0 items-center justify-between bg-[#003870] px-6 py-5">
+                  <div className="flex items-center gap-2">
+                    <WandSparkles className="h-5 w-5 text-white" strokeWidth={2.4} />
+                    <h3 className="text-sm font-black uppercase tracking-wider text-white">Refine Script</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReferenceModal((previous) => ({ ...previous, refineInstruction: '' }))}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white"
+                    title="Clear instruction"
+                  >
+                    <X className="h-4.5 w-4.5" strokeWidth={2.5} />
+                  </button>
+                </div>
+
+                <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Editing Reel Script
+                    </p>
+                    <p className="truncate text-xs font-bold text-slate-600">
+                      "{referenceModal.row?.visualCopy || referenceModal.row?.visual || referenceModal.row?.caption || 'Generated script'}"
+                    </p>
+                  </div>
+
+                  <div className="relative">
+                    <p className="mb-2 pl-1 text-xs font-bold text-slate-500">Instruction for AI</p>
+                    <textarea
+                      value={referenceModal.refineInstruction}
+                      onChange={(event) => setReferenceModal((previous) => ({ ...previous, refineInstruction: event.target.value }))}
+                      placeholder="e.g., 'Make it punchier', 'Add stronger hook', 'Make it more emotional'..."
+                      disabled={generatingScriptIndex === referenceModal.rowIndex}
+                      className="h-40 w-full resize-none rounded-2xl border-2 border-slate-100 px-5 py-4 text-sm font-medium text-slate-700 shadow-inner outline-none transition-all focus:border-[#003870]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRefineReelScript}
+                      disabled={generatingScriptIndex === referenceModal.rowIndex || !referenceModal.refineInstruction.trim()}
+                      className="absolute bottom-3 right-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#003870] text-white shadow-lg shadow-[#003870]/30 transition-all hover:scale-105 disabled:scale-100 disabled:opacity-50"
+                      title="Refine Script"
+                    >
+                      {generatingScriptIndex === referenceModal.rowIndex ? (
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      ) : (
+                        <Send className="h-5 w-5" strokeWidth={2.4} />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="mt-2 flex flex-col gap-3">
+                    <p className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-400">AI Tips</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['Make punchier', 'Add stronger hook', 'More emotional', 'Tighter timing'].map((tip) => (
+                        <button
+                          key={tip}
+                          type="button"
+                          onClick={() => setReferenceModal((previous) => ({ ...previous, refineInstruction: tip }))}
+                          className="truncate rounded-xl border border-slate-100 px-3 py-2 text-left text-[11px] font-bold text-slate-500 transition-all hover:border-[#003870]/20 hover:bg-slate-50 hover:text-[#003870]"
+                        >
+                          {tip}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto border-t border-slate-100 bg-slate-50 px-6 py-4">
+                  <p className="text-[10px] font-medium leading-relaxed text-slate-400">
+                    Type your changes above. AI will rewrite the reel script while keeping the row pillar, caption, and brand context intact.
+                  </p>
+                </div>
+              </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-4">
+              <textarea
+                value={referenceModal.userPrompt}
+                onChange={(event) => setReferenceModal((previous) => ({ ...previous, userPrompt: event.target.value }))}
+                placeholder="Optional: Tell AI what to focus on. e.g. Make it emotional, use a founder POV, add humor, focus on safety benefits..."
+                className="min-h-[180px] w-full min-w-0 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-relaxed text-slate-700 outline-none transition-all focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/20 sm:px-5 sm:text-base"
+              />
+              <div className="flex-1 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-4 text-sm font-medium leading-7 text-slate-500">
+                This direction will be combined with the row pillar, visual copy, caption, brand voice, selected frameworks, and content pillars before sending to AI.
+              </div>
+            </div>
+          )}
+
+            <div className="mt-4 flex justify-end sm:mt-6">
+              {!referenceModal.row?.reelScript && (
+                <button
+                  type="button"
+                  onClick={() => handleGenerateReelScript(referenceModal.rowIndex, referenceModal.userPrompt)}
+                  disabled={generatingScriptIndex === referenceModal.rowIndex}
+                  className="mr-3 rounded-xl bg-white px-6 py-2.5 text-sm font-bold text-[#003870] shadow-sm transition-all hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {generatingScriptIndex === referenceModal.rowIndex ? 'Generating...' : 'Generate Script'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setReferenceModal({ isOpen: false, row: null, rowIndex: null, userPrompt: '', refineInstruction: '', showRefinePanel: false })}
+              className="px-6 py-2.5 rounded-xl bg-[#003870] text-white font-bold text-sm hover:bg-[#002d5a] transition-all shadow-lg"
+              >
+                Done Editing
+              </button>
+            </div>
+        </div>
+      )}
+
       {toast && (
         <div className={`fixed top-10 right-10 z-[1000] flex items-center gap-3 px-5 py-4 rounded-2xl bg-white border-l-4 ${toast.type === "success" ? "border-[#003870]" : "border-[#93000a]"} shadow-[0_20px_40px_-10px_rgba(0,0,0,0.15)] animate-in slide-in-from-top-4 duration-300`}>
            <div className={toast.type === "success" ? "text-[#003870]" : "text-[#93000a]"}>
@@ -1264,7 +2387,7 @@ MANDATORY RULES:
            </div>
            <p className="text-base font-bold text-[#191c1d] tracking-tight">{toast.message}</p>
            <button onClick={() => setToast(null)} className="ml-4 text-slate-400 hover:text-slate-600">
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              <X className="h-4.5 w-4.5" strokeWidth={2.5} />
            </button>
         </div>
       )}

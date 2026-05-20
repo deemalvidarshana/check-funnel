@@ -7,7 +7,22 @@ import Toast from '../../components/common/Toast';
 import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
 import PostDetailsModal from '../../components/social-media/calendar/PostDetailsModal';
 import { getCalendars, updatePost, deletePost } from '../../api/calendar';
-import { getClients } from '../../api/client';
+import { getClients, toggleShare } from '../../api/client';
+
+const getPostPlatforms = (platforms) => {
+  if (Array.isArray(platforms)) {
+    return platforms.map((platform) => String(platform).toLowerCase());
+  }
+
+  if (typeof platforms === 'string') {
+    return platforms
+      .split(',')
+      .map((platform) => platform.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [];
+};
 
 const ContentCalendar = () => {
   const [view, setView] = useState('month');
@@ -16,6 +31,8 @@ const ContentCalendar = () => {
   const [clients, setClients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   
   // Modal states
   const [deleteModal, setDeleteModal] = useState({ open: false, index: null });
@@ -75,7 +92,7 @@ const ContentCalendar = () => {
 
     return posts.filter(p => {
       const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' || 
-                             (p.platforms && p.platforms.some(plat => plat.toLowerCase() === filters.platform.toLowerCase()));
+                             getPostPlatforms(p.platforms).some(plat => plat === filters.platform.toLowerCase());
       
       const matchesType = !filters.contentType || filters.contentType === 'All Content Types' || 
                          (p.contentType && p.contentType.toLowerCase() === filters.contentType.toLowerCase());
@@ -110,7 +127,7 @@ const ContentCalendar = () => {
     setPosts(newPosts);
 
     try {
-      const dbColumns = ['date', 'contentType', 'pillar', 'visualCopy', 'visual', 'caption', 'status', 'platforms'];
+      const dbColumns = ['date', 'contentType', 'pillar', 'visualCopy', 'caption', 'status', 'platforms', 'fbLink', 'igLink', 'ttLink'];
       const filteredFields = Object.keys(updatedFields)
         .filter(key => dbColumns.includes(key))
         .reduce((obj, key) => {
@@ -150,12 +167,94 @@ const ContentCalendar = () => {
     setDetailsModal({ open: true, post: filteredPosts[index] });
   };
 
+  const copyToClipboard = async (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+  };
+
+  const handleShareCalendar = async () => {
+    const selectedClient = clients.find(c => c.displayName === filters.client || c.name === filters.client);
+
+    if (!selectedClient || filters.client === 'All Clients') {
+      setToast({ message: "Please select a client before sharing.", type: "error" });
+      return;
+    }
+
+    setShareLoading(true);
+    try {
+      const updatedClient = await toggleShare(selectedClient.id, true);
+      const shareParams = new URLSearchParams({
+        viewType: filters.viewType === 'Calendar View' ? 'calendar' : 'row',
+        view,
+        date: currentDate.toISOString().split('T')[0],
+      });
+      const shareUrl = `${window.location.origin}/public-content-calendar/${updatedClient.shareToken}?${shareParams.toString()}`;
+      await copyToClipboard(shareUrl);
+      setShareCopied(true);
+      setToast({ message: "Public content calendar link copied", type: "success" });
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to share content calendar", error);
+      setToast({ message: "Failed to create share link.", type: "error" });
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const handleSavePostDetails = async (updatedFields) => {
+    const postToUpdate = detailsModal.post;
+    if (!postToUpdate || !postToUpdate.id) return;
+
+    const allowedColumns = ['date', 'contentType', 'pillar', 'visualCopy', 'caption', 'status', 'platforms', 'fbLink', 'igLink', 'ttLink'];
+    const filteredFields = Object.keys(updatedFields)
+      .filter(key => allowedColumns.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = updatedFields[key];
+        return obj;
+      }, {});
+
+    const updatedPost = { ...postToUpdate, ...filteredFields };
+    setDetailsModal(prev => ({ ...prev, post: updatedPost }));
+    setPosts(prevPosts => prevPosts.map(post => post.id === postToUpdate.id ? { ...post, ...filteredFields } : post));
+
+    try {
+      await updatePost(postToUpdate.id, filteredFields);
+      setToast({ message: "Platform links saved", type: "success" });
+    } catch (err) {
+      console.error("Failed to update platform links", err);
+      setToast({ message: "Failed to save platform links", type: "error" });
+      fetchPosts();
+      throw err;
+    }
+  };
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(new Date(currentDate).setMonth(currentDate.getMonth() - 1)));
   };
 
   const handleNextMonth = () => {
     setCurrentDate(new Date(new Date(currentDate).setMonth(currentDate.getMonth() + 1)));
+  };
+
+  const handlePrevWeek = () => {
+    setCurrentDate(new Date(new Date(currentDate).setDate(currentDate.getDate() - 7)));
+  };
+
+  const handleNextWeek = () => {
+    setCurrentDate(new Date(new Date(currentDate).setDate(currentDate.getDate() + 7)));
   };
 
   const handleFilterChange = (key, value) => {
@@ -187,6 +286,9 @@ const ContentCalendar = () => {
         isOpen={detailsModal.open}
         onClose={() => setDetailsModal({ open: false, post: null })}
         post={detailsModal.post}
+        linkEditMode={filters.viewType === 'Row View'}
+        hidePreview={filters.viewType === 'Row View'}
+        onSave={handleSavePostDetails}
       />
       
       <CalendarHeader 
@@ -196,6 +298,9 @@ const ContentCalendar = () => {
         onPrev={handlePrevMonth}
         onNext={handleNextMonth}
         showViewToggle={filters.viewType !== 'Row View'}
+        onShare={handleShareCalendar}
+        shareLoading={shareLoading}
+        shareCopied={shareCopied}
       />
       <FilterBar 
         filters={filters} 
@@ -208,7 +313,7 @@ const ContentCalendar = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#003870]"></div>
         </div>
       ) : filters.viewType === 'Row View' ? (
-        <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-x-auto overflow-y-visible">
           <CalendarTable 
             data={filteredPosts}
             onUpdateRow={handleUpdateRow}
@@ -216,6 +321,7 @@ const ContentCalendar = () => {
             onViewRow={handleViewPost}
             getStatusColor={getStatusColor}
             onAiEdit={() => {}} 
+            variant="contentRow"
           />
         </div>
       ) : (
@@ -225,6 +331,8 @@ const ContentCalendar = () => {
           posts={filteredPosts} 
           filters={filters}
           isLoading={isLoading}
+          onPrevWeek={handlePrevWeek}
+          onNextWeek={handleNextWeek}
         />
       )}
       

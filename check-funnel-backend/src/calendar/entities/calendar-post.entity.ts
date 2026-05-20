@@ -24,9 +24,26 @@ export class CalendarPost {
   @Column({ type: 'text' })
   caption: string;
 
+  @Column({ type: 'text', nullable: true })
+  reelScript: string;
+
+  @Column({ type: 'simple-json', nullable: true })
+  platforms: string[];
+
+  @Column({ nullable: true })
+  fbLink: string;
+
+  @Column({ nullable: true })
+  igLink: string;
+
+  @Column({ nullable: true })
+  ttLink: string;
+
   @Column({ default: 'DRAFT' })
   status: string;
 
-  @ManyToOne(() => Calendar, (calendar) => calendar.posts, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Calendar, (calendar) => calendar.posts, {
+    onDelete: 'CASCADE',
+  })
   calendar: Calendar;
 }

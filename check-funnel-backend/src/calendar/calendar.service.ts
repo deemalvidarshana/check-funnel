@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Calendar } from './entities/calendar.entity';
 import { CalendarPost } from './entities/calendar-post.entity';
+import { CalendarSettings } from './entities/calendar-settings.entity';
 
 @Injectable()
 export class CalendarService {
@@ -11,13 +12,70 @@ export class CalendarService {
     private calendarRepository: Repository<Calendar>,
     @InjectRepository(CalendarPost)
     private calendarPostRepository: Repository<CalendarPost>,
+    @InjectRepository(CalendarSettings)
+    private calendarSettingsRepository: Repository<CalendarSettings>,
   ) {}
+
+  async getSettings(clientId: number): Promise<CalendarSettings | null> {
+    return this.calendarSettingsRepository.findOne({
+      where: { clientId: Number(clientId) },
+    });
+  }
+
+  async upsertSettings(
+    clientId: number,
+    data: any,
+    userEmail: string,
+  ): Promise<CalendarSettings> {
+    const normalizedClientId = Number(clientId);
+    const configData = data.configData || data.formData || {};
+    const prompt = data.prompt ?? configData.prompt ?? null;
+
+    const existingSettings = await this.calendarSettingsRepository.findOne({
+      where: { clientId: normalizedClientId },
+    });
+
+    if (existingSettings) {
+      existingSettings.configData = configData;
+      existingSettings.prompt = prompt;
+      existingSettings.updatedBy = userEmail;
+      return this.calendarSettingsRepository.save(existingSettings);
+    }
+
+    const settings = this.calendarSettingsRepository.create({
+      clientId: normalizedClientId,
+      configData,
+      prompt,
+      createdBy: userEmail,
+      updatedBy: userEmail,
+    });
+
+    return this.calendarSettingsRepository.save(settings);
+  }
+
+  private normalizePlatforms(platforms: any): string[] {
+    if (Array.isArray(platforms)) {
+      return platforms
+        .map((platform) => String(platform).trim().toLowerCase())
+        .filter(Boolean);
+    }
+
+    if (typeof platforms === 'string') {
+      return platforms
+        .split(',')
+        .map((platform) => platform.trim().toLowerCase())
+        .filter(Boolean);
+    }
+
+    return [];
+  }
 
   async createCalendar(data: any, userEmail: string): Promise<Calendar> {
     console.log('--- Creating Calendar ---');
     console.log('Incoming Data:', JSON.stringify(data, null, 2));
-    
-    const { clientId, name, month, year, competitors, promptUsed, posts } = data;
+
+    const { clientId, name, month, year, competitors, promptUsed, posts } =
+      data;
 
     try {
       const calendar = this.calendarRepository.create({
@@ -42,11 +100,16 @@ export class CalendarService {
             pillar: post.pillar || '',
             visualCopy: post.visualCopy || post.visual || '',
             caption: post.caption || '',
+            reelScript: post.reelScript || '',
+            platforms: this.normalizePlatforms(post.platforms),
+            fbLink: post.fbLink || post.facebookLink || '',
+            igLink: post.igLink || post.instagramLink || '',
+            ttLink: post.ttLink || post.tiktokLink || '',
             status: post.status || 'DRAFT',
             calendar: savedCalendar,
           }),
         );
-        await this.calendarPostRepository.save(calendarPosts);
+        savedCalendar.posts = await this.calendarPostRepository.save(calendarPosts);
         console.log('All posts saved successfully.');
       }
 
@@ -58,7 +121,8 @@ export class CalendarService {
   }
 
   async getCalendars(clientId?: number): Promise<Calendar[]> {
-    const query = this.calendarRepository.createQueryBuilder('calendar')
+    const query = this.calendarRepository
+      .createQueryBuilder('calendar')
       .leftJoinAndSelect('calendar.posts', 'posts')
       .orderBy('calendar.createdAt', 'DESC');
 
@@ -84,8 +148,18 @@ export class CalendarService {
     await this.calendarPostRepository.delete(id);
   }
 
-  async updatePost(id: number, data: Partial<CalendarPost>): Promise<CalendarPost | null> {
-    await this.calendarPostRepository.update(id, data);
+  async updatePost(
+    id: number,
+    data: Partial<CalendarPost>,
+  ): Promise<CalendarPost | null> {
+    const updateData = {
+      ...data,
+      ...(data.platforms !== undefined
+        ? { platforms: this.normalizePlatforms(data.platforms) }
+        : {}),
+    };
+
+    await this.calendarPostRepository.update(id, updateData);
     return this.calendarPostRepository.findOne({ where: { id } });
   }
 }

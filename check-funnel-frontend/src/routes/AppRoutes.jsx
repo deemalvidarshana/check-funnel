@@ -15,6 +15,7 @@ import UserManagement from "../pages/users/UserManagement";
 import NotFound from "../pages/not-found/NotFound";
 import PublicReport from "../pages/public/PublicReport";
 import PublicCompetitorReport from "../pages/public/PublicCompetitorReport";
+import PublicContentCalendar from "../pages/public/PublicContentCalendar";
 import CompetitorAnalysis from "../pages/competitors/CompetitorAnalysis";
 import CompetitorPortfolio from "../pages/competitors/CompetitorPortfolio";
 import ContentCalendar from "../pages/social-media/ContentCalendar";
@@ -43,6 +44,7 @@ export default function AppRoutes() {
       {/* Publicly accessible report routes (Sidebar-less) */}
       <Route path="/public-report/:shareToken" element={<PublicReport />} />
       <Route path="/public-competitor-report/:shareToken" element={<PublicCompetitorReport />} />
+      <Route path="/public-content-calendar/:shareToken" element={<PublicContentCalendar />} />
 
       {/* Protected application routes */}
       <Route element={<ProtectedRoute />}>

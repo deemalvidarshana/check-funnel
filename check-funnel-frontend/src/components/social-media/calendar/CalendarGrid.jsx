@@ -3,7 +3,31 @@ import CalendarDay from './CalendarDay';
 import CalendarPost from './CalendarPost';
 import PostDetailsModal from './PostDetailsModal';
 
-const CalendarGrid = ({ view, currentDate, posts, filters, isLoading }) => {
+const getPostPlatforms = (platforms) => {
+  if (Array.isArray(platforms)) {
+    return platforms.map((platform) => String(platform).toLowerCase());
+  }
+
+  if (typeof platforms === 'string') {
+    return platforms
+      .split(',')
+      .map((platform) => platform.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const CalendarGrid = ({
+  view,
+  currentDate,
+  posts,
+  filters,
+  isLoading,
+  readOnly = false,
+  onPrevWeek,
+  onNextWeek
+}) => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -16,11 +40,22 @@ const CalendarGrid = ({ view, currentDate, posts, filters, isLoading }) => {
   
   // Get starting day of the month (0=Sun, 1=Mon, ...)
   const startDay = new Date(year, month, 1).getDay();
+  const weekStart = new Date(currentDate);
+  weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+
+  const formatWeekLabel = (date) => (
+    date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+    })
+  );
 
   // ── Filter and Parse Posts ──
   const filteredPosts = posts.filter(p => {
     // 1. Basic Filters (Case-Insensitive)
-    const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' || (p.platforms && p.platforms.some(plat => plat.toLowerCase() === filters.platform.toLowerCase()));
+    const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' || getPostPlatforms(p.platforms).some(plat => plat === filters.platform.toLowerCase());
     
     const matchesType = !filters.contentType || filters.contentType === 'All Content Types' || 
                         (p.contentType && p.contentType.toLowerCase() === filters.contentType.toLowerCase());
@@ -32,6 +67,8 @@ const CalendarGrid = ({ view, currentDate, posts, filters, isLoading }) => {
 
     // 2. Date Filter (Check if post date matches current month/year)
     if (!p.date) return false;
+
+    if (view === 'week') return true;
 
     // Check if it's in YYYY-MM-DD format
     if (p.date.includes('-') && p.date.split('-')[0].length === 4) {
@@ -188,10 +225,39 @@ const CalendarGrid = ({ view, currentDate, posts, filters, isLoading }) => {
         </div>
       </div>
 
+      {view === 'week' && (
+        <div className="mt-5 flex items-center justify-between border-t border-slate-200/70 px-1 pt-4">
+          <div className="text-sm font-bold text-slate-500">
+            Week of <span className="text-[#003870]">{formatWeekLabel(weekStart)} - {formatWeekLabel(weekEnd)}</span>
+          </div>
+          <div className="flex items-center gap-5">
+            <button
+              type="button"
+              onClick={onPrevWeek}
+              className="material-symbols-outlined text-[24px] text-slate-300 transition-all hover:text-[#003870] active:scale-90 disabled:opacity-40"
+              disabled={!onPrevWeek}
+              title="Previous week"
+            >
+              chevron_left
+            </button>
+            <button
+              type="button"
+              onClick={onNextWeek}
+              className="material-symbols-outlined text-[24px] text-[#003870] transition-all hover:translate-x-0.5 active:scale-90 disabled:opacity-40"
+              disabled={!onNextWeek}
+              title="Next week"
+            >
+              chevron_right
+            </button>
+          </div>
+        </div>
+      )}
+
       <PostDetailsModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         post={selectedPost} 
+        hideFooter={readOnly}
       />
     </div>
   );
