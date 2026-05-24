@@ -25,11 +25,24 @@ function DownloadIcon() {
   );
 }
 
+function ChevronIcon({ direction = "left" }) {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <path
+        d={direction === "right" ? "M9 18l6-6-6-6" : "M15 18l-6-6 6-6"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 // ---------------- Sub-component for Table Content ----------------
 // We extract this to ensure logic is 100% identical in both normal and maximized views.
-function TableContent({ sortedData, platform, periodLabel, followersCount, showTrends }) {
+function TableContent({ sortedData, platform, periodLabel, followersCount, showTrends, currentPage = 1, timeRange = '7' }) {
   const isInstagram = platform === 'instagram';
   const isTiktok = platform === 'tiktok';
+  const isTiktokMonthly = isTiktok && timeRange === '30';
 
   const getTrendColor = (current, nextRow, path) => {
     if (!showTrends || !nextRow) return "";
@@ -56,7 +69,7 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
       <thead>
         {isTiktok ? (
            <tr className="bg-[#f3f4f5] text-[10px] font-bold uppercase tracking-widest text-[#727782]">
-            <th className="px-6 py-4 whitespace-nowrap text-left">Upload Date</th>
+            <th className="px-6 py-4 whitespace-nowrap text-left">{isTiktokMonthly ? 'Month' : 'Upload Date'}</th>
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Total Views</th>
             <th className="px-4 py-4 text-center">Likes</th>
             <th className="px-4 py-4 text-center">Comments</th>
@@ -95,7 +108,7 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
 
       <tbody className="text-xs font-semibold text-[#424751]">
         {sortedData.map((row, index) => {
-          const isCurrent = index === 0;
+          const isCurrent = currentPage === 1 && index === 0;
           const nextRow = sortedData[index + 1];
 
           return (
@@ -110,7 +123,11 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
               {isTiktok ? (
                 <>
                   <td className="px-6 py-5 whitespace-nowrap text-left border-r border-[#c2c6d3]/10">
-                    {row.create_time ? new Date(row.create_time * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                    {isTiktokMonthly
+                      ? row.week || 'N/A'
+                      : row.create_time
+                        ? new Date(row.create_time * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : 'N/A'}
                   </td>
                   <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 font-bold ${getTrendColor(row.view_count, nextRow, 'view_count')}`}>
                     {row.view_count?.toLocaleString() ?? 0}
@@ -212,7 +229,7 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
 }
 
 // ---------------- Main Component ----------------
-export default function ContentBreakdownTable({ clientName, data, platform = 'facebook', timeRange = '7', followersCount }) {
+export default function ContentBreakdownTable({ clientName, data, platform = 'facebook', timeRange = '7', followersCount, pagination = null }) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [showTrends, setShowTrends] = useState(true);
 
@@ -244,7 +261,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
   const handleDownloadExcel = () => {
     let headers = [];
     if (isTiktok) {
-      headers = ["Upload Date", "Total Views", "Likes", "Comments", "Shares", "ER %", "Total Followers"];
+      headers = [timeRange === '30' ? "Month" : "Upload Date", "Total Views", "Likes", "Comments", "Shares", "ER %", "Total Followers"];
     } else if (isInstagram) {
       headers = ["Week Period", "Posts", "Reels", "Views (Organic)", "Views (Ads)", "Reach (Organic)", "Reach (Ads)", "Interactions", "Total Followers"];
     } else {
@@ -259,7 +276,11 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
           : '0.00';
           
         return [
-          row.create_time ? `"${new Date(row.create_time * 1000).toLocaleDateString('en-GB')}"` : '"N/A"',
+          timeRange === '30'
+            ? `"${row.week || 'N/A'}"`
+            : row.create_time
+              ? `"${new Date(row.create_time * 1000).toLocaleDateString('en-GB')}"`
+              : '"N/A"',
           row.view_count ?? 0,
           row.like_count ?? 0,
           row.comment_count ?? 0,
@@ -352,7 +373,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
 
         <div className="relative group/table">
           <div className="overflow-x-auto no-scrollbar">
-            <TableContent sortedData={sortedData} platform={platform} periodLabel={periodLabel} followersCount={followersCount} showTrends={showTrends} />
+            <TableContent sortedData={sortedData} platform={platform} periodLabel={periodLabel} followersCount={followersCount} showTrends={showTrends} currentPage={pagination?.page ?? 1} timeRange={timeRange} />
           </div>
 
           
@@ -360,6 +381,38 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
           <div className="absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent pointer-events-none opacity-0 group-hover/table:opacity-100 lg:hidden" />
           <div className="absolute top-0 left-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent pointer-events-none opacity-0 group-hover/table:opacity-100 lg:hidden" />
         </div>
+
+        {pagination && (
+          <div className="border-t border-[#edeeef] px-6 py-5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-extrabold text-[#727782]">
+                Page {pagination.page}
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={pagination.onPrev}
+                  disabled={!pagination.canPrev || pagination.isLoading}
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-[#003870] transition-all hover:bg-[#003870]/8 active:scale-95 disabled:cursor-not-allowed disabled:text-[#c2c6d3] disabled:hover:bg-transparent"
+                  title="Previous page"
+                  aria-label="Previous page"
+                >
+                  <ChevronIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={pagination.onNext}
+                  disabled={!pagination.canNext || pagination.isLoading}
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-[#003870] transition-all hover:bg-[#003870]/8 active:scale-95 disabled:cursor-not-allowed disabled:text-[#c2c6d3] disabled:hover:bg-transparent"
+                  title="Next page"
+                  aria-label="Next page"
+                >
+                  <ChevronIcon direction="right" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Maximized Modal Layout */}
@@ -415,7 +468,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
             {/* Modal Table Area */}
             <div className="flex-1 overflow-auto p-2">
               <div className="p-4">
-                <TableContent sortedData={sortedData} platform={platform} periodLabel={periodLabel} followersCount={followersCount} showTrends={showTrends} />
+                <TableContent sortedData={sortedData} platform={platform} periodLabel={periodLabel} followersCount={followersCount} showTrends={showTrends} currentPage={pagination?.page ?? 1} timeRange={timeRange} />
               </div>
             </div>
 

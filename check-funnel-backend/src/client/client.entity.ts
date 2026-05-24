@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity()
 export class Client {
@@ -26,6 +32,12 @@ export class Client {
   @Column({ nullable: true })
   contactPhone: string;
 
+  @Column({ type: 'int', nullable: true })
+  responsiblePersonId: number | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  responsiblePersonName: string | null;
+
   @Column({ type: 'simple-array', nullable: true })
   activeChannels: string[];
 
@@ -41,6 +53,15 @@ export class Client {
   @Column({ nullable: true })
   instagramAccountId: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  facebookUrl: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  instagramUrl: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  tiktokUrl: string | null;
+
   @Column({ nullable: true })
   tiktokApiKey: string;
 
@@ -52,7 +73,6 @@ export class Client {
 
   @Column({ nullable: true })
   tiktokRefreshToken: string;
-
 
   @CreateDateColumn()
   createdAt: Date;

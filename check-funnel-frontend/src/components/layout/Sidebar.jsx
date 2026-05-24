@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useSidebar } from "../../context/SidebarContext";
 import ProfileAvatarUploadModal from "../../components/profile/ProfileAvatarUploadModal";
 import UserSettingsModal from "../../components/user/UserSettingsModal";
+import { canManageFeature, canViewFeature } from "../../utils/permissions";
 
 // ---------------- Icon Components ----------------
 function OverviewIcon() {
@@ -16,41 +17,11 @@ function OverviewIcon() {
   );
 }
 
-function SocialIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="6" cy="12" r="2.2" />
-      <circle cx="18" cy="6" r="2.2" />
-      <circle cx="18" cy="18" r="2.2" />
-      <path d="M7.9 10.9l8.2-3.8M7.9 13.1l8.2 3.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function CompetitorIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M4 18L10 12L14 15L20 7" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M16 7h4v4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function SeoIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="11" cy="11" r="6" />
-      <path d="M20 20l-4.2-4.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ReportIcon() {
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M8 3h6l5 5v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" strokeLinejoin="round" />
-      <path d="M14 3v6h6" strokeLinejoin="round" />
-      <path d="M9 13h6M9 17h4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -156,38 +127,34 @@ function Toast({ message, type, onClose }) {
 // ---------------- Navigation Items ----------------
 const navItems = [
   { name: "Overview", path: "/dashboard", icon: <OverviewIcon /> },
-  { name: "Content Calendar", path: "/content-calendar", icon: <CalendarIcon /> },
-  { name: "Social Media", path: "/social-media", icon: <SocialIcon /> },
-  { name: "Competitors", path: "/competitors", icon: <CompetitorIcon /> },
-  { name: "SEO", path: "/seo", icon: <SeoIcon /> },
-  { name: "Reporting", path: "/reports", icon: <ReportIcon /> },
-  { name: "Targets", path: "/targets", icon: <TargetIcon /> },
-  { name: "Clients", path: "/clients", icon: <ClientsIcon /> },
+  { name: "Content Calendar", path: "/content-calendar", icon: <CalendarIcon />, feature: "contentCalendar" },
+  { name: "Competitors", path: "/competitors", icon: <CompetitorIcon />, feature: "competitors" },
+  { name: "Targets", path: "/targets", icon: <TargetIcon />, feature: "targets" },
+  { name: "Clients", path: "/clients", icon: <ClientsIcon />, feature: "clients" },
   { name: "Manage Users", path: "/users", icon: <ManageIcon />, adminOnly: true },
 ];
 
 // ---------------- Sidebar Component ----------------
 export default function Sidebar() {
   const { isCollapsed, toggleSidebar, isMobileOpen, setIsMobileOpen } = useSidebar();
-  const [user, setUser] = useState(null);
+  const [user] = useState(() => {
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return null;
+
+    try {
+      return JSON.parse(storedUser);
+    } catch (error) {
+      console.error("Failed to parse user data", error);
+      return null;
+    }
+  });
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [avatarTimestamp, setAvatarTimestamp] = useState(Date.now());
+  const [avatarTimestamp, setAvatarTimestamp] = useState(0);
   const [toast, setToast] = useState(null);
   const profileRef = useRef(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error("Failed to parse user data", error);
-      }
-    }
-  }, []);
 
   // Handle outside click to close profile menu
   useEffect(() => {
@@ -216,6 +183,17 @@ export default function Sidebar() {
     setAvatarTimestamp(Date.now());
     setToast({ message: "Profile photo updated successfully!", type: "success" });
   };
+
+  const canManageContentCalendar = canManageFeature("contentCalendar", user);
+  const canManageCompetitors = canManageFeature("competitors", user);
+  const canOpenSettings = user?.role === "admin" || canManageContentCalendar || canManageCompetitors;
+  const settingsMode = user?.role === "admin"
+    ? "full"
+    : canManageCompetitors && canManageContentCalendar
+      ? "manager"
+      : canManageCompetitors
+        ? "competitors"
+        : "ai";
 
   const getAvatarUrl = () => {
     if (!user?.id) return "https://lh3.googleusercontent.com/aida-public/AB6AXuA3RQRrLT1pfQt2CFGd3fDM0sBKglHZFN84Ji_1QUGgxChBmnV32O4-AswGFR1mtk7tWB1IK2LjN5gt0gpei315mlWuLtURI39ub7oxCkR31rB60m2mV9Yskw7KHln3M671BaaQFEBcyDugy072vvrtC7o4uOM2fvqUN9FgBsh3hRBjH6gi26KcUQkmWzptw74GdFiJzd-0WVSgPSm-OwEVzq1tvNoxRR9eQxHBXUlrVifq_xlfbWvQFt8Vo_AahiMgv-kfKLOoy4FP";
@@ -270,6 +248,7 @@ export default function Sidebar() {
         <div className="flex-1 flex flex-col gap-2 px-3 overflow-y-auto no-scrollbar">
           {navItems
             .filter(item => !item.adminOnly || user?.role === "admin")
+            .filter(item => !item.feature || canViewFeature(item.feature, user))
             .map((item) => (
               <NavLink
                 key={`${item.name}-${item.path}`}
@@ -309,7 +288,7 @@ export default function Sidebar() {
                   </div>
                </div>
                
-               {user?.role === "admin" && (
+               {canOpenSettings && (
                  <button
                    onClick={() => {
                      setIsSettingsModalOpen(true);
@@ -385,6 +364,7 @@ export default function Sidebar() {
       <UserSettingsModal 
         open={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+        mode={settingsMode}
       />
     </>
   );

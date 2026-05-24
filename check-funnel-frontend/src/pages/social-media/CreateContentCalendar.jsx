@@ -215,6 +215,7 @@ const CreateContentCalendar = () => {
   const [savedCalendars, setSavedCalendars] = useState([]);
   const [selectedHistoryFilter, setSelectedHistoryFilter] = useState({ client: '', date: '' });
   const [refinementOffset, setRefinementOffset] = useState(0);
+  const [selectedRowCenter, setSelectedRowCenter] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [calendarToDelete, setCalendarToDelete] = useState(null);
   const [isDeleteRowModalOpen, setIsDeleteRowModalOpen] = useState(false);
@@ -229,6 +230,8 @@ const CreateContentCalendar = () => {
   });
   const [generatingScriptIndex, setGeneratingScriptIndex] = useState(null);
   const [reelScriptSaveStatus, setReelScriptSaveStatus] = useState('idle');
+  const resultsSectionRef = useRef(null);
+  const aiPanelRef = useRef(null);
   const reelScriptSaveTimerRef = useRef(null);
 
   const fetchSavedCalendars = async (clientId) => {
@@ -1388,10 +1391,26 @@ ${row.reelScript}`;
     }
   };
 
+  useEffect(() => {
+    if (!aiEditModal.isOpen || selectedRowCenter === null) return;
+
+    const panelHeight = aiPanelRef.current?.offsetHeight || 560;
+    setRefinementOffset(Math.max(0, selectedRowCenter - panelHeight / 2));
+  }, [aiEditModal.isOpen, aiEditModal.rowIndex, selectedRowCenter]);
+
   const handleAiEdit = (index, e) => {
     const row = e.currentTarget.closest('tr');
-    // Use offsetTop to align perfectly with the row
-    setRefinementOffset(row.offsetTop);
+    const sectionRect = resultsSectionRef.current?.getBoundingClientRect();
+
+    if (row && sectionRect) {
+      const rowRect = row.getBoundingClientRect();
+      const rowCenter = rowRect.top - sectionRect.top + rowRect.height / 2;
+      const panelHeight = aiPanelRef.current?.offsetHeight || 560;
+
+      setSelectedRowCenter(rowCenter);
+      setRefinementOffset(Math.max(0, rowCenter - panelHeight / 2));
+    }
+
     setAiEditModal({ ...aiEditModal, isOpen: true, rowIndex: index });
   };
 
@@ -2049,8 +2068,8 @@ ${row.reelScript}`;
         </div>
 
         {/* ═══════════ BOTTOM SECTION: RESULTS TABLE ═══════════ */}
-        <div className="flex-1 flex gap-6 min-h-0">
-          <div className={`flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col transition-all duration-300 ${aiEditModal.isOpen ? 'basis-[70%]' : 'basis-full'}`}>
+        <div ref={resultsSectionRef} className="flex-1 flex gap-6 min-h-0">
+          <div className="min-w-0 flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col transition-all duration-300">
             <HistoryFilters 
               isGenerated={isGenerated}
               selectedFilter={selectedHistoryFilter}
@@ -2094,84 +2113,83 @@ ${row.reelScript}`;
                     </div>
                   )}
                 </div>
-
-                {/* ═══════════ AI REFINEMENT SIDE PANEL (COMMENT BOX STYLE) ═══════════ */}
-                {aiEditModal.isOpen && (
-                  <div 
-                    style={{ transform: `translateY(${refinementOffset}px)` }}
-                    className="w-[380px] bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col animate-in slide-in-from-right-8 duration-300 overflow-hidden h-fit transition-all sticky top-2 z-50 mr-4"
-                  >
-                    <div className="px-6 py-5 bg-[#003870] flex justify-between items-center shrink-0">
-                      <div className="flex items-center gap-2">
-                        <WandSparkles className="h-5 w-5 text-white" strokeWidth={2.4} />
-                        <h3 className="text-sm font-black text-white uppercase tracking-wider">Refine Post</h3>
-                      </div>
-                      <button 
-                        onClick={() => setAiEditModal({ ...aiEditModal, isOpen: false, rowIndex: null })}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
-                      >
-                        <X className="h-4.5 w-4.5" strokeWidth={2.5} />
-                      </button>
-                    </div>
-
-                    <div className="p-6 flex flex-col gap-4 overflow-y-auto">
-                      {aiEditModal.rowIndex !== null && (
-                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 mb-2">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Editing Row {aiEditModal.rowIndex + 1}</p>
-                          <p className="text-xs text-slate-600 font-bold truncate">"{generatedData[aiEditModal.rowIndex]?.visualCopy || generatedData[aiEditModal.rowIndex]?.visual}"</p>
-                        </div>
-                      )}
-
-                      <div className="relative group">
-                        <p className="text-xs font-bold text-slate-500 mb-2 pl-1">Instruction for AI</p>
-                        <div className="relative flex flex-col">
-                          <textarea
-                            value={aiEditModal.instruction}
-                            onChange={(e) => setAiEditModal({ ...aiEditModal, instruction: e.target.value })}
-                            placeholder="e.g., 'Make it punchier', 'Add more emojis', 'Change the tone'..."
-                            className="w-full h-40 px-5 py-4 rounded-2xl border-2 border-slate-100 focus:border-[#003870] outline-none transition-all text-sm text-slate-700 font-medium resize-none shadow-inner"
-                            disabled={aiEditModal.isProcessing}
-                          ></textarea>
-                          
-                          <button
-                            onClick={handleAiEditSubmit}
-                            disabled={aiEditModal.isProcessing || !aiEditModal.instruction.trim()}
-                            className="absolute bottom-3 right-3 w-12 h-12 rounded-xl bg-[#003870] text-white shadow-lg shadow-[#003870]/30 hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center"
-                          >
-                            {aiEditModal.isProcessing ? (
-                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            ) : (
-                              <Send className="h-5 w-5" strokeWidth={2.4} />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-3 mt-2">
-                        <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest">AI Tips</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {['Make longer', 'Add hashtags', 'Change tone', 'Fix grammar'].map(tip => (
-                            <button 
-                              key={tip}
-                              onClick={() => setAiEditModal(prev => ({ ...prev, instruction: tip }))}
-                              className="px-3 py-2 rounded-xl border border-slate-100 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-[#003870] hover:border-[#003870]/20 transition-all text-left truncate"
-                            >
-                              {tip}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-auto px-6 py-4 bg-slate-50 border-t border-slate-100">
-                       <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                         Type your changes above. AI will rewrite the post content while keeping the date and pillar intact.
-                       </p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
+          {aiEditModal.isOpen && (
+            <div
+              ref={aiPanelRef}
+              style={{ transform: `translateY(${refinementOffset}px)` }}
+              className="flex h-fit max-h-full w-[380px] shrink-0 flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl transition-all animate-in slide-in-from-right-8 duration-300"
+            >
+              <div className="px-6 py-5 bg-[#003870] flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2">
+                  <WandSparkles className="h-5 w-5 text-white" strokeWidth={2.4} />
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider">Refine Post</h3>
+                </div>
+                <button 
+                  onClick={() => setAiEditModal({ ...aiEditModal, isOpen: false, rowIndex: null })}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <X className="h-4.5 w-4.5" strokeWidth={2.5} />
+                </button>
+              </div>
+
+              <div className="p-6 flex flex-col gap-4 overflow-y-auto">
+                {aiEditModal.rowIndex !== null && (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 mb-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Editing Row {aiEditModal.rowIndex + 1}</p>
+                    <p className="text-xs text-slate-600 font-bold truncate">"{generatedData[aiEditModal.rowIndex]?.visualCopy || generatedData[aiEditModal.rowIndex]?.visual}"</p>
+                  </div>
+                )}
+
+                <div className="relative group">
+                  <p className="text-xs font-bold text-slate-500 mb-2 pl-1">Instruction for AI</p>
+                  <div className="relative flex flex-col">
+                    <textarea
+                      value={aiEditModal.instruction}
+                      onChange={(e) => setAiEditModal({ ...aiEditModal, instruction: e.target.value })}
+                      placeholder="e.g., 'Make it punchier', 'Add more emojis', 'Change the tone'..."
+                      className="w-full h-40 px-5 py-4 rounded-2xl border-2 border-slate-100 focus:border-[#003870] outline-none transition-all text-sm text-slate-700 font-medium resize-none shadow-inner"
+                      disabled={aiEditModal.isProcessing}
+                    ></textarea>
+                    
+                    <button
+                      onClick={handleAiEditSubmit}
+                      disabled={aiEditModal.isProcessing || !aiEditModal.instruction.trim()}
+                      className="absolute bottom-3 right-3 w-12 h-12 rounded-xl bg-[#003870] text-white shadow-lg shadow-[#003870]/30 hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:scale-100 transition-all flex items-center justify-center"
+                    >
+                      {aiEditModal.isProcessing ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      ) : (
+                        <Send className="h-5 w-5" strokeWidth={2.4} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 mt-2">
+                  <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest">AI Tips</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Make longer', 'Add hashtags', 'Change tone', 'Fix grammar'].map(tip => (
+                      <button 
+                        key={tip}
+                        onClick={() => setAiEditModal(prev => ({ ...prev, instruction: tip }))}
+                        className="px-3 py-2 rounded-xl border border-slate-100 text-[11px] font-bold text-slate-500 hover:bg-slate-50 hover:text-[#003870] hover:border-[#003870]/20 transition-all text-left truncate"
+                      >
+                        {tip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-auto px-6 py-4 bg-slate-50 border-t border-slate-100">
+                 <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                   Type your changes above. AI will rewrite the post content while keeping the date and pillar intact.
+                 </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

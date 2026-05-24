@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { FEATURE_OPTIONS } from "../../utils/permissions";
 
 function CloseIcon() {
   return (
@@ -9,12 +10,20 @@ function CloseIcon() {
   );
 }
 
+const ROLE_OPTIONS = [
+  { value: "viewer", label: "VIEWER" },
+  { value: "manager", label: "MANAGER" },
+  { value: "admin", label: "ADMIN" },
+];
+
 const EditUserModal = ({ open, onClose, onSave, user }) => {
   const [form, setForm] = useState({
     fullName: "",
     email: "",
     role: "viewer",
+    featureAccess: [],
   });
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
 
   useEffect(() => {
     if (user && open) {
@@ -22,7 +31,9 @@ const EditUserModal = ({ open, onClose, onSave, user }) => {
         fullName: user.fullName || "",
         email: user.email || "",
         role: user.role || "viewer",
+        featureAccess: Array.isArray(user.featureAccess) ? user.featureAccess : [],
       });
+      setRoleMenuOpen(false);
     }
   }, [user, open]);
 
@@ -33,8 +44,19 @@ const EditUserModal = ({ open, onClose, onSave, user }) => {
     onSave(user.id, {
       fullName: form.fullName,
       role: form.role,
+      featureAccess: form.role === "manager" ? form.featureAccess : [],
     });
     onClose();
+  };
+
+  const selectedRole = ROLE_OPTIONS.find((option) => option.value === form.role) || ROLE_OPTIONS[0];
+  const toggleFeature = (value) => {
+    setForm((previous) => ({
+      ...previous,
+      featureAccess: previous.featureAccess.includes(value)
+        ? previous.featureAccess.filter((item) => item !== value)
+        : [...previous.featureAccess, value],
+    }));
   };
 
   return (
@@ -112,26 +134,117 @@ const EditUserModal = ({ open, onClose, onSave, user }) => {
             <label className="ml-1 block text-xs font-bold uppercase tracking-wider text-[#727782]">
               System Role
             </label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <svg className="h-4 w-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <select
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className="w-full appearance-none rounded-2xl border-none bg-[#f8f9fa] px-4 py-3 pl-11 pr-10 font-medium text-slate-900 outline-none ring-1 ring-[#c2c6d3]/40 transition-all focus:ring-2 focus:ring-blue-500 focus:bg-white cursor-pointer"
+            <div className="relative w-full">
+              <button
+                type="button"
+                onClick={() => setRoleMenuOpen((value) => !value)}
+                className="flex w-full items-center justify-between gap-3 rounded-full border border-transparent bg-[#f3f4f5]/50 px-5 py-3 transition hover:bg-[#f3f4f5] focus:outline-none focus:ring-2 focus:ring-[#a8c8ff]"
               >
-                <option value="admin">ADMIN</option>
-                <option value="viewer">VIEWER</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <span className="flex min-w-0 items-center gap-3">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0 text-[#003870]"
+                  >
+                    <path d="M12 3 4 7v6c0 5 3.4 7.7 8 8 4.6-.3 8-3 8-8V7l-8-4Z" />
+                    <path d="m9 12 2 2 4-4" />
+                  </svg>
+                  <span className="truncate text-sm font-bold text-[#003870]">{selectedRole.label}</span>
+                </span>
+                <svg
+                  width="14"
+                  height="14"
+                  className={`shrink-0 text-[#727782] transition-transform ${roleMenuOpen ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
                 </svg>
-              </div>
+              </button>
+              {roleMenuOpen && (
+                <div className="absolute left-0 top-full z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200 no-scrollbar">
+                  {ROLE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setForm({
+                          ...form,
+                          role: option.value,
+                          featureAccess: option.value === "manager" ? form.featureAccess : [],
+                        });
+                        setRoleMenuOpen(false);
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-xs font-bold transition hover:bg-[#f3f4f5] ${
+                        form.role === option.value ? "bg-[#003870]/5 text-[#003870]" : "text-[#727782]"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+            {form.role === "manager" && (
+              <div className="mt-4 rounded-3xl border border-[#c2c6d3]/20 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-extrabold uppercase tracking-wider text-[#727782]">
+                    Feature Access
+                  </p>
+                  <div className="flex items-center gap-3 text-[10px] font-extrabold uppercase tracking-wider">
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, featureAccess: FEATURE_OPTIONS.map((feature) => feature.value) })}
+                      className="text-[#003870]"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, featureAccess: [] })}
+                      className="text-[#727782]"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {FEATURE_OPTIONS.map((feature) => {
+                    const selected = form.featureAccess.includes(feature.value);
+                    return (
+                      <button
+                        key={feature.value}
+                        type="button"
+                        onClick={() => toggleFeature(feature.value)}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-extrabold transition-all ${
+                          selected
+                            ? "border-[#003870] bg-[#003870] text-white"
+                            : "border-[#d8e4f2] bg-white text-[#27415f] hover:bg-[#f5f8fc]"
+                        }`}
+                      >
+                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${
+                          selected ? "border-white/80" : "border-[#c2c6d3]"
+                        }`}>
+                          {selected && (
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </span>
+                        {feature.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer Actions */}

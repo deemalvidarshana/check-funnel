@@ -17,6 +17,9 @@ export class User {
   @Column({ default: 'viewer' })
   role: string;
 
+  @Column({ type: 'simple-json', nullable: true })
+  featureAccess: string[];
+
   @Column({ default: 'pending' })
   status: string; // 'pending' | 'approved' | 'rejected'
 

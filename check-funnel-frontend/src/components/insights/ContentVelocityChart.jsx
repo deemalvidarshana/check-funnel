@@ -36,16 +36,17 @@ function NextIcon() {
 
 // ---------------- Helper Functions ----------------
 function getNestedValue(obj, path) {
+  if (!obj) return 0;
   if (!path || typeof path !== 'string') return 0;
   if (!path.includes(".")) return obj[path] ?? 0;
   return path.split(".").reduce((acc, part) => acc?.[part] ?? 0, obj);
 }
 
 function buildPoints(data, key, width, height, maxValue) {
-  const stepX = width / (data.length - 1);
+  const stepX = data.length > 1 ? width / (data.length - 1) : 0;
   return data
     .map((item, index) => {
-      const x = index * stepX;
+      const x = data.length > 1 ? index * stepX : width / 2;
       const v = getNestedValue(item, key);
       const val = typeof v === 'number' ? v : 0;
       const y = height - (val / maxValue) * (height - 30);
@@ -55,9 +56,9 @@ function buildPoints(data, key, width, height, maxValue) {
 }
 
 function buildAreaPoints(data, key, width, height, maxValue) {
-  const stepX = width / (data.length - 1);
+  const stepX = data.length > 1 ? width / (data.length - 1) : 0;
   const points = data.map((item, index) => {
-    const x = index * stepX;
+    const x = data.length > 1 ? index * stepX : width / 2;
     const v = getNestedValue(item, key);
     const val = typeof v === 'number' ? v : 0;
     const y = height - (val / maxValue) * (height - 30);
@@ -68,8 +69,50 @@ function buildAreaPoints(data, key, width, height, maxValue) {
   return points.join(" ");
 }
 
+function formatAxisLabelLines(label, isCompact) {
+  if (typeof label !== "string") return [label];
+
+  const monthWeekMatch = label.match(/^Week\s+(\d+)\s+\(([^)]+)\)$/);
+  if (monthWeekMatch) return [`Week ${monthWeekMatch[1]}`, monthWeekMatch[2]];
+
+  if (!isCompact) return [label];
+
+  const match = label.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+-\s+(\d{1,2})\s+([A-Za-z]{3})$/);
+  if (!match) return [label];
+
+  const [, startDay, startMonth, endDay, endMonth] = match;
+  if (startMonth === endMonth) return [`${startDay}-${endDay}`, endMonth];
+  return [`${startDay} ${startMonth}`, `${endDay} ${endMonth}`];
+}
+
+function formatChartValue(value) {
+  return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value;
+}
+
+function getValueLabelPositions(currentY, previousY, height, hasPrevious) {
+  let currentLabelY = currentY - 12;
+  let previousLabelY = previousY + 16;
+
+  if (hasPrevious && Math.abs(currentY - previousY) < 30) {
+    if (currentY <= previousY) {
+      currentLabelY = currentY - 18;
+      previousLabelY = previousY + 22;
+    } else {
+      currentLabelY = currentY + 20;
+      previousLabelY = previousY - 14;
+    }
+  }
+
+  if (currentLabelY > height - 8) currentLabelY = currentY - 12;
+  if (previousLabelY > height - 8) previousLabelY = previousY - 14;
+  if (currentLabelY < -24) currentLabelY = currentY + 20;
+  if (previousLabelY < -24) previousLabelY = previousY + 22;
+
+  return { currentLabelY, previousLabelY };
+}
+
 // ---------------- Sub-component for Chart Content ----------------
-function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false }) {
+function ChartDrawing({ data, comparisonData = null, activeMetrics, height = 240, hidePoints = false }) {
   const containerRef = useRef(null);
   const [chartWidth, setChartWidth] = useState(760);
 
@@ -88,6 +131,12 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
 
   const maxValue = Math.max(
     ...data.flatMap((d) => 
+      activeMetrics.map(m => {
+        const val = getNestedValue(d, m.key);
+        return typeof val === 'number' ? val : 0;
+      })
+    ),
+    ...(comparisonData || []).flatMap((d) =>
       activeMetrics.map(m => {
         const val = getNestedValue(d, m.key);
         return typeof val === 'number' ? val : 0;
@@ -142,19 +191,67 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
           />
         ))}
 
+        {comparisonData && activeMetrics.map((m) => (
+          <polyline
+            key={`comparison-line-${m.key}`}
+            fill="none"
+            stroke={m.color}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="9 7"
+            strokeOpacity="0.7"
+            points={buildPoints(comparisonData, m.key, chartWidth, height, maxValue)}
+            className="transition-all duration-300"
+          />
+        ))}
+
         {data.map((item, index) => {
-          const stepX = chartWidth / (data.length - 1);
-          const x = index * stepX;
-          const textAnchor = "middle";
+          const stepX = data.length > 1 ? chartWidth / (data.length - 1) : 0;
+          const x = data.length > 1 ? index * stepX : chartWidth / 2;
+          const isCompactAxis = chartWidth < 500;
+          const axisLabelLines = formatAxisLabelLines(item.week, isCompactAxis);
 
           return (
             <g key={index}>
-              {activeMetrics.map((m) => {
+              {activeMetrics.map((m, metricIndex) => {
                 const val = getNestedValue(item, m.key);
                 const numVal = typeof val === 'number' ? val : 0;
                 const y = height - (numVal / maxValue) * (height - 30);
+                const comparisonVal = comparisonData ? getNestedValue(comparisonData[index], m.key) : 0;
+                const comparisonNumVal = typeof comparisonVal === 'number' ? comparisonVal : 0;
+                const comparisonY = height - (comparisonNumVal / maxValue) * (height - 30);
+                const labelOffsetX = activeMetrics.length > 1 ? (metricIndex - (activeMetrics.length - 1) / 2) * 18 : 0;
+                const labelX = Math.max(-28, Math.min(chartWidth + 28, x + labelOffsetX));
+                const { currentLabelY, previousLabelY } = getValueLabelPositions(
+                  y,
+                  comparisonY,
+                  height,
+                  comparisonData && comparisonNumVal > 0 && numVal > 0
+                );
                 return (
                   <g key={`${index}-${m.key}`}>
+                    {comparisonData && comparisonNumVal > 0 && (
+                      <>
+                        <circle cx={x} cy={comparisonY} r="3.5" fill="white" stroke={m.color} strokeWidth="2" opacity="0.8" className="transition-all duration-300" />
+                        <text
+                          x={labelX}
+                          y={previousLabelY}
+                          textAnchor="middle"
+                          fontSize="9"
+                          fontWeight="bold"
+                          fill={m.color}
+                          opacity="0.7"
+                          stroke="#ffffff"
+                          strokeWidth="4"
+                          paintOrder="stroke"
+                          className="transition-all duration-300"
+                        >
+                          {formatChartValue(comparisonNumVal)}
+                        </text>
+                      </>
+                    )}
+
                     {/* Only show dot if value is > 0 OR if it's not the bottom line */}
                     {numVal > 0 && (
                       <circle cx={x} cy={y} r="4" fill={m.color} className="transition-all duration-300" />
@@ -162,15 +259,18 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
                     
                     {numVal > 0 && (
                       <text
-                        x={x}
-                        y={y - 12}
+                        x={labelX}
+                        y={currentLabelY}
                         textAnchor="middle"
                         fontSize="10"
                         fontWeight="bold"
                         fill={m.color}
+                        stroke="#ffffff"
+                        strokeWidth="4"
+                        paintOrder="stroke"
                         className="transition-all duration-300"
                       >
-                        {numVal >= 1000 ? `${(numVal/1000).toFixed(1)}k` : numVal}
+                        {formatChartValue(numVal)}
                       </text>
                     )}
                   </g>
@@ -179,15 +279,22 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
 
               <text
                 x={x}
-                y={height + 25}
-                textAnchor={chartWidth < 500 ? "end" : "middle"}
-                fontSize="10"
+                y={height + (isCompactAxis ? 18 : 25)}
+                textAnchor="middle"
+                fontSize={isCompactAxis ? "8.6" : "10"}
                 fontWeight={index === data.length - 1 ? "800" : "600"}
                 fill={index === data.length - 1 ? "#003870" : "#727782"}
                 className="transition-all duration-300"
-                transform={chartWidth < 500 ? `rotate(-35, ${x}, ${height + 25})` : ""}
               >
-                {item.week}
+                {axisLabelLines.map((line, lineIndex) => (
+                  <tspan
+                    key={line}
+                    x={x}
+                    dy={lineIndex === 0 ? 0 : isCompactAxis ? 9.5 : 11}
+                  >
+                    {line}
+                  </tspan>
+                ))}
               </text>
             </g>
           );
@@ -199,7 +306,7 @@ function ChartDrawing({ data, activeMetrics, height = 240, hidePoints = false })
 }
 
 // ---------------- Main Component ----------------
-export default function ContentVelocityChart({ title, subtitle, data, metrics, onNext, onPrev, hidePoints = false }) {
+export default function ContentVelocityChart({ title, subtitle, data, comparisonData = null, comparisonLabels = null, metrics, onNext, onPrev, hidePoints = false }) {
   const [isMaximized, setIsMaximized] = useState(false);
   
   const defaultMetrics = metrics || [
@@ -228,6 +335,7 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
   };
 
   const activeMetrics = defaultMetrics.filter(m => visibleKeys.includes(m.key));
+  const comparisonColor = activeMetrics[0]?.color || defaultMetrics[0]?.color || "#003870";
 
   // Prevent body scroll when maximized
   useEffect(() => {
@@ -248,30 +356,47 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-            <div className="flex flex-wrap gap-x-4 gap-y-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#727782]">
-              {defaultMetrics.map((m) => (
-                <label 
-                  key={m.key} 
-                  className="flex items-center gap-2 cursor-pointer group"
-                >
-                  <div className="relative flex items-center justify-center">
-                    <input
-                      type="checkbox"
-                      checked={visibleKeys.includes(m.key)}
-                      onChange={() => toggleMetric(m.key)}
-                      className="sr-only"
-                    />
-                    <div className={`h-4 w-4 rounded border-2 transition-all ${visibleKeys.includes(m.key) ? 'border-transparent' : 'border-[#c2c6d3]'}`} style={{ backgroundColor: visibleKeys.includes(m.key) ? m.color : 'transparent' }}>
-                      {visibleKeys.includes(m.key) && (
-                        <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-[#727782]">
+                {defaultMetrics.map((m) => (
+                  <label 
+                    key={m.key} 
+                    className="flex items-center gap-2 cursor-pointer group"
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={visibleKeys.includes(m.key)}
+                        onChange={() => toggleMetric(m.key)}
+                        className="sr-only"
+                      />
+                      <div className={`h-4 w-4 rounded border-2 transition-all ${visibleKeys.includes(m.key) ? 'border-transparent' : 'border-[#c2c6d3]'}`} style={{ backgroundColor: visibleKeys.includes(m.key) ? m.color : 'transparent' }}>
+                        {visibleKeys.includes(m.key) && (
+                          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <span className={`transition-colors ${visibleKeys.includes(m.key) ? 'text-[#191c1d]' : 'text-[#727782]/50'}`}>{m.label}</span>
-                </label>
-              ))}
+                    <span className={`transition-colors ${visibleKeys.includes(m.key) ? 'text-[#191c1d]' : 'text-[#727782]/50'}`}>{m.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              {comparisonData && (
+                <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] font-extrabold uppercase tracking-widest text-[#727782]">
+                  <span className="flex items-center gap-2">
+                    <span className="h-[3px] w-8 rounded-full" style={{ backgroundColor: comparisonColor }} />
+                    {comparisonLabels?.current || "Current Month"}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <svg width="34" height="6" viewBox="0 0 34 6" aria-hidden="true">
+                      <line x1="1" y1="3" x2="33" y2="3" stroke={comparisonColor} strokeWidth="3" strokeLinecap="round" strokeDasharray="7 6" opacity="0.7" />
+                    </svg>
+                    {comparisonLabels?.previous || "Previous Month"}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-1.5 border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-6">
@@ -303,7 +428,7 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
         </div>
 
         <div className="h-[240px] sm:h-[300px] w-full">
-          <ChartDrawing data={data} activeMetrics={activeMetrics} height={220} hidePoints={hidePoints} />
+          <ChartDrawing data={data} comparisonData={comparisonData} activeMetrics={activeMetrics} height={220} hidePoints={hidePoints} />
         </div>
       </div>
 
@@ -355,7 +480,7 @@ export default function ContentVelocityChart({ title, subtitle, data, metrics, o
 
             {/* Modal Content - Larger Graph Area */}
             <div className="p-6 sm:p-10 h-[300px] sm:h-[450px] overflow-hidden">
-              <ChartDrawing data={data} activeMetrics={activeMetrics} height={350} hidePoints={hidePoints} />
+              <ChartDrawing data={data} comparisonData={comparisonData} activeMetrics={activeMetrics} height={350} hidePoints={hidePoints} />
             </div>
 
 

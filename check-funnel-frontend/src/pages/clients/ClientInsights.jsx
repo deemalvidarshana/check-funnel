@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { Link, useParams } from "react-router-dom";
 import MetricTabs from "../../components/insights/MetricTabs";
 import PlatformSelector from "../../components/insights/PlatformSelector";
 import ContentVelocityChart from "../../components/insights/ContentVelocityChart";
@@ -8,11 +8,110 @@ import OverviewMetricsCard from "../../components/insights/OverviewMetricsCard";
 import InitializePartnerCard from "../../components/insights/InitializePartnerCard";
 import SystemHealthCard from "../../components/insights/SystemHealthCard";
 import DateRangeSelector from "../../components/insights/DateRangeSelector";
+import InsightChatbot from "../../components/insights/InsightChatbot";
 import { getFacebookInsights } from "../../api/facebook";
-import { getInstagramInsights } from "../../api/instagram";
+import { getInstagramInsights, getInstagramRangeInsights } from "../../api/instagram";
 import { getClientById, toggleShare } from "../../api/client";
+import { canManageFeature } from "../../utils/permissions";
 import { getTiktokInsights } from "../../api/tiktok";
+import { buildMonthComparisonRanges } from "../../utils/monthComparisonChart";
 
+
+const FACEBOOK_INSIGHTS_PAGE_SIZE = 6;
+const MONTH_COMPARISON_RANGE = "month_compare";
+const TIKTOK_DATE_RANGES = [
+  { label: "Last 6 Videos", value: "7" },
+  { label: "Last 6 Months", value: "30" },
+];
+
+function getTiktokSixMonthStart() {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth() - 5, 1);
+}
+
+function isWithinTiktokSixMonthWindow(video) {
+  if (!video?.create_time) return false;
+  return new Date(video.create_time * 1000) >= getTiktokSixMonthStart();
+}
+
+function buildTiktokMonthlyChartData(videos = []) {
+  const today = new Date();
+  const buckets = [];
+  const bucketMap = new Map();
+
+  for (let i = 5; i >= 0; i -= 1) {
+    const date = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const bucket = {
+      id: key,
+      week: date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
+      create_time: Math.floor(date.getTime() / 1000),
+      view_count: 0,
+      like_count: 0,
+      comment_count: 0,
+      share_count: 0,
+      video_count: 0,
+    };
+
+    buckets.push(bucket);
+    bucketMap.set(key, bucket);
+  }
+
+  videos.forEach((video) => {
+    if (!isWithinTiktokSixMonthWindow(video)) return;
+
+    const createdAt = new Date(video.create_time * 1000);
+    const key = `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`;
+    const bucket = bucketMap.get(key);
+
+    if (!bucket) return;
+
+    bucket.view_count += video.view_count || 0;
+    bucket.like_count += video.like_count || 0;
+    bucket.comment_count += video.comment_count || 0;
+    bucket.share_count += video.share_count || 0;
+    bucket.video_count += 1;
+  });
+
+  return buckets;
+}
+
+function compactInsightRows(rows = [], limit = Number.POSITIVE_INFINITY) {
+  if (!Array.isArray(rows)) return [];
+
+  const rowsForContext = Number.isFinite(limit) ? rows.slice(0, limit) : rows;
+
+  return rowsForContext.map((row) => {
+    if (!row || typeof row !== 'object') return row;
+
+    return Object.entries(row).reduce((result, [key, value]) => {
+      if (key.toLowerCase().includes('apikey') || key.toLowerCase().includes('token')) {
+        return result;
+      }
+
+      if (value == null || ['string', 'number', 'boolean'].includes(typeof value)) {
+        result[key] = value;
+        return result;
+      }
+
+      if (Array.isArray(value)) {
+        result[key] = value.slice(0, 5);
+        return result;
+      }
+
+      if (typeof value === 'object') {
+        result[key] = Object.entries(value).reduce((nested, [nestedKey, nestedValue]) => {
+          if (nestedValue == null || ['string', 'number', 'boolean'].includes(typeof nestedValue)) {
+            nested[nestedKey] = nestedValue;
+          }
+          return nested;
+        }, {});
+      }
+
+      return result;
+    }, {});
+  });
+}
 
 export default function ClientInsights() {
   const { id } = useParams();
@@ -20,12 +119,18 @@ export default function ClientInsights() {
   const [activeTab, setActiveTab] = useState("Content Counts");
   const [activePlatform, setActivePlatform] = useState("facebook");
   const [timeRange, setTimeRange] = useState("7");
+  const [tableTimeRange, setTableTimeRange] = useState("7");
   const [client, setClient] = useState(null);
   const [insightData, setInsightData] = useState([]);
+  const [monthComparisonChart, setMonthComparisonChart] = useState(null);
+  const [isChartRefreshing, setIsChartRefreshing] = useState(false);
   const [platformStats, setPlatformStats] = useState({}); // New state for runtime metadata
   const [clientLoading, setClientLoading] = useState(true);
 
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsPage, setInsightsPage] = useState(1);
+  const [tiktokTablePage, setTiktokTablePage] = useState(1);
+  const insightsRequestId = useRef(0);
 
   // 1. Fetch real client data from DB
   useEffect(() => {
@@ -56,7 +161,7 @@ export default function ClientInsights() {
     fetchClient();
   }, [id]);
 
-  const generateWeeks = () => {
+  const generateWeeks = (page = 1, pageSize = FACEBOOK_INSIGHTS_PAGE_SIZE) => {
     const weeks = [];
     const today = new Date();
     
@@ -77,37 +182,37 @@ export default function ClientInsights() {
       return `${y}-${m}-${d}`;
     };
 
-    // Week 1: Current week from most recent Monday to today
-    const currentWeekSince = new Date(currentMonday);
-    const currentWeekUntil = new Date(today);
-    weeks.push({ 
-        label: `${currentWeekSince.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${currentWeekUntil.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, 
-        since: formatDate(currentWeekSince), 
-        until: formatDate(currentWeekUntil) 
-    });
+    const startIndex = (page - 1) * pageSize;
 
-    // Weeks 2-7: Previous 6 full Mon-Sun weeks
-    let lastMonday = currentMonday;
-    for (let i = 0; i < 6; i++) {
-        const untilDate = new Date(lastMonday);
-        untilDate.setDate(lastMonday.getDate() - 1); // Sunday
-        
-        const sinceDate = new Date(untilDate);
-        sinceDate.setDate(untilDate.getDate() - 6); // Monday
-        
-        weeks.push({ 
-            label: `${sinceDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${untilDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`, 
-            since: formatDate(sinceDate), 
-            until: formatDate(untilDate) 
+    for (let rangeIndex = startIndex; rangeIndex < startIndex + pageSize; rangeIndex += 1) {
+      if (rangeIndex === 0) {
+        // Week 1: Current week from most recent Monday to today
+        const currentWeekSince = new Date(currentMonday);
+        const currentWeekUntil = new Date(today);
+        weeks.push({
+          label: `${currentWeekSince.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${currentWeekUntil.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+          since: formatDate(currentWeekSince),
+          until: formatDate(currentWeekUntil)
         });
-        
-        lastMonday = sinceDate;
+      } else {
+        const untilDate = new Date(currentMonday);
+        untilDate.setDate(currentMonday.getDate() - ((rangeIndex - 1) * 7) - 1);
+
+        const sinceDate = new Date(untilDate);
+        sinceDate.setDate(untilDate.getDate() - 6);
+
+        weeks.push({
+          label: `${sinceDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${untilDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+          since: formatDate(sinceDate),
+          until: formatDate(untilDate)
+        });
+      }
     }
 
     return weeks.reverse();
   };
   
-  const generateMonths = () => {
+  const generateMonths = (page = 1, pageSize = FACEBOOK_INSIGHTS_PAGE_SIZE) => {
     const months = [];
     const today = new Date();
     // ✅ FIX: Use LOCAL date parts — toISOString() shifts midnight local dates
@@ -120,7 +225,9 @@ export default function ClientInsights() {
       return `${y}-${m}-${d}`;
     };
 
-    for (let i = 0; i < 6; i++) {
+    const startIndex = (page - 1) * pageSize;
+
+    for (let i = startIndex; i < startIndex + pageSize; i++) {
         // Target month start (1st day)
         const sinceDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
         
@@ -139,23 +246,115 @@ export default function ClientInsights() {
     return months.reverse();
   };
 
+  const formatLocalDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const getMonday = (date) => {
+    const monday = new Date(date);
+    const dayOfWeek = monday.getDay();
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    monday.setDate(monday.getDate() - diffToMonday);
+    return monday;
+  };
+
+  const getInstagramUntilForPage = (page, range) => {
+    if (page <= 1) return undefined;
+
+    let endDate = new Date();
+    for (let currentPage = 1; currentPage < page; currentPage += 1) {
+      if (range === "30") {
+        const oldestMonthStart = new Date(endDate.getFullYear(), endDate.getMonth() - 5, 1);
+        endDate = new Date(oldestMonthStart);
+        endDate.setDate(oldestMonthStart.getDate() - 1);
+      } else {
+        const currentMonday = getMonday(endDate);
+        endDate = new Date(currentMonday);
+        endDate.setDate(currentMonday.getDate() - 43);
+      }
+    }
+
+    return formatLocalDate(endDate);
+  };
+
+  useEffect(() => {
+    setInsightsPage(1);
+    setTiktokTablePage(1);
+  }, [id, activePlatform, timeRange]);
+
+  useEffect(() => {
+    if (!['facebook', 'instagram'].includes(activePlatform) && timeRange === MONTH_COMPARISON_RANGE) {
+      setTimeRange("7");
+      setTableTimeRange("7");
+    }
+  }, [activePlatform, timeRange]);
+
   // 2. Fetch insights when client is ready
   useEffect(() => {
+    const requestId = insightsRequestId.current + 1;
+    insightsRequestId.current = requestId;
+    const isCurrentRequest = () => insightsRequestId.current === requestId;
+
     const fetchAllData = async () => {
       if (!client) return;
+      if (!["facebook", "instagram"].includes(activePlatform) && timeRange === MONTH_COMPARISON_RANGE) return;
+
+      if (["facebook", "instagram"].includes(activePlatform)) {
+        setIsChartRefreshing(true);
+      }
       
-      setInsightData([]); // Reset data to avoid stale property glitches when switching platforms
+      if (timeRange !== MONTH_COMPARISON_RANGE) {
+        setInsightData([]); // Reset data to avoid stale property glitches when switching platforms
+      }
+      if (timeRange !== MONTH_COMPARISON_RANGE) {
+        setMonthComparisonChart(null);
+      }
       
       // Facebook Fetch
       if (activePlatform === "facebook") {
         if (!client.facebookPageId || !client.facebookApiKey) {
           setInsightData([]);
+          setIsChartRefreshing(false);
           return;
         }
 
-        setInsightsLoading(true);
         try {
-          const ranges = timeRange === "30" ? generateMonths() : generateWeeks();
+          if (timeRange === MONTH_COMPARISON_RANGE) {
+            setMonthComparisonChart(null);
+            const comparisonRanges = buildMonthComparisonRanges();
+            const [currentRows, previousRows] = await Promise.all([
+              Promise.all(
+                comparisonRanges.currentRanges.map((w) =>
+                  getFacebookInsights(client.facebookPageId, client.facebookApiKey, w.since, w.until)
+                    .then((res) => ({ ...res, week: w.label }))
+                    .catch(() => ({ week: w.label, error: true }))
+                )
+              ),
+              Promise.all(
+                comparisonRanges.previousRanges.map((w) =>
+                  getFacebookInsights(client.facebookPageId, client.facebookApiKey, w.since, w.until)
+                    .then((res) => ({ ...res, week: w.label }))
+                    .catch(() => ({ week: w.label, error: true }))
+                )
+              ),
+            ]);
+
+            if (!isCurrentRequest()) return;
+            setMonthComparisonChart({
+              currentData: currentRows,
+              previousData: previousRows,
+              currentLabel: comparisonRanges.currentLabel,
+              previousLabel: comparisonRanges.previousLabel,
+              subtitle: `${comparisonRanges.currentLabel} vs ${comparisonRanges.previousLabel} Weekly Trend`,
+            });
+            return;
+          }
+
+          setInsightsLoading(true);
+          const ranges = timeRange === "30" ? generateMonths(insightsPage) : generateWeeks(insightsPage);
           const results = await Promise.all(
             ranges.map(w => 
               getFacebookInsights(client.facebookPageId, client.facebookApiKey, w.since, w.until)
@@ -163,11 +362,17 @@ export default function ClientInsights() {
                 .catch(() => ({ week: w.label, error: true }))
             )
           );
+          if (!isCurrentRequest()) return;
           setInsightData(results);
         } catch (error) {
           console.error("Failed to fetch FB insights", error);
         } finally {
-          setInsightsLoading(false);
+          if (isCurrentRequest() && timeRange !== MONTH_COMPARISON_RANGE) {
+            setInsightsLoading(false);
+          }
+          if (isCurrentRequest()) {
+            setIsChartRefreshing(false);
+          }
         }
       } 
       
@@ -175,17 +380,44 @@ export default function ClientInsights() {
       else if (activePlatform === "instagram") {
         if (!client.instagramAccountId || !client.instagramApiKey) {
           setInsightData([]);
+          setIsChartRefreshing(false);
           return;
         }
 
-        setInsightsLoading(true);
         try {
-          const result = await getInstagramInsights(client.instagramAccountId, client.instagramApiKey, undefined, timeRange);
+          if (timeRange === MONTH_COMPARISON_RANGE) {
+            setMonthComparisonChart(null);
+            const comparisonRanges = buildMonthComparisonRanges();
+            const [currentResult, previousResult] = await Promise.all([
+              getInstagramRangeInsights(client.instagramAccountId, client.instagramApiKey, comparisonRanges.currentRanges),
+              getInstagramRangeInsights(client.instagramAccountId, client.instagramApiKey, comparisonRanges.previousRanges),
+            ]);
+
+            if (!isCurrentRequest()) return;
+            setMonthComparisonChart({
+              currentData: currentResult.weeks || [],
+              previousData: previousResult.weeks || [],
+              currentLabel: comparisonRanges.currentLabel,
+              previousLabel: comparisonRanges.previousLabel,
+              subtitle: `${comparisonRanges.currentLabel} vs ${comparisonRanges.previousLabel} Weekly Trend`,
+            });
+            return;
+          }
+
+          setInsightsLoading(true);
+          const until = getInstagramUntilForPage(insightsPage, timeRange);
+          const result = await getInstagramInsights(client.instagramAccountId, client.instagramApiKey, until, timeRange);
+          if (!isCurrentRequest()) return;
           setInsightData(result.weeks || []);
         } catch (error) {
           console.error("Failed to fetch IG insights", error);
         } finally {
-          setInsightsLoading(false);
+          if (isCurrentRequest() && timeRange !== MONTH_COMPARISON_RANGE) {
+            setInsightsLoading(false);
+          }
+          if (isCurrentRequest()) {
+            setIsChartRefreshing(false);
+          }
         }
       }
       
@@ -194,6 +426,7 @@ export default function ClientInsights() {
         setInsightsLoading(true);
         try {
           const result = await getTiktokInsights(id);
+          if (!isCurrentRequest()) return;
           // TikTok insights return { user, videos }
           // We'll store videos as insightData for the table
           setInsightData(result.videos || []);
@@ -204,7 +437,9 @@ export default function ClientInsights() {
         } catch (error) {
           console.error("Failed to fetch TikTok insights", error);
         } finally {
-          setInsightsLoading(false);
+          if (isCurrentRequest()) {
+            setInsightsLoading(false);
+          }
         }
       }
 
@@ -216,7 +451,13 @@ export default function ClientInsights() {
     };
 
     if (client && !clientLoading) fetchAllData();
-  }, [id, activePlatform, timeRange, clientLoading]);
+
+    return () => {
+      if (isCurrentRequest()) {
+        insightsRequestId.current += 1;
+      }
+    };
+  }, [id, activePlatform, timeRange, clientLoading, insightsPage]);
 
 
 
@@ -224,14 +465,16 @@ export default function ClientInsights() {
   // NEW: Prepare specialized data for the chart (especially for TikTok)
   const chartData = useMemo(() => {
     if (activePlatform === 'tiktok') {
-      // 1. Get all videos
-      // 2. Sort by create_time descending to get newest first
-      // 3. Take last 7 (most recent)
-      // 4. Reverse to get oldest-to-newest for chart flow
+      if (timeRange === "30") {
+        return buildTiktokMonthlyChartData(insightData);
+      }
+
+      // Match the TikTok table page, then reverse for oldest-to-newest chart flow.
+      const startIndex = (tiktokTablePage - 1) * FACEBOOK_INSIGHTS_PAGE_SIZE;
       const sorted = [...(insightData || [])].sort((a, b) => (b.create_time || 0) - (a.create_time || 0));
-      const last7 = sorted.slice(0, 7).reverse();
+      const visiblePageRows = sorted.slice(startIndex, startIndex + FACEBOOK_INSIGHTS_PAGE_SIZE).reverse();
       
-      return last7.map(v => ({
+      return visiblePageRows.map(v => ({
         ...v,
         week: v.create_time 
           ? new Date(v.create_time * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) 
@@ -240,14 +483,45 @@ export default function ClientInsights() {
 
     }
     return insightData;
-  }, [insightData, activePlatform]);
+  }, [insightData, activePlatform, tiktokTablePage, timeRange]);
+
+  const tableData = useMemo(() => {
+    if (activePlatform !== 'tiktok') return insightData;
+
+    if (timeRange === "30") {
+      return buildTiktokMonthlyChartData(insightData);
+    }
+
+    const startIndex = (tiktokTablePage - 1) * FACEBOOK_INSIGHTS_PAGE_SIZE;
+
+    return [...(insightData || [])]
+      .sort((a, b) => (b.create_time || 0) - (a.create_time || 0))
+      .slice(startIndex, startIndex + FACEBOOK_INSIGHTS_PAGE_SIZE);
+  }, [activePlatform, insightData, tiktokTablePage, timeRange]);
+
+  const tiktokTotalRows = useMemo(() => {
+    if (activePlatform !== 'tiktok') return 0;
+    if (timeRange === "30") return 6;
+    return insightData?.length || 0;
+  }, [activePlatform, insightData, timeRange]);
+
+  const tiktokPagination = activePlatform === 'tiktok' ? {
+    page: tiktokTablePage,
+    canPrev: tiktokTablePage > 1,
+    canNext: tiktokTablePage * FACEBOOK_INSIGHTS_PAGE_SIZE < tiktokTotalRows,
+    isLoading: insightsLoading,
+    onPrev: () => setTiktokTablePage((page) => Math.max(1, page - 1)),
+    onNext: () => setTiktokTablePage((page) => (
+      page * FACEBOOK_INSIGHTS_PAGE_SIZE < tiktokTotalRows ? page + 1 : page
+    )),
+  } : null;
 
 
   // Adjust activeTab when platform changes
   useEffect(() => {
     // If returning from TikTok to FB/IG, default to 'Content Counts'
     if ((activePlatform === 'facebook' || activePlatform === 'instagram') && 
-        (activeTab === 'Video Breakdown' || activeTab === 'Account Overview')) {
+        (activeTab === 'Video Breakdown' || activeTab === 'Video Likes' || activeTab === 'Account Overview')) {
       setActiveTab('Content Counts');
     } 
     // Existing logic for FB <-> IG specific tabs
@@ -268,6 +542,7 @@ export default function ClientInsights() {
 
   const chartConfigs = useMemo(() => {
     const isIG = activePlatform === 'instagram';
+    const tiktokPeriodLabel = timeRange === "30" ? "Last 6 Months" : "Last 6 Videos";
 
     return {
       "Content Counts": {
@@ -309,7 +584,7 @@ export default function ClientInsights() {
         metrics: [
           { 
             key: isIG ? "content_interactions.total" : "content_interactions.interactions_total", 
-            label: "Interactions", 
+            label: isIG ? "Interactions" : "Engagements",
             color: "#003870" 
           },
         ],
@@ -324,25 +599,93 @@ export default function ClientInsights() {
       },
       "Video Breakdown": {
         title: "Views Breakdown",
-        subtitle: "Performance of Last 7 Videos",
+        subtitle: `Performance of ${tiktokPeriodLabel}`,
         metrics: [
           { key: "view_count", label: "Views", color: "#003870" },
         ],
       },
       "Video Likes": {
         title: "Likes Breakdown",
-        subtitle: "Performance of Last 7 Videos",
+        subtitle: `Performance of ${tiktokPeriodLabel}`,
         metrics: [
           { key: "like_count", label: "Likes", color: "#003870" },
         ],
       },
     };
-  }, [client, activePlatform]);
+  }, [activePlatform, timeRange]);
 
   const currentChartConfig = chartConfigs[activeTab] || chartConfigs["Content Counts"];
+  const comparisonChartConfig =
+    activePlatform === 'instagram' && timeRange === MONTH_COMPARISON_RANGE && activeTab === 'Audience Reach'
+      ? {
+          ...currentChartConfig,
+          metrics: [{ key: "reach.total", label: "Reach", color: "#003870" }],
+        }
+      : currentChartConfig;
+  const isComparisonRange =
+    ['facebook', 'instagram'].includes(activePlatform) &&
+    timeRange === MONTH_COMPARISON_RANGE;
+  const shouldHoldChartEmpty =
+    ['facebook', 'instagram'].includes(activePlatform) &&
+    (isChartRefreshing || (isComparisonRange && !monthComparisonChart));
+
+  const displayChartConfig = activePlatform === 'facebook' && timeRange === "7"
+    ? { ...comparisonChartConfig, subtitle: `${FACEBOOK_INSIGHTS_PAGE_SIZE} Weeks Content Volume Trend` }
+    : isComparisonRange && monthComparisonChart
+      ? { ...comparisonChartConfig, subtitle: monthComparisonChart.subtitle }
+    : comparisonChartConfig;
+
+  const displayChartData =
+    shouldHoldChartEmpty
+      ? []
+      : isComparisonRange && monthComparisonChart
+      ? monthComparisonChart.currentData
+      : chartData;
+
+  const displayComparisonData =
+    shouldHoldChartEmpty
+      ? null
+      : isComparisonRange && monthComparisonChart
+      ? monthComparisonChart.previousData
+      : null;
+
+  const displayComparisonLabels =
+    isComparisonRange && monthComparisonChart
+      ? { current: monthComparisonChart.currentLabel, previous: monthComparisonChart.previousLabel }
+      : null;
 
 
   const platformLabel = activePlatform === 'tiktok' ? 'TikTok' : (activePlatform === 'instagram' ? 'Instagram' : 'Facebook');
+  const selectedRangeLabel = activePlatform === 'tiktok'
+    ? TIKTOK_DATE_RANGES.find((range) => range.value === timeRange)?.label || 'Last 6 Videos'
+    : timeRange === MONTH_COMPARISON_RANGE
+      ? 'Current vs Last Month'
+      : timeRange === '30'
+        ? 'Last 6 Months'
+        : 'Last 7 Weeks';
+
+  const insightChatContext = {
+    clientName: client?.name,
+    platform: activePlatform,
+    platformLabel,
+    activeTab,
+    timeRange: selectedRangeLabel,
+    chart: {
+      title: displayChartConfig.title,
+      subtitle: displayChartConfig.subtitle,
+      metrics: displayChartConfig.metrics.map((metric) => ({
+        key: metric.key,
+        label: metric.label,
+      })),
+      rows: compactInsightRows(displayChartData),
+      comparisonRows: compactInsightRows(displayComparisonData || []),
+    },
+    tableRows: compactInsightRows(tableData),
+    overview: activePlatform === 'tiktok'
+      ? compactInsightRows([platformStats.tiktok])
+      : compactInsightRows(insightData),
+    platformStats: activePlatform === 'tiktok' ? platformStats.tiktok : null,
+  };
 
   const fbTabsList = ["Content Counts", "Total Views", "Viewer Retention", "Engagement Metrics", "Audience Growth"];
   const igTabsList = ["Content Counts", "Total Views", "Audience Reach", "Engagement Metrics", "Audience Growth"];
@@ -375,9 +718,23 @@ export default function ClientInsights() {
   };
 
   const [shareLoading, setShareLoading] = useState(false);
+  const canManageClients = canManageFeature("clients");
   const [showCopied, setShowCopied] = useState(false);
 
+  const handleRangeChange = (range) => {
+    if (['facebook', 'instagram'].includes(activePlatform) && range !== timeRange) {
+      setIsChartRefreshing(true);
+      setMonthComparisonChart(null);
+    }
+
+    setTimeRange(range);
+    if (range !== MONTH_COMPARISON_RANGE) {
+      setTableTimeRange(range);
+    }
+  };
+
   const handleShare = async () => {
+    if (!canManageClients) return;
     setShareLoading(true);
     try {
       const updatedClient = await toggleShare(id, true);
@@ -434,18 +791,30 @@ export default function ClientInsights() {
     <section className="w-full max-w-full overflow-hidden">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-extrabold tracking-tight text-[#191c1d]">
-            {client.name}: {platformLabel} Insights
-          </h1>
+        <div className="flex items-start gap-1.5 sm:gap-2">
+          <Link
+            to="/clients"
+            className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#003870] transition-all hover:bg-[#003870]/8 active:scale-90 sm:mt-3"
+            title="Back to clients"
+            aria-label="Back to clients"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8">
+              <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
+          <div className="space-y-2">
+            <h1 className="text-4xl font-extrabold tracking-tight text-[#191c1d]">
+              {client.name}: {platformLabel} Insights
+            </h1>
 
-          <p className="font-medium text-[#727782]">
-            Performance monitoring and content velocity analytics for your network.
-          </p>
+            <p className="font-medium text-[#727782]">
+              Performance monitoring and content velocity analytics for your network.
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
+          {canManageClients && <button
             onClick={handleShare}
             disabled={shareLoading}
             className="flex h-11 items-center gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50"
@@ -467,8 +836,13 @@ export default function ClientInsights() {
                 <span className="text-base sm:text-lg">Share</span>
               </>
             )}
-          </button>
-          <DateRangeSelector selectedRange={timeRange} onRangeChange={setTimeRange} />
+          </button>}
+          <DateRangeSelector
+            selectedRange={timeRange}
+            onRangeChange={handleRangeChange}
+            ranges={activePlatform === 'tiktok' ? TIKTOK_DATE_RANGES : undefined}
+            extraRanges={['facebook', 'instagram'].includes(activePlatform) ? [{ label: "Current vs Last Month", value: MONTH_COMPARISON_RANGE }] : []}
+          />
         </div>
       </div>
 
@@ -491,10 +865,12 @@ export default function ClientInsights() {
         <div className="col-span-12 space-y-8 lg:col-span-9 min-w-0">
 
           <ContentVelocityChart
-            title={currentChartConfig.title}
-            subtitle={currentChartConfig.subtitle}
-            data={chartData}
-            metrics={currentChartConfig.metrics}
+            title={displayChartConfig.title}
+            subtitle={displayChartConfig.subtitle}
+            data={displayChartData}
+            comparisonData={displayComparisonData}
+            comparisonLabels={displayComparisonLabels}
+            metrics={displayChartConfig.metrics}
             onNext={handleNextTab}
             onPrev={handlePrevTab}
             hidePoints={activePlatform === 'tiktok'}
@@ -518,10 +894,18 @@ export default function ClientInsights() {
           ) : (
             <ContentBreakdownTable
               clientName={client.name}
-              data={insightData}
+              data={tableData}
               platform={activePlatform}
-              timeRange={timeRange}
+              timeRange={tableTimeRange}
               followersCount={activePlatform === 'tiktok' ? platformStats.tiktok?.follower_count : null}
+              pagination={activePlatform === 'facebook' || activePlatform === 'instagram' ? {
+                page: insightsPage,
+                canPrev: insightsPage > 1,
+                canNext: true,
+                isLoading: insightsLoading,
+                onPrev: () => setInsightsPage((page) => Math.max(1, page - 1)),
+                onNext: () => setInsightsPage((page) => page + 1),
+              } : tiktokPagination}
             />
 
           )}
@@ -531,7 +915,7 @@ export default function ClientInsights() {
 
           <OverviewMetricsCard 
             platform={activePlatform} 
-            timeRange={timeRange}
+            timeRange={tableTimeRange}
             allData={
               activePlatform === 'tiktok' 
                 ? [platformStats.tiktok] 
@@ -539,7 +923,12 @@ export default function ClientInsights() {
             } 
           />
 
-          <InitializePartnerCard />
+          <InsightChatbot
+            context={insightChatContext}
+            disabled={insightsLoading || shouldHoldChartEmpty}
+          />
+
+          <InitializePartnerCard clientId={id} />
           <SystemHealthCard />
         </div>
 

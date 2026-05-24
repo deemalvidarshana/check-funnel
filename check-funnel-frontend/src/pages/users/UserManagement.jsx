@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import UserDirectoryTable from '../../components/users/UserDirectoryTable';
 import PendingUsersTable from '../../components/users/PendingUsersTable';
+import CreateUserModal from '../../components/users/CreateUserModal';
 import EditUserModal from '../../components/users/EditUserModal';
 import UserDeleteConfirmationModal from '../../components/users/UserDeleteConfirmationModal';
 import UserApproveConfirmationModal from '../../components/users/UserApproveConfirmationModal';
 import UserRejectConfirmationModal from '../../components/users/UserRejectConfirmationModal';
-import { getAllUsers, getPendingUsers, updateUserStatus, deleteUser, updateUser } from "../../api/user";
+import { createUser, getAllUsers, getPendingUsers, updateUserStatus, deleteUser, updateUser } from "../../api/user";
 
 const UserManagement = () => {
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -107,6 +110,25 @@ const UserManagement = () => {
     }
   };
 
+  const handleCreateUser = async (data) => {
+    try {
+      await createUser(data);
+      setCreatedCredentials({
+        email: data.email,
+        password: data.password,
+      });
+      fetchData();
+    } catch (error) {
+      alert(error?.response?.data?.message || "Failed to create user");
+      throw error;
+    }
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsCreateModalOpen(false);
+    setCreatedCredentials(null);
+  };
+
   const handleExport = () => {
     if (registeredUsers.length === 0) {
       alert("No data available to export.");
@@ -172,16 +194,27 @@ const UserManagement = () => {
           </p>
         </div>
         
-        <button 
-          onClick={handleExport}
-          disabled={registeredUsers.length === 0}
-          className="inline-flex items-center justify-center gap-2 self-start rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 py-3 text-sm font-bold text-[#ffffff] shadow-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 9l-4 4m0 0l-4-4m4 4V3" />
-          </svg>
-          <span>Export Directory</span>
-        </button>
+        <div className="flex flex-col gap-3 sm:flex-row xl:self-start">
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-[#003870] shadow-lg ring-1 ring-slate-200 transition hover:bg-blue-50 active:scale-95"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Create User</span>
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={registeredUsers.length === 0}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 py-3 text-sm font-bold text-[#ffffff] shadow-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 9l-4 4m0 0l-4-4m4 4V3" />
+            </svg>
+            <span>Export Directory</span>
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-10 mt-2">
@@ -203,6 +236,13 @@ const UserManagement = () => {
           />
         </div>
       </div>
+
+      <CreateUserModal
+        open={isCreateModalOpen}
+        onClose={handleCloseCreateModal}
+        onCreate={handleCreateUser}
+        createdCredentials={createdCredentials}
+      />
 
       <EditUserModal 
         open={isEditModalOpen}

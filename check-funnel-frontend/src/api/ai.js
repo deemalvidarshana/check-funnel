@@ -14,3 +14,8 @@ export const generateReelScriptAI = async (payload) => {
   const response = await api.post('/ai/generate-reel-script', payload);
   return response.data;
 };
+
+export const askInsightChatAI = async (payload) => {
+  const response = await api.post('/ai/insight-chat', payload);
+  return response.data;
+};

@@ -12,7 +12,27 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
     if (!requiredRoles) return true;
-    const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.includes(user?.role);
+    const request = context.switchToHttp().getRequest();
+    const { user } = request;
+    if (requiredRoles.includes(user?.role)) return true;
+
+    if (user?.role === 'manager') {
+      if (requiredRoles.includes('viewer') && request.method === 'GET') return true;
+
+      const featureMap: Record<string, string> = {
+        '/clients': 'clients',
+        '/competitors': 'competitors',
+        '/calendars': 'contentCalendar',
+        '/targets': 'targets',
+      };
+      const path = `${request.baseUrl || ''}${request.url || ''}`;
+      const feature = Object.entries(featureMap).find(([prefix]) =>
+        String(path).startsWith(prefix),
+      )?.[1];
+
+      return Boolean(feature && user.featureAccess?.includes(feature));
+    }
+
+    return false;
   }
 }

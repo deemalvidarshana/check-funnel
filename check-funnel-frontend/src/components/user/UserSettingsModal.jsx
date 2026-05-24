@@ -37,7 +37,7 @@ function Toast({ message, type, onClose }) {
   );
 }
 
-export default function UserSettingsModal({ open, onClose }) {
+export default function UserSettingsModal({ open, onClose, mode = "full" }) {
   const [apifyApiKey, setApifyApiKey] = useState("");
   const [competitorAnalyzeMethod, setCompetitorAnalyzeMethod] = useState("upload");
   const [apifyDefaultResultsLimit, setApifyDefaultResultsLimit] = useState(100);
@@ -51,6 +51,19 @@ export default function UserSettingsModal({ open, onClose }) {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [toast, setToast] = useState(null);
+  const isFullSettings = mode === "full";
+  const isCompetitorSettings = mode === "competitors" || mode === "manager";
+  const isAiSettings = mode === "ai";
+  const title = isFullSettings
+    ? "System Settings"
+    : isCompetitorSettings
+      ? "Competitor Settings"
+      : "AI Settings";
+  const description = isFullSettings
+    ? "Configure global application parameters."
+    : isCompetitorSettings
+      ? "Configure competitor analysis parameters."
+      : "Configure content calendar AI parameters.";
 
   useEffect(() => {
     if (open) {
@@ -80,13 +93,25 @@ export default function UserSettingsModal({ open, onClose }) {
   const handleSave = async () => {
     setLoading(true);
     try {
-      await updateSystemSettings({
-        apifyApiKey,
-        openRouterApiKey,
-        openRouterModel,
-        competitorAnalyzeMethod,
-        apifyDefaultResultsLimit: Number(apifyDefaultResultsLimit),
-      });
+      const payload = isAiSettings
+        ? {
+            openRouterApiKey,
+            openRouterModel,
+          }
+        : isCompetitorSettings
+          ? {
+              apifyApiKey,
+              competitorAnalyzeMethod,
+            }
+        : {
+            apifyApiKey,
+            openRouterApiKey,
+            openRouterModel,
+            competitorAnalyzeMethod,
+            apifyDefaultResultsLimit: Number(apifyDefaultResultsLimit),
+          };
+
+      await updateSystemSettings(payload);
       setToast({ message: "Settings saved successfully!", type: "success" });
       setTimeout(() => {
         onClose();
@@ -114,10 +139,10 @@ export default function UserSettingsModal({ open, onClose }) {
         <div className="flex flex-col">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-extrabold text-[#003870] mb-2">
-              System Settings
+              {title}
             </h2>
             <p className="text-slate-500 text-sm font-medium">
-              Configure global application parameters.
+              {description}
             </p>
           </div>
 
@@ -127,30 +152,32 @@ export default function UserSettingsModal({ open, onClose }) {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Apify API Key */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                  Apify API Key
-                </label>
-                <div className="relative">
-                  <input
-                    type={showApiKey ? "text" : "password"}
-                    value={apifyApiKey}
-                    onChange={(e) => setApifyApiKey(e.target.value)}
-                    placeholder="Enter Apify API Key"
-                    className="w-full px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-300 pr-12"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#003870] transition-colors"
-                  >
-                    <EyeIcon />
-                  </button>
+              {(isFullSettings || isCompetitorSettings) && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
+                    Apify API Key
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={apifyApiKey}
+                      onChange={(e) => setApifyApiKey(e.target.value)}
+                      placeholder="Enter Apify API Key"
+                      className="w-full px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-300 pr-12"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#003870] transition-colors"
+                    >
+                      <EyeIcon />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* OpenRouter API Key */}
+              {(isFullSettings || isAiSettings) && (
+                <>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
                   OpenRouter API Key
@@ -186,71 +213,75 @@ export default function UserSettingsModal({ open, onClose }) {
                   className="w-full px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-300"
                 />
               </div>
+                </>
+              )}
 
-              {/* Competitor Analyze Method */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                  Competitor Analyze Method
-                </label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsMethodDropdownOpen(!isMethodDropdownOpen)}
-                    className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700"
-                  >
-                    <span className="capitalize">{competitorAnalyzeMethod}</span>
-                    <svg 
-                      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" 
-                      className={`text-slate-400 transition-transform ${isMethodDropdownOpen ? "rotate-180" : ""}`}
-                    >
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  </button>
-
-                  {isMethodDropdownOpen && (
-                    <div className="absolute left-0 right-0 top-full z-[110] mt-2 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-100">
+              {(isFullSettings || isCompetitorSettings) && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
+                      Competitor Analyze Method
+                    </label>
+                    <div className="relative">
                       <button
                         type="button"
-                        onClick={() => {
-                          setCompetitorAnalyzeMethod('upload');
-                          setIsMethodDropdownOpen(false);
-                        }}
-                        className={`w-full px-5 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
-                          competitorAnalyzeMethod === 'upload' ? "text-[#003870] bg-[#003870]/5" : "text-slate-600"
-                        }`}
+                        onClick={() => setIsMethodDropdownOpen(!isMethodDropdownOpen)}
+                        className="w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700"
                       >
-                        Upload
+                        <span className="capitalize">{competitorAnalyzeMethod}</span>
+                        <svg 
+                          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" 
+                          className={`text-slate-400 transition-transform ${isMethodDropdownOpen ? "rotate-180" : ""}`}
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCompetitorAnalyzeMethod('apify');
-                          setIsMethodDropdownOpen(false);
-                        }}
-                        className={`w-full px-5 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
-                          competitorAnalyzeMethod === 'apify' ? "text-[#003870] bg-[#003870]/5" : "text-slate-600"
-                        }`}
-                      >
-                        Apify
-                      </button>
+
+                      {isMethodDropdownOpen && (
+                        <div className="absolute left-0 right-0 top-full z-[110] mt-2 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-100">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCompetitorAnalyzeMethod('upload');
+                              setIsMethodDropdownOpen(false);
+                            }}
+                            className={`w-full px-5 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                              competitorAnalyzeMethod === 'upload' ? "text-[#003870] bg-[#003870]/5" : "text-slate-600"
+                            }`}
+                          >
+                            Upload
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCompetitorAnalyzeMethod('apify');
+                              setIsMethodDropdownOpen(false);
+                            }}
+                            className={`w-full px-5 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                              competitorAnalyzeMethod === 'apify' ? "text-[#003870] bg-[#003870]/5" : "text-slate-600"
+                            }`}
+                          >
+                            Apify
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              {/* Apify Default Results Limit */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
-                  Apify Default Results Limit
-                </label>
-                <input
-                  type="number"
-                  value={apifyDefaultResultsLimit}
-                  onChange={(e) => setApifyDefaultResultsLimit(e.target.value)}
-                  placeholder="Enter Default Limit"
-                  className="w-full px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-300"
-                />
-              </div>
+                  {isFullSettings && <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
+                      Apify Default Results Limit
+                    </label>
+                    <input
+                      type="number"
+                      value={apifyDefaultResultsLimit}
+                      onChange={(e) => setApifyDefaultResultsLimit(e.target.value)}
+                      placeholder="Enter Default Limit"
+                      className="w-full px-5 py-4 rounded-2xl bg-[#f8f9fa] border-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff] transition-all outline-none text-sm font-semibold text-slate-700 placeholder:text-slate-300"
+                    />
+                  </div>}
+                </>
+              )}
 
               <div className="flex items-center gap-3 pt-4">
                 <button

@@ -65,7 +65,12 @@ export class AuthService {
   }
 
   private generateToken(user: User) {
-    return this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
+    return this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      featureAccess: user.featureAccess || [],
+    });
   }
 
   private sanitizeUser(user: User) {

@@ -78,7 +78,82 @@ function EyeIcon() {
   );
 }
 
-export default function AddClientModal({ open, onClose, onCreate, initialData }) {
+function DropdownChevronIcon({ isOpen }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`text-[#727782] transition-transform ${isOpen ? "rotate-180" : ""}`}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function ResponsiblePersonDropdown({ value, label, users, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedLabel = label || "Select responsible person";
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className="flex w-full items-center justify-between rounded-2xl border-none bg-[#f8f9fa] px-4 py-3 font-body text-[#191c1d] outline-none ring-1 ring-[#c2c6d3]/40 transition-all hover:bg-[#f3f4f5] focus:ring-2 focus:ring-[#a8c8ff]"
+      >
+        <span className={`truncate ${value ? "text-[#191c1d]" : "text-[#727782]/70"}`}>
+          {selectedLabel}
+        </span>
+        <DropdownChevronIcon isOpen={isOpen} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full z-[120] mt-2 max-h-56 overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white py-2 shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
+          <button
+            type="button"
+            onClick={() => {
+              onChange("", "");
+              setIsOpen(false);
+            }}
+            className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+              !value ? "bg-[#003870]/5 text-[#003870]" : "text-[#727782]"
+            }`}
+          >
+            Select responsible person
+          </button>
+          {users.map((user) => (
+            <button
+              key={user.id}
+              type="button"
+              onClick={() => {
+                onChange(String(user.id), user.fullName);
+                setIsOpen(false);
+              }}
+              className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                String(user.id) === value ? "bg-[#003870]/5 text-[#003870]" : "text-[#727782]"
+              }`}
+            >
+              {user.fullName}
+            </button>
+          ))}
+          {users.length === 0 && (
+            <div className="px-4 py-3 text-sm font-bold text-[#727782]">
+              No users available
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function AddClientModal({ open, onClose, onCreate, initialData, users = [] }) {
   const [form, setForm] = useState({
     clientName: "",
     monthlyTarget: "",
@@ -86,6 +161,8 @@ export default function AddClientModal({ open, onClose, onCreate, initialData })
     description: "",
     email: "",
     phone: "",
+    responsiblePersonId: "",
+    responsiblePersonName: "",
     facebook: false,
     instagram: true,
     tiktok: false,
@@ -116,7 +193,7 @@ export default function AddClientModal({ open, onClose, onCreate, initialData })
       const parseField = (val) => {
         if (!val) return [];
         if (Array.isArray(val)) return val;
-        try { return JSON.parse(val); } catch (e) { return []; }
+        try { return JSON.parse(val); } catch { return []; }
       };
 
       const active = parseField(initialData.activeChannels);
@@ -130,6 +207,8 @@ export default function AddClientModal({ open, onClose, onCreate, initialData })
         description: initialData.shortDescription || "",
         email: initialData.contactEmail || "",
         phone: initialData.contactPhone || "",
+        responsiblePersonId: initialData.responsiblePersonId ? String(initialData.responsiblePersonId) : "",
+        responsiblePersonName: initialData.responsiblePersonName || "",
         facebook: active.includes("facebook"),
         instagram: active.includes("instagram"),
         tiktok: active.includes("tiktok"),
@@ -155,6 +234,8 @@ export default function AddClientModal({ open, onClose, onCreate, initialData })
         description: "",
         email: "",
         phone: "",
+        responsiblePersonId: "",
+        responsiblePersonName: "",
         facebook: false,
         instagram: true,
         tiktok: false,
@@ -182,10 +263,18 @@ export default function AddClientModal({ open, onClose, onCreate, initialData })
 
   const [showFb, setShowFb] = useState(false);
   const [showIg, setShowIg] = useState(false);
-  const [showTk, setShowTk] = useState(false);
+  const responsibleUsers = users.filter((user) => user.status !== "pending" && user.status !== "rejected");
 
   const updateField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleResponsiblePersonChange = (selectedId, selectedName) => {
+    setForm((prev) => ({
+      ...prev,
+      responsiblePersonId: selectedId,
+      responsiblePersonName: selectedName,
+    }));
   };
 
   const handleSubmit = () => {
@@ -324,6 +413,17 @@ export default function AddClientModal({ open, onClose, onCreate, initialData })
               </div>
               <ClientFormField label="Monthly Target Posts/Reels" type="number" placeholder="30" value={form.monthlyTarget} onChange={(e) => updateField("monthlyTarget", e.target.value)} />
               <ClientFormField label="Client Hashtags" placeholder="#brand #luxury" value={form.hashtags} onChange={(e) => updateField("hashtags", e.target.value)} />
+              <div className="md:col-span-2">
+                <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-[#727782]">
+                  Responsible Person
+                </label>
+                <ResponsiblePersonDropdown
+                  value={form.responsiblePersonId}
+                  label={form.responsiblePersonName}
+                  users={responsibleUsers}
+                  onChange={handleResponsiblePersonChange}
+                />
+              </div>
               <div className="md:col-span-2">
                 <ClientFormField label="Short Description" textarea rows={3} placeholder="Briefly describe the brand's niche and tone..." value={form.description} onChange={(e) => updateField("description", e.target.value)} />
               </div>

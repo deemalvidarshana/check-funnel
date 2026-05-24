@@ -1,15 +1,16 @@
 import { useState } from "react";
 
-export default function DateRangeSelector({ selectedRange, onRangeChange }) {
+export default function DateRangeSelector({ selectedRange, onRangeChange, extraRanges = [], ranges: customRanges }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const ranges = [
+  const ranges = customRanges || [
     { label: "Last 7 Weeks", value: "7" },
     { label: "Last 6 Months", value: "30" },
+    ...extraRanges,
   ];
 
 
-  const currentLabel = ranges.find((r) => r.value === selectedRange)?.label || "Last 7 Weeks";
+  const currentLabel = ranges.find((r) => r.value === selectedRange)?.label || ranges[0]?.label || "Last 7 Weeks";
 
 
   return (

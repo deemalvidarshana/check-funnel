@@ -1,5 +1,12 @@
 // create-client.dto.ts
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsEmail } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsInt,
+  Min,
+  IsEmail,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateClientDto {
@@ -13,7 +20,7 @@ export class CreateClientDto {
   monthlyTargetPosts: number;
 
   @IsOptional()
-  @IsString()   // Accept as string
+  @IsString() // Accept as string
   hashtags?: string;
 
   @IsOptional()
@@ -28,7 +35,15 @@ export class CreateClientDto {
   contactPhone?: string;
 
   @IsOptional()
-  @IsString()   // Accept as string
+  @IsString()
+  responsiblePersonId?: string;
+
+  @IsOptional()
+  @IsString()
+  responsiblePersonName?: string;
+
+  @IsOptional()
+  @IsString() // Accept as string
   activeChannels?: string;
 
   @IsOptional()
@@ -49,6 +64,18 @@ export class CreateClientDto {
 
   @IsOptional()
   @IsString()
+  facebookUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  instagramUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  tiktokUrl?: string;
+
+  @IsOptional()
+  @IsString()
   tiktokApiKey?: string;
 
   @IsOptional()
@@ -62,4 +89,4 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   tiktokRefreshToken?: string;
-}
+}

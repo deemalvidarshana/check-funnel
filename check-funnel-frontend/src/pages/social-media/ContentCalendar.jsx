@@ -9,6 +9,7 @@ import PostDetailsModal from '../../components/social-media/calendar/PostDetails
 import ReferenceViewerModal from '../../components/social-media/calendar/ReferenceViewerModal';
 import { getCalendars, updatePost, deletePost } from '../../api/calendar';
 import { getClients, toggleShare } from '../../api/client';
+import { canManageFeature } from '../../utils/permissions';
 
 const getPostPlatforms = (platforms) => {
   if (Array.isArray(platforms)) {
@@ -34,6 +35,7 @@ const ContentCalendar = () => {
   const [toast, setToast] = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const canManageContentCalendar = canManageFeature('contentCalendar');
   
   // Modal states
   const [deleteModal, setDeleteModal] = useState({ open: false, index: null });
@@ -122,6 +124,7 @@ const ContentCalendar = () => {
   }, [posts, currentDate, filters]);
 
   const handleUpdateRow = async (index, updatedFields) => {
+    if (!canManageContentCalendar) return;
     const postToUpdate = filteredPosts[index];
     if (!postToUpdate || !postToUpdate.id) return;
 
@@ -146,6 +149,7 @@ const ContentCalendar = () => {
   };
 
   const handleDeleteClick = (index) => {
+    if (!canManageContentCalendar) return;
     setDeleteModal({ open: true, index });
   };
 
@@ -192,6 +196,7 @@ const ContentCalendar = () => {
   };
 
   const handleShareCalendar = async () => {
+    if (!canManageContentCalendar) return;
     const selectedClient = clients.find(c => c.displayName === filters.client || c.name === filters.client);
 
     if (!selectedClient || filters.client === 'All Clients') {
@@ -221,6 +226,7 @@ const ContentCalendar = () => {
   };
 
   const handleSavePostDetails = async (updatedFields) => {
+    if (!canManageContentCalendar) return;
     const postToUpdate = detailsModal.post;
     if (!postToUpdate || !postToUpdate.id) return;
 
@@ -295,6 +301,7 @@ const ContentCalendar = () => {
         linkEditMode={filters.viewType === 'Row View'}
         hidePreview={filters.viewType === 'Row View'}
         onSave={handleSavePostDetails}
+        hideFooter={!canManageContentCalendar}
       />
 
       <ReferenceViewerModal
@@ -313,6 +320,7 @@ const ContentCalendar = () => {
         onShare={handleShareCalendar}
         shareLoading={shareLoading}
         shareCopied={shareCopied}
+        canManage={canManageContentCalendar}
       />
       <FilterBar 
         filters={filters} 
@@ -335,6 +343,8 @@ const ContentCalendar = () => {
             getStatusColor={getStatusColor}
             onAiEdit={() => {}} 
             variant="contentRow"
+            readOnly={!canManageContentCalendar}
+            hideActions={!canManageContentCalendar}
           />
         </div>
       ) : (

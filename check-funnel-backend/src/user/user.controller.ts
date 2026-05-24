@@ -1,11 +1,33 @@
-import { Controller, Get, Post, Patch, Delete, Body, UseGuards, Request, UseInterceptors, UploadedFile, Param, ParseIntPipe, Res, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  UseGuards,
+  Request,
+  UseInterceptors,
+  UploadedFile,
+  Param,
+  ParseIntPipe,
+  Res,
+  BadRequestException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import type { Request as ExpressRequest, Response } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserService } from './user.service';
 import { UpdateStatusDto } from './dto/update-status.dto';
+
+type AuthenticatedRequest = ExpressRequest & {
+  user: {
+    id: number;
+    email: string;
+  };
+};
 
 @Controller('user')
 export class UserController {
@@ -25,15 +47,43 @@ export class UserController {
     return this.userService.findByStatus('pending');
   }
 
+  @Get('assignees')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'manager')
+  async getAssignableUsers() {
+    return this.userService.findAssignableUsers();
+  }
+
+  @Post()
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin')
+  async createUser(
+    @Body()
+    body: {
+      fullName: string;
+      email: string;
+      password: string;
+      role?: string;
+      featureAccess?: string[];
+    },
+    @Request() req: AuthenticatedRequest,
+  ) {
+    return this.userService.createUser(body, req.user.email);
+  }
+
   @Patch(':id/status')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('admin')
   async updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateStatusDto: UpdateStatusDto,
-    @Request() req
+    @Request() req: AuthenticatedRequest,
   ) {
-    return this.userService.updateUserStatus(id, updateStatusDto.status, req.user.email);
+    return this.userService.updateUserStatus(
+      id,
+      updateStatusDto.status,
+      req.user.email,
+    );
   }
 
   @Delete(':id')
@@ -49,7 +99,8 @@ export class UserController {
   @Roles('admin')
   async updateUser(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateData: { fullName?: string; role?: string }
+    @Body()
+    updateData: { fullName?: string; role?: string; featureAccess?: string[] },
   ) {
     return this.userService.updateUser(id, updateData);
   }
@@ -57,27 +108,39 @@ export class UserController {
   @Get('profile')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('viewer', 'admin')
-  getProfile(@Request() req) {
+  getProfile(@Request() req: AuthenticatedRequest) {
     return { user: req.user };
   }
 
   @Post('avatar')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('viewer', 'admin')
-  @UseInterceptors(FileInterceptor('avatar', {
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-    fileFilter: (req, file, cb) => {
-      if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-        return cb(new BadRequestException('Only image files are allowed!'), false);
-      }
-      cb(null, true);
-    },
-  }))
-  async uploadAvatar(@Request() req, @UploadedFile() file: Express.Multer.File) {
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+      fileFilter: (req, file, cb) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+          return cb(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadAvatar(
+    @Request() req: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    await this.userService.updateAvatar(req.user.id, file.buffer, file.mimetype);
+    await this.userService.updateAvatar(
+      req.user.id,
+      file.buffer,
+      file.mimetype,
+    );
     return { message: 'Avatar updated successfully' };
   }
 

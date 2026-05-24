@@ -5,6 +5,7 @@ import * as https from 'https';
 import * as http from 'http';
 
 import { GetIgInsightsDto } from './dto/get-ig-insights.dto';
+import { GetIgRangeInsightsDto } from './dto/get-ig-range-insights.dto';
 
 @Injectable()
 export class InstagramService {
@@ -52,6 +53,34 @@ export class InstagramService {
           new_follows: "FB Page 'page_daily_follows_unique' sum using Page Access Token",
           unfollows: "FB Page 'page_daily_unfollows_unique' sum using Page Access Token",
         },
+        weeks: weeksData,
+      };
+    } catch (error) {
+      throw new HttpException(error.message || 'Failed to fetch insights', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async getRangeInsights(dto: GetIgRangeInsightsDto) {
+    const { pageId, accessToken, ranges } = dto;
+
+    try {
+      const cleanToken = accessToken ? accessToken.trim() : accessToken;
+      const cleanPageId = pageId ? pageId.trim() : pageId;
+
+      const igId = await this.getInstagramId(cleanPageId, cleanToken);
+      const pageToken = await this.getPageToken(cleanPageId, cleanToken);
+      const cleanPageToken = pageToken ? pageToken.trim() : pageToken;
+
+      const weeksData = await Promise.all(
+        (ranges || []).map((range) => this.analyseWeek(igId, cleanPageToken, range, cleanToken, cleanPageId))
+      );
+
+      return {
+        facebook_linked_page_id: pageId,
+        instagram_business_id: igId,
+        period: "Custom Ranges",
+        generated_at: new Date().toISOString(),
+        api_version: "v25.0",
         weeks: weeksData,
       };
     } catch (error) {

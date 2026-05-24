@@ -5,7 +5,7 @@ export default function SocialAnalyticsCard() {
 
   return (
     <section
-      onClick={() => navigate("/social-media")}
+      onClick={() => navigate("/clients")}
       className="bg-white rounded-2xl p-8 shadow-[0_30px_60px_-15px_rgba(25,28,29,0.06)] relative overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_35px_70px_-15px_rgba(25,28,29,0.12)]"
     >
       <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-8">
@@ -20,13 +20,13 @@ export default function SocialAnalyticsCard() {
 
         <div className="flex gap-2 flex-wrap">
           <span className="px-3 py-1 bg-blue-900/10 text-blue-900 text-xs font-bold rounded-full">
-            Meta
+            Facebook
           </span>
           <span className="px-3 py-1 bg-indigo-600/10 text-indigo-600 text-xs font-bold rounded-full">
-            LinkedIn
+            Instagram
           </span>
           <span className="px-3 py-1 bg-sky-400/10 text-sky-500 text-xs font-bold rounded-full">
-            X
+            TikTok
           </span>
         </div>
       </div>

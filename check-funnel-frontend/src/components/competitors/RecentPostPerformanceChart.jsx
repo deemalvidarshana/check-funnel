@@ -55,6 +55,10 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
   }, [selectedCompetitor, data]);
 
   useEffect(() => {
+    setCurrentIndex(index => Math.min(index, data.length));
+  }, [data]);
+
+  useEffect(() => {
     if (!containerRef.current) return;
     const handleResize = (entries) => {
       for (const entry of entries) {
@@ -70,16 +74,17 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
   if (!data || data.length === 0) return null;
 
   // Is current view 'All Competitors'?
-  const isAll = currentIndex === data.length;
-  const currentGroup = !isAll ? data[currentIndex] : null;
+  const safeCurrentIndex = Math.min(currentIndex, data.length);
+  const isAll = safeCurrentIndex === data.length;
+  const currentGroup = !isAll ? data[safeCurrentIndex] : null;
   
   // Filtering for 'All' mode
   const activeGroups = isAll 
     ? data.filter(g => !hiddenCompetitors.has(g.username))
-    : [currentGroup];
+    : currentGroup ? [currentGroup] : [];
 
   // Calculate max value across only ACTIVE visible data
-  const allValues = activeGroups.flatMap(g => g.data.map(d => d.value));
+  const allValues = activeGroups.flatMap(g => (g?.data || []).map(d => d.value));
   // Calculate max value across only ACTIVE visible data with 15% buffer
   const rawMax = allValues.reduce((max, val) => val > max ? val : max, 0);
   const maxValue = rawMax > 100 
@@ -168,12 +173,12 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
 
             {data.map((group, gIdx) => {
               const isHidden = hiddenCompetitors.has(group.username);
-              const isVisible = !isAll ? (currentIndex === gIdx) : !isHidden;
+              const isVisible = !isAll ? (safeCurrentIndex === gIdx) : !isHidden;
               
               if (!isVisible) return null;
 
               const color = isAll ? COLORS[gIdx % COLORS.length] : "#2563eb";
-              const gradId = isAll ? `grad-all-${gIdx}` : `grad-single-${currentIndex}`;
+              const gradId = isAll ? `grad-all-${gIdx}` : `grad-single-${safeCurrentIndex}`;
               
               return (
                 <g key={group.username} className="transition-all duration-500">
@@ -204,7 +209,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
                   />
 
                   {group.data.map((item, index) => {
-                    const stepX = chartWidth / (group.data.length - 1);
+                    const stepX = group.data.length > 1 ? chartWidth / (group.data.length - 1) : 0;
                     const x = index * stepX;
                     const y = chartHeight - (item.value / maxValue) * (chartHeight - 25);
                     const skipPoint = isAll && group.data.length > 10 && index % 2 !== 0 && index !== group.data.length - 1;
@@ -232,7 +237,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
             })}
 
             {commonDates.map((item, index) => {
-              const stepX = chartWidth / (commonDates.length - 1);
+              const stepX = commonDates.length > 1 ? chartWidth / (commonDates.length - 1) : 0;
               const x = index * stepX;
               const skipDate = commonDates.length > 10 && index % (Math.ceil(commonDates.length / 8)) !== 0 && index !== commonDates.length - 1;
 

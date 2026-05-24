@@ -44,6 +44,11 @@ const normalizeUrl = (url) => {
   return /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
 };
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const getPlatformPreviews = (links) => (
   PLATFORM_FIELDS
     .map((field) => ({
@@ -126,7 +131,9 @@ const PlatformPreview = ({ post, links }) => {
 
     Promise.all(linkedPlatforms.map(async (platform) => {
       try {
-        const response = await fetch(`${baseUrl}/competitors/thumbnail?url=${encodeURIComponent(platform.href)}`);
+        const response = await fetch(`${baseUrl}/competitors/thumbnail?url=${encodeURIComponent(platform.href)}`, {
+          headers: getAuthHeaders()
+        });
         if (!response.ok || ignore) return;
 
         const data = await response.json();

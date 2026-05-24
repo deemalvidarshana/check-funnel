@@ -5,7 +5,69 @@ import { PlusIcon } from "../../components/clients/ClientIcons";
 import AddClientModal from "../../components/clients/AddClientModal";
 import DeleteConfirmationModal from "../../components/clients/DeleteConfirmationModal";
 import { getClients, createClient, updateClient, deleteClient } from "../../api/client";
+import { getAllUsers, getAssignableUsers } from "../../api/user";
 import { useSidebar } from "../../context/SidebarContext";
+import { canManageFeature } from "../../utils/permissions";
+import { Users } from "lucide-react";
+
+function FilterChevronIcon({ isOpen }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`text-[#727782] transition-transform ${isOpen ? "rotate-180" : ""}`}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function ResponsibleFilterDropdown({ value, options, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const allOptions = [{ value: "all", label: "All Clients" }, ...options];
+  const selectedLabel = allOptions.find((option) => option.value === value)?.label || "All Clients";
+
+  return (
+    <div className="relative w-full sm:w-auto">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className="flex w-full items-center justify-between gap-2 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 py-2 transition hover:bg-[#f3f4f5] sm:w-auto sm:justify-start sm:px-5"
+      >
+        <Users className="h-[17px] w-[17px] flex-shrink-0 text-[#003870]" strokeWidth={2.5} />
+        <span className="truncate text-base font-bold text-[#003870]">{selectedLabel}</span>
+        <FilterChevronIcon isOpen={isOpen} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full z-50 mt-2 max-h-60 w-48 overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white py-2 shadow-xl animate-in fade-in slide-in-from-top-1 duration-200 no-scrollbar sm:right-0">
+          {allOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              className={`w-full truncate px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                option.value === value ? "bg-[#003870]/5 text-[#003870]" : "text-[#727782]"
+              }`}
+              title={option.label}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------------- Toast Component ----------------
 function Toast({ message, type, onClose }) {
@@ -37,9 +99,11 @@ function Toast({ message, type, onClose }) {
 
 export default function ClientDirectory() {
   const [clients, setClients] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [responsibleFilter, setResponsibleFilter] = useState("all");
   const [isAddClientOpen, setIsAddClientOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const [userRole, setUserRole] = useState("viewer");
+  const [currentUser, setCurrentUser] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState({ open: false, client: null });
   const { isCollapsed } = useSidebar();
@@ -49,7 +113,7 @@ export default function ClientDirectory() {
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        setUserRole(parsed.role || "viewer");
+        setCurrentUser(parsed);
       } catch (e) {
         console.error("Failed to parse user role", e);
       }
@@ -66,7 +130,48 @@ export default function ClientDirectory() {
     loadClients();
   }, []);
 
-  const isAdmin = userRole === "admin";
+  const canManageClients = canManageFeature("clients", currentUser);
+
+  useEffect(() => {
+    if (!canManageClients) return;
+
+    async function loadUsers() {
+      try {
+        const fetchedUsers = currentUser?.role === "admin"
+          ? await getAllUsers()
+          : await getAssignableUsers();
+        setUsers(fetchedUsers);
+      } catch {
+        setUsers([]);
+      }
+    }
+
+    loadUsers();
+  }, [canManageClients, currentUser?.role]);
+
+  const responsibleFilterOptions = clients.reduce((options, client) => {
+    if (!client.responsiblePersonName) return options;
+
+    const value = client.responsiblePersonId
+      ? String(client.responsiblePersonId)
+      : client.responsiblePersonName;
+
+    if (!options.some((option) => option.value === value)) {
+      options.push({ value, label: client.responsiblePersonName });
+    }
+
+    return options;
+  }, []);
+
+  const visibleClients = responsibleFilter === "all"
+    ? clients
+    : clients.filter((client) => {
+        const value = client.responsiblePersonId
+          ? String(client.responsiblePersonId)
+          : client.responsiblePersonName;
+
+        return value === responsibleFilter;
+      });
 
   const handleCreateOrUpdateClient = async (formData, clientId) => {
     try {
@@ -91,6 +196,8 @@ export default function ClientDirectory() {
         facebookPageId: formData.facebookPageId || "",
         instagramApiKey: formData.instagramApi || "",
         instagramAccountId: formData.instagramAccountId || "",
+        responsiblePersonId: formData.responsiblePersonId || "",
+        responsiblePersonName: formData.responsiblePersonName || "",
         tiktokApiKey: formData.tiktokApi || "",
         tiktokClientKey: formData.tiktokClientKey || "",
         tiktokClientSecret: formData.tiktokClientSecret || "",
@@ -169,15 +276,23 @@ export default function ClientDirectory() {
             </p>
           </div>
           
-          {isAdmin && (
-            <button
-              onClick={() => setIsAddClientOpen(true)}
-              className="inline-flex items-center justify-center gap-2 self-start rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 py-3 text-sm font-bold text-[#ffffff] shadow-lg transition hover:scale-[1.02] active:scale-95"
-            >
-              <PlusIcon />
-              <span>Add New Client</span>
-            </button>
-          )}
+          <div className="flex w-full flex-col items-start gap-3 xl:w-auto xl:items-end">
+            {canManageClients && (
+              <button
+                onClick={() => setIsAddClientOpen(true)}
+                className="inline-flex items-center justify-center gap-2 self-start rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 py-3 text-sm font-bold text-[#ffffff] shadow-lg transition hover:scale-[1.02] active:scale-95 xl:-translate-y-2 xl:self-end"
+              >
+                <PlusIcon />
+                <span>Add New Client</span>
+              </button>
+            )}
+
+            <ResponsibleFilterDropdown
+              value={responsibleFilter}
+              options={responsibleFilterOptions}
+              onChange={setResponsibleFilter}
+            />
+          </div>
         </header>
 
         {/* 
@@ -194,17 +309,17 @@ export default function ClientDirectory() {
               : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
           }`}
         >
-          {clients.map((client) => (
+          {visibleClients.map((client) => (
             <ClientCard 
               key={client.id} 
               client={client} 
-              isAdmin={isAdmin}
+              isAdmin={canManageClients}
               onEdit={handleEditRequest}
               onDelete={handleDeleteClient}
             />
           ))}
 
-          {isAdmin && (
+          {canManageClients && (
             <div onClick={() => setIsAddClientOpen(true)}>
               <ClientEmptyCard />
             </div>
@@ -220,6 +335,7 @@ export default function ClientDirectory() {
         }}
         onCreate={handleCreateOrUpdateClient}
         initialData={editingClient}
+        users={users}
       />
 
       <DeleteConfirmationModal

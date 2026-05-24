@@ -4,6 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { GetIgInsightsDto } from './dto/get-ig-insights.dto';
+import { GetIgRangeInsightsDto } from './dto/get-ig-range-insights.dto';
 
 @Controller('instagram')
 export class InstagramController {
@@ -11,8 +12,15 @@ export class InstagramController {
 
   @Post('insights')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles('admin', 'viewer')
+  @Roles('admin', 'viewer', 'manager')
   async getInsights(@Body() getIgInsightsDto: GetIgInsightsDto) {
     return this.instagramService.getWeeklyInsights(getIgInsightsDto);
+  }
+
+  @Post('range-insights')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'viewer', 'manager')
+  async getRangeInsights(@Body() getIgRangeInsightsDto: GetIgRangeInsightsDto) {
+    return this.instagramService.getRangeInsights(getIgRangeInsightsDto);
   }
 }

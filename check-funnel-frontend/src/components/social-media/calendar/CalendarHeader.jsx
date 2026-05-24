@@ -12,6 +12,7 @@ const CalendarHeader = ({
   shareLoading = false,
   shareCopied = false,
   shareDisabled = false,
+  canManage = true,
 }) => {
   const navigate = useNavigate();
 
@@ -28,14 +29,16 @@ const CalendarHeader = ({
       </div>
       <div className="flex flex-col sm:flex-row sm:items-center lg:items-end gap-4 w-full lg:w-auto">
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row order-last sm:order-first">
-          <button
-            onClick={() => navigate('/content-calendar/create')}
-            className="bg-[#003870] text-white font-bold px-6 py-2.5 rounded-full flex items-center justify-center gap-2 hover:bg-[#003870]/90 hover:shadow-lg hover:shadow-[#003870]/20 transition-all active:scale-95 text-sm w-full sm:w-auto"
-          >
-            <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-            Generate
-          </button>
-          {onShare && (
+          {canManage && (
+            <button
+              onClick={() => navigate('/content-calendar/create')}
+              className="bg-[#003870] text-white font-bold px-6 py-2.5 rounded-full flex items-center justify-center gap-2 hover:bg-[#003870]/90 hover:shadow-lg hover:shadow-[#003870]/20 transition-all active:scale-95 text-sm w-full sm:w-auto"
+            >
+              <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+              Generate
+            </button>
+          )}
+          {canManage && onShare && (
             <button
               type="button"
               onClick={onShare}

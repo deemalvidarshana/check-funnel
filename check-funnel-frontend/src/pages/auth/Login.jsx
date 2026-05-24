@@ -36,7 +36,7 @@ export default function Login() {
 
               <footer className="mt-5 pt-4 border-t border-slate-200 text-center">
                 <p className="text-xs text-slate-400">
-                  © 2024 Check Funnel. All rights reserved.
+                  © 2026 Check Funnel. All rights reserved.
                 </p>
 
                 <div className="flex items-center justify-center gap-5 mt-3">

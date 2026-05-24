@@ -51,17 +51,27 @@ export default function AppRoutes() {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/content-calendar" element={<ContentCalendar />} />
-          <Route path="/content-calendar/create" element={<CreateContentCalendar />} />
+          <Route element={<ProtectedRoute feature="contentCalendar" />}>
+            <Route path="/content-calendar" element={<ContentCalendar />} />
+          </Route>
+          <Route element={<ProtectedRoute feature="contentCalendar" manageOnly />}>
+            <Route path="/content-calendar/create" element={<CreateContentCalendar />} />
+          </Route>
 
           <Route path="/social-media" element={<SocialMediaAnalytics />} />
-          <Route path="/competitors" element={<CompetitorPortfolio />} />
-          <Route path="/competitors/:id" element={<CompetitorAnalysis />} />
-          <Route path="/clients" element={<ClientDirectory />} />
-          <Route path="/clients/:id" element={<ClientProfile />} />
-          <Route path="/clients/:id/insights" element={<ClientInsights />} />
-          <Route path="/clients/:id/targets" element={<TargetPlanner />} />
-          <Route path="/targets" element={<TargetPlanner />} />
+          <Route element={<ProtectedRoute feature="competitors" />}>
+            <Route path="/competitors" element={<CompetitorPortfolio />} />
+            <Route path="/competitors/:id" element={<CompetitorAnalysis />} />
+          </Route>
+          <Route element={<ProtectedRoute feature="clients" />}>
+            <Route path="/clients" element={<ClientDirectory />} />
+            <Route path="/clients/:id" element={<ClientProfile />} />
+            <Route path="/clients/:id/insights" element={<ClientInsights />} />
+          </Route>
+          <Route element={<ProtectedRoute feature="targets" />}>
+            <Route path="/clients/:id/targets" element={<TargetPlanner />} />
+            <Route path="/targets" element={<TargetPlanner />} />
+          </Route>
           <Route path="/reports" element={<Reports />} />
           
           {/* Admin-only routes */}

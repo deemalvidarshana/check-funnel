@@ -6,6 +6,45 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
+  private redactInsightValue(value: any): any {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactInsightValue(item));
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.entries(value).reduce((result, [key, nestedValue]) => {
+        const lowerKey = key.toLowerCase();
+
+        if (
+          lowerKey.includes('apikey') ||
+          lowerKey.includes('token') ||
+          lowerKey.includes('secret') ||
+          lowerKey.includes('password')
+        ) {
+          return result;
+        }
+
+        result[key] = this.redactInsightValue(nestedValue);
+        return result;
+      }, {} as Record<string, any>);
+    }
+
+    return value;
+  }
+
+  private normalizeChatHistory(history: any) {
+    if (!Array.isArray(history)) return [];
+
+    return history
+      .filter((message) => ['assistant', 'user'].includes(message?.role))
+      .map((message) => ({
+        role: message.role,
+        content: String(message.content || '').trim().slice(0, 2000),
+      }))
+      .filter((message) => message.content)
+      .slice(-24);
+  }
+
   private parseJsonContent(result: string) {
     try {
       return JSON.parse(result);
@@ -202,6 +241,85 @@ ${JSON.stringify(safePayload, null, 2)}
 
     const prompt = String(payload?.prompt || '').trim();
     const result = await this.aiService.generateCompletion(prompt, reelScriptSchema);
+    return this.parseJsonContent(result);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('insight-chat')
+  async insightChat(@Body() payload: any) {
+    const answerSchema = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'insight_chat_answer',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            answer: { type: 'string' },
+          },
+          required: ['answer'],
+          additionalProperties: false,
+        },
+      },
+    };
+
+    const question = String(payload?.question || '').trim();
+    const context = payload?.context || {};
+    const history = this.normalizeChatHistory(payload?.history);
+
+    const safeContext = this.redactInsightValue({
+      clientName: context.clientName,
+      platform: context.platform,
+      platformLabel: context.platformLabel,
+      activeTab: context.activeTab,
+      timeRange: context.timeRange,
+      chart: {
+        title: context.chart?.title,
+        subtitle: context.chart?.subtitle,
+        metrics: Array.isArray(context.chart?.metrics)
+          ? context.chart.metrics
+          : [],
+        rows: Array.isArray(context.chart?.rows)
+          ? context.chart.rows
+          : [],
+        comparisonRows: Array.isArray(context.chart?.comparisonRows)
+          ? context.chart.comparisonRows
+          : [],
+      },
+      tableRows: Array.isArray(context.tableRows)
+        ? context.tableRows
+        : [],
+      overview: Array.isArray(context.overview)
+        ? context.overview
+        : context.overview,
+      platformStats: context.platformStats || null,
+    });
+
+    const prompt = `
+You are Check Funnel's insights assistant inside a client analytics dashboard.
+Act like an expert social media performance strategist who gives practical, human-friendly recommendations.
+Answer the user's question using ONLY the supplied dashboard context.
+The context is for the currently selected tab/platform/range, so prioritize that data.
+Use the conversation memory only to understand follow-up questions and previous user preferences. If memory conflicts with the current dashboard context, trust the current dashboard context.
+If the data needed is missing, say that it is not available in the current view and suggest the exact tab/platform/range to check if obvious.
+Do not invent metrics, dates, platforms, or causes.
+Give the user a clear recommendation, explain why it matters, and add practical next steps when the data supports them.
+Make the answer deep enough to be useful, but avoid long generic advice.
+Write in the same language/style as the user's question with a warm, natural tone.
+When useful, mention exact numbers from the context and connect them to the recommendation.
+Return JSON only with { "answer": "..." }.
+
+CONVERSATION MEMORY:
+${JSON.stringify(history, null, 2)}
+
+USER QUESTION:
+${question}
+
+DASHBOARD CONTEXT:
+${JSON.stringify(safeContext, null, 2)}
+`;
+
+    const result = await this.aiService.generateCompletion(prompt, answerSchema);
     return this.parseJsonContent(result);
   }
 }

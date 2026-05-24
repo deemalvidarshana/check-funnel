@@ -1,4 +1,12 @@
+import { FEATURE_OPTIONS } from "../../utils/permissions";
+
 const UserDirectoryTable = ({ users = [], onDelete, onEdit }) => {
+  const getAccessLabel = (user, feature) => {
+    if (user.role === 'admin') return 'Full';
+    if (user.role === 'manager' && user.featureAccess?.includes(feature)) return 'Full';
+    return 'View';
+  };
+
   return (
     <section className="w-full">
       <div className="bg-white rounded-2xl p-6 lg:p-8 flex flex-col shadow-sm border border-slate-100 transition-all duration-300">
@@ -98,6 +106,57 @@ const UserDirectoryTable = ({ users = [], onDelete, onEdit }) => {
                         </svg>
                       </button>
                     </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-8 bg-white rounded-2xl p-6 lg:p-8 flex flex-col shadow-sm border border-slate-100 transition-all duration-300">
+        <div className="mb-6">
+          <h3 className="text-xl font-bold text-slate-900 tracking-tight">Feature Access Matrix</h3>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Review and adjust feature-wise access from each user's edit action.</p>
+        </div>
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full min-w-[760px] text-left border-separate border-spacing-y-2">
+            <thead>
+              <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-bold">
+                <th className="px-4 pb-2">User</th>
+                {FEATURE_OPTIONS.map((feature) => (
+                  <th key={feature.value} className="px-4 pb-2 text-center">{feature.label}</th>
+                ))}
+                <th className="px-4 pb-2 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm font-medium">
+              {users.map((user) => (
+                <tr key={`access-${user.id}`} className="bg-white shadow-[0_10px_30px_rgba(25,28,29,0.03)]">
+                  <td className="px-4 py-4 rounded-l-2xl">
+                    <p className="font-bold text-slate-900">{user.fullName}</p>
+                    <p className="text-[11px] font-medium text-slate-400">{user.role}</p>
+                  </td>
+                  {FEATURE_OPTIONS.map((feature) => {
+                    const label = getAccessLabel(user, feature.value);
+                    const full = label === 'Full';
+                    return (
+                      <td key={`${user.id}-${feature.value}`} className="px-4 py-4 text-center">
+                        <span className={`inline-flex rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider ${
+                          full ? 'bg-blue-900 text-white' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {label}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="px-4 py-4 rounded-r-2xl text-center">
+                    <button
+                      onClick={() => onEdit(user)}
+                      className="rounded-full bg-blue-50 px-4 py-2 text-xs font-extrabold text-blue-900 transition hover:bg-blue-900 hover:text-white"
+                    >
+                      Change
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import MetricCards from '../../components/competitors/MetricCards';
 import AverageViewsChart from '../../components/competitors/AverageViewsChart';
 import RecentPostPerformanceChart from '../../components/competitors/RecentPostPerformanceChart';
@@ -10,6 +10,7 @@ import CSVUploadModal from '../../components/competitors/CSVUploadModal';
 import ApifyFetchModal from '../../components/competitors/ApifyFetchModal';
 import FollowersVsAvgViewsChart from '../../components/competitors/FollowersVsAvgViewsChart';
 import { getClientById, toggleShare } from '../../api/client';
+import { canManageFeature } from '../../utils/permissions';
 import { getSystemSettings } from '../../api/systemSettings';
 import api from '../../api';
 
@@ -66,15 +67,24 @@ export default function CompetitorAnalysis() {
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [analyzeMethod, setAnalyzeMethod] = useState('upload');
+  const [viewerAnalyzeMethod, setViewerAnalyzeMethod] = useState('upload');
   const [apifyDefaultLimit, setApifyDefaultLimit] = useState(100);
   const [toast, setToast] = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
+  const canManageCompetitors = canManageFeature('competitors');
   const [showCopied, setShowCopied] = useState(false);
 
   const [dateRange, setDateRange] = useState('all');
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+  const [isViewerSourceDropdownOpen, setIsViewerSourceDropdownOpen] = useState(false);
 
   const platformKey = activeTab.toLowerCase().replace(' ', '');
+  const effectiveAnalyzeMethod = canManageCompetitors ? analyzeMethod : viewerAnalyzeMethod;
+  const viewerSourceOptions = [
+    { value: 'upload', label: 'Upload' },
+    { value: 'apify', label: 'Apify' },
+  ];
+  const viewerSourceLabel = viewerSourceOptions.find((option) => option.value === viewerAnalyzeMethod)?.label || 'Upload';
 
   // Load client name
   useEffect(() => {
@@ -94,7 +104,9 @@ export default function CompetitorAnalysis() {
     async function loadSettings() {
       try {
         const settings = await getSystemSettings();
-        setAnalyzeMethod(settings.competitorAnalyzeMethod || 'upload');
+        const defaultMethod = settings.competitorAnalyzeMethod || 'upload';
+        setAnalyzeMethod(defaultMethod);
+        setViewerAnalyzeMethod(defaultMethod);
         setApifyDefaultLimit(settings.apifyDefaultResultsLimit || 100);
       } catch (e) {
         console.error("Failed to load system settings", e);
@@ -108,7 +120,7 @@ export default function CompetitorAnalysis() {
     async function fetchData() {
       setLoading(true);
       try {
-        const endpointPrefix = analyzeMethod === 'apify' ? '/apify' : '/competitors';
+        const endpointPrefix = effectiveAnalyzeMethod === 'apify' ? '/apify' : '/competitors';
         const [postsRes, summaryRes] = await Promise.all([
           api.get(`${endpointPrefix}/${id}/posts?platform=${platformKey}`),
           api.get(`${endpointPrefix}/${id}/summary?platform=${platformKey}`),
@@ -125,9 +137,10 @@ export default function CompetitorAnalysis() {
       }
     }
     if (id) fetchData();
-  }, [id, platformKey, analyzeMethod]);
+  }, [id, platformKey, effectiveAnalyzeMethod]);
 
   const handleShare = async () => {
+    if (!canManageCompetitors) return;
     setShareLoading(true);
     try {
       const updatedClient = await toggleShare(id, true);
@@ -615,10 +628,57 @@ export default function CompetitorAnalysis() {
         </div>
       )}
 
+      {!canManageCompetitors && (
+        <div className="relative">
+          <button
+            onClick={() => {
+              setIsCompetitorDropdownOpen(false);
+              setIsDateDropdownOpen(false);
+              setIsViewerSourceDropdownOpen(!isViewerSourceDropdownOpen);
+            }}
+            className="flex h-11 items-center gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5]"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#003870]">
+              <ellipse cx="12" cy="5" rx="8" ry="3" />
+              <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+              <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
+            </svg>
+            <span className="text-sm whitespace-nowrap">{viewerSourceLabel}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`text-[#727782] transition-transform ${isViewerSourceDropdownOpen ? "rotate-180" : ""}`}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
+          {isViewerSourceDropdownOpen && (
+            <div className="absolute left-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl">
+              {viewerSourceOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setViewerAnalyzeMethod(option.value);
+                    setSelectedCompetitor('all');
+                    setDateRange('all');
+                    setIsViewerSourceDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                    viewerAnalyzeMethod === option.value ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Date Range Dropdown */}
       <div className="relative">
         <button
-          onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
+          onClick={() => {
+            setIsViewerSourceDropdownOpen(false);
+            setIsDateDropdownOpen(!isDateDropdownOpen);
+          }}
           className="flex h-11 items-center gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5]"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[#003870]">
@@ -656,7 +716,7 @@ export default function CompetitorAnalysis() {
         )}
       </div>
 
-      {analyzeMethod === 'upload' ? (
+      {canManageCompetitors && (analyzeMethod === 'upload' ? (
         <button
           onClick={() => setIsUploadOpen(true)}
           className="flex h-11 items-center justify-center gap-2 rounded-full bg-[#003870] px-6 text-sm font-bold text-white shadow-md transition hover:bg-[#002d5a] active:scale-95"
@@ -681,7 +741,7 @@ export default function CompetitorAnalysis() {
           <span className="hidden sm:inline">Sync Live Data</span>
           <span className="sm:hidden">Start</span>
         </button>
-      )}
+      ))}
     </>
   );
 
@@ -691,10 +751,22 @@ export default function CompetitorAnalysis() {
       <div className="flex flex-col mb-8 md:mb-10">
         {/* Row 1: Title & Desktop Actions */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-2 gap-4">
-          <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
-            <span className="font-extrabold">Competitor </span>
-            <span className="font-medium">Analysis</span>
-          </h1>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Link
+              to="/competitors"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#003870] transition-all hover:bg-[#003870]/8 active:scale-90"
+              title="Back to competitors"
+              aria-label="Back to competitors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8">
+                <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+            <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+              <span className="font-extrabold">Competitor </span>
+              <span className="font-medium">Analysis</span>
+            </h1>
+          </div>
 
           {/* Actions - DESKTOP ONLY */}
           <div className="hidden md:flex items-center gap-3 flex-wrap justify-end">
@@ -716,7 +788,7 @@ export default function CompetitorAnalysis() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto">
-            <button
+            {canManageCompetitors && <button
               onClick={handleShare}
               disabled={shareLoading}
               className="flex h-10 items-center gap-2 rounded-full border border-[#c2c6d3]/20 bg-white px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50 shadow-sm shrink-0"
@@ -738,7 +810,7 @@ export default function CompetitorAnalysis() {
                   <span className="text-xs sm:text-sm">Share</span>
                 </>
               )}
-            </button>
+            </button>}
 
             <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap items-center gap-1 rounded-full bg-[#f3f4f5] p-1 flex-1">
               {['Facebook', 'Instagram', 'TikTok'].map((tab) => (
@@ -765,7 +837,7 @@ export default function CompetitorAnalysis() {
       {posts.length === 0 ? (
         <div className="flex flex-col items-center justify-center bg-white rounded-3xl border border-[#c2c6d3]/30 p-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-[#f3f4f5] flex items-center justify-center mb-4 text-[#727782]">
-            {analyzeMethod === 'upload' ? (
+            {effectiveAnalyzeMethod === 'upload' ? (
               <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
                 <polyline points="17,8 12,3 7,8" strokeLinecap="round" strokeLinejoin="round" />
@@ -780,12 +852,12 @@ export default function CompetitorAnalysis() {
           </div>
           <h3 className="text-lg font-bold text-[#191c1d] mb-2">No data yet</h3>
           <p className="text-sm text-[#727782] mb-6 max-w-md">
-            {analyzeMethod === 'upload' 
+            {effectiveAnalyzeMethod === 'upload' 
               ? `Upload CSV data from your browser extensions to start analyzing competitor performance on ${activeTab}.`
               : `Fetch real-time data via Apify to start analyzing competitor performance on ${activeTab}.`
             }
           </p>
-          {analyzeMethod === 'upload' ? (
+          {canManageCompetitors && (analyzeMethod === 'upload' ? (
             <button
               onClick={() => setIsUploadOpen(true)}
               className="rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-8 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.02] active:scale-95"
@@ -799,7 +871,7 @@ export default function CompetitorAnalysis() {
             >
               Fetch {activeTab} Data
             </button>
-          )}
+          ))}
         </div>
       ) : (
         <>
@@ -823,7 +895,7 @@ export default function CompetitorAnalysis() {
             <TopPerformingContent 
               allPosts={postsFilteredByDate} 
               competitors={competitors}
-              isApify={analyzeMethod === 'apify'}
+              isApify={effectiveAnalyzeMethod === 'apify'}
             />
           </div>
 
@@ -831,7 +903,7 @@ export default function CompetitorAnalysis() {
           <TopVideosTable 
             allPosts={postsFilteredByDate} 
             competitors={competitors}
-            isApify={analyzeMethod === 'apify'}
+            isApify={effectiveAnalyzeMethod === 'apify'}
           />
         </>
       )}

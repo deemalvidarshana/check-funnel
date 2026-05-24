@@ -5,8 +5,26 @@ export const getAllUsers = async () => {
   return response.data;
 };
 
+export const getAssignableUsers = async () => {
+  try {
+    const response = await api.get('/user/assignees');
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      const response = await api.get('/user');
+      return response.data;
+    }
+    throw error;
+  }
+};
+
 export const getPendingUsers = async () => {
   const response = await api.get('/user/pending');
+  return response.data;
+};
+
+export const createUser = async (data) => {
+  const response = await api.post('/user', data);
   return response.data;
 };
 

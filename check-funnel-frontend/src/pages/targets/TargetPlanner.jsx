@@ -20,6 +20,7 @@ import {
   isClientActiveForPlatform,
   normalizeActiveChannels,
 } from "../../utils/targetMetrics";
+import { canManageFeature } from "../../utils/permissions";
 
 const PLATFORM_KEYS = ["facebook", "instagram", "tiktok"];
 const TARGET_VIEW_OPTIONS = [
@@ -685,6 +686,7 @@ export default function TargetPlanner() {
   const metricConfigs = useMemo(() => getMetricConfigs(activePlatform), [activePlatform]);
   const readyRows = useMemo(() => targetRows.filter((row) => row.status === "ready"), [targetRows]);
   const isViewingSavedTarget = Boolean(savedSnapshot?.rows?.length);
+  const canManageTargets = canManageFeature("targets");
   const isViewingSavedCompetitorTarget = Boolean(competitorSnapshot?.rows?.length);
   const hasDraftRows = targetRows.length > 0;
   const selectedTargetMonthLabel = getMonthLabelFromKey(selectedTargetMonth);
@@ -701,10 +703,12 @@ export default function TargetPlanner() {
     row.status === "ready" || row.status === "loading"
   );
   const competitorDisplayRows = isEditingCompetitorValues ? editedCompetitorRows : competitorRows;
-  const canEditSavedTarget = !isCompetitorTargetView
+  const canEditSavedTarget = canManageTargets
+    && !isCompetitorTargetView
     && isViewingSavedTarget
     && displayRows.some((row) => row.status === "ready");
-  const canEditCompetitorTarget = isCompetitorTargetView
+  const canEditCompetitorTarget = canManageTargets
+    && isCompetitorTargetView
     && competitorRows.some((row) => row.status === "ready")
     && !clientsLoading
     && !competitorSnapshotLoading;
@@ -1178,7 +1182,7 @@ export default function TargetPlanner() {
                 Back to Insights
               </Link>
             )}
-            {!isCompetitorTargetView && (
+            {canManageTargets && !isCompetitorTargetView && (
               <button
                 onClick={handleCreateTarget}
                 disabled={createTargetDisabled}
