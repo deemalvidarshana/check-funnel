@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   NotFoundException,
+  Post,
   Query,
   Res,
   ParseIntPipe,
@@ -15,6 +17,12 @@ import { TiktokService } from '../tiktok/tiktok.service';
 import { CompetitorService } from '../competitor/competitor.service';
 import { ApifyService } from '../apify/apify.service';
 import { CalendarService } from '../calendar/calendar.service';
+
+type PublicIgInsightRange = {
+  label: string;
+  since: string;
+  until: string;
+};
 
 @Controller('public-insights')
 export class PublicInsightsController {
@@ -107,6 +115,7 @@ export class PublicInsightsController {
   async getInstagramData(
     @Param('shareToken') shareToken: string,
     @Query('timeRange') timeRange: string,
+    @Query('until') until?: string,
   ) {
     const client = await this.clientService.findByShareToken(shareToken);
     if (!client.instagramAccountId || !client.instagramApiKey) {
@@ -118,7 +127,25 @@ export class PublicInsightsController {
       pageId: client.instagramAccountId,
       accessToken: client.instagramApiKey,
       timeRange,
-      until: undefined,
+      until,
+    });
+  }
+
+  @Post('instagram-range/:shareToken')
+  async getInstagramRangeData(
+    @Param('shareToken') shareToken: string,
+    @Body('ranges') ranges: PublicIgInsightRange[] = [],
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    if (!client.instagramAccountId || !client.instagramApiKey) {
+      throw new NotFoundException(
+        'Instagram insights not available for this client',
+      );
+    }
+    return this.instagramService.getRangeInsights({
+      pageId: client.instagramAccountId,
+      accessToken: client.instagramApiKey,
+      ranges,
     });
   }
 

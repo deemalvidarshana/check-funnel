@@ -16,9 +16,16 @@ export const getPublicFacebookInsights = async (shareToken, since, until) => {
   return response.data;
 };
 
-export const getPublicInstagramInsights = async (shareToken, timeRange) => {
+export const getPublicInstagramInsights = async (shareToken, timeRange, until) => {
   const response = await publicApi.get(`/public-insights/instagram/${shareToken}`, {
-    params: { timeRange }
+    params: { timeRange, until }
+  });
+  return response.data;
+};
+
+export const getPublicInstagramRangeInsights = async (shareToken, ranges) => {
+  const response = await publicApi.post(`/public-insights/instagram-range/${shareToken}`, {
+    ranges,
   });
   return response.data;
 };
