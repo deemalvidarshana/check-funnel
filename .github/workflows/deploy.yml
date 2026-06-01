@@ -130,6 +130,14 @@ jobs:
             IMAGE_TAG=${IMAGE_TAG} GITHUB_REPO=${GITHUB_REPO} \
               docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
+            echo "Restarting reverse proxy to refresh upstream container IPs..."
+            IMAGE_TAG=${IMAGE_TAG} GITHUB_REPO=${GITHUB_REPO} \
+              docker compose -f docker-compose.prod.yml restart nginx
+
+            echo "Container status:"
+            IMAGE_TAG=${IMAGE_TAG} GITHUB_REPO=${GITHUB_REPO} \
+              docker compose -f docker-compose.prod.yml ps
+
             echo "🧹 Cleaning old images..."
             docker image prune -f
 
