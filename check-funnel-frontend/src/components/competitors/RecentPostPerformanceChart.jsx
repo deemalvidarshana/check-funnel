@@ -29,9 +29,14 @@ function buildAreaPoints(data, width, height, maxValue) {
   return points.join(" ");
 }
 
-export default function RecentPostPerformanceChart({ data, selectedCompetitor, activeTab }) {
+export default function RecentPostPerformanceChart({ data, selectedCompetitor, activeTab, performanceMode }) {
   const platform = activeTab?.toLowerCase();
-  const isAudienceBased = platform === 'instagram' || platform === 'facebook';
+  const isAudienceBased = performanceMode
+    ? performanceMode === 'engagement'
+    : platform === 'instagram' || platform === 'facebook';
+  const headingSuffix = performanceMode === 'videoViews'
+    ? '(Based on Video Views)'
+    : isAudienceBased ? '(Based on Engagement)' : '(Based on Views)';
   const containerRef = useRef(null);
   const [chartWidth, setChartWidth] = useState(500);
   const [chartHeight, setChartHeight] = useState(160);
@@ -133,7 +138,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
       <div className="flex items-center justify-between mb-3">
         <div className="flex flex-col">
           <h2 className="text-lg font-bold text-[#191c1d]">
-            Recent Performance {isAudienceBased ? '(Based on Engagement)' : '(Based on Views)'}
+            Recent Performance {headingSuffix}
           </h2>
           <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">
             {isAll ? "Comparison: All Competitors" : currentGroup?.brand}

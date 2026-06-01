@@ -1,26 +1,43 @@
 import React, { useState } from 'react';
 
-export default function AverageViewsChart({ data, activeTab }) {
+export default function AverageViewsChart({ data, activeTab, performanceMode, enableVideoViewsMetric = false }) {
   const platform = activeTab?.toLowerCase();
   const isAudienceBased = platform === 'instagram' || platform === 'facebook';
-
-  const metrics = [
-    { 
-      key: isAudienceBased ? 'engagement' : 'views', 
-      label: isAudienceBased ? 'Average Engagement per Post' : 'Average Views per Post' 
-    },
+  const isVideoViewsMode = performanceMode === 'videoViews';
+  const isEngagementMode = performanceMode === 'engagement';
+  const primaryPerformanceMetric = isVideoViewsMode
+    ? { key: 'videoViews', label: 'Average Views per Video' }
+    : isEngagementMode
+      ? { key: 'engagement', label: 'Average Engagement per Post' }
+      : { key: 'views', label: 'Average Views per Post' };
+  const alternatePerformanceMetric = isVideoViewsMode
+    ? { key: 'engagement', label: 'Average Engagement per Post' }
+    : { key: 'videoViews', label: 'Average Views per Video' };
+  const supportingMetrics = [
     { key: 'followers', label: 'Audience Size (Followers)' },
     { key: 'likes', label: 'Average Likes per Post' },
     { key: 'comments', label: 'Average Comments per Post' },
     { key: 'shares', label: 'Average Shares per Post' },
-    { key: 'saves', label: 'Average Saves per Post' }
-  ].filter(m => !(isAudienceBased && m.key === 'saves'));
+    ...(!isAudienceBased ? [{ key: 'saves', label: 'Average Saves per Post' }] : []),
+  ];
+
+  const metrics = isAudienceBased || isEngagementMode || isVideoViewsMode
+    ? [
+        primaryPerformanceMetric,
+        ...(enableVideoViewsMetric ? [alternatePerformanceMetric] : []),
+        ...supportingMetrics,
+      ]
+    : [
+        primaryPerformanceMetric,
+        ...supportingMetrics,
+      ];
 
   const [metricIndex, setMetricIndex] = useState(0);
-  const currentMetric = metrics[metricIndex];
+  const safeMetricIndex = Math.min(metricIndex, metrics.length - 1);
+  const currentMetric = metrics[safeMetricIndex] || metrics[0];
 
   const handlePrev = () => setMetricIndex(i => (i === 0 ? metrics.length - 1 : i - 1));
-  const handleNext = () => setMetricIndex(i => (i === metrics.length - 1 ? 0 : i + 1));
+  const handleNext = () => setMetricIndex(i => (i >= metrics.length - 1 ? 0 : i + 1));
 
   const sortedData = [...data].sort((a, b) => b[currentMetric.key] - a[currentMetric.key]);
   const maxValue = Math.max(...sortedData.map(d => d[currentMetric.key] || 0), 0) || 1;

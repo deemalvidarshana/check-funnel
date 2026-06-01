@@ -8,19 +8,29 @@ const accountKeyFromSummary = (summaryItem) => String(
   ''
 );
 
-export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, activeTab }) {
+export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, activeTab, performanceMode }) {
   const platform = activeTab?.toLowerCase();
-  const isAudienceBased = platform === 'instagram' || platform === 'facebook';
+  const isAudienceBased = performanceMode
+    ? performanceMode === 'engagement'
+    : platform === 'instagram' || platform === 'facebook';
+  const isVideoViewsMode = performanceMode === 'videoViews';
+  const metricKey = isVideoViewsMode ? 'videoViews' : isAudienceBased ? 'engagement' : 'views';
+  const chartTitle = isVideoViewsMode
+    ? 'Followers vs Avg Video Views'
+    : isAudienceBased ? 'Followers vs Avg Engagement' : 'Followers vs Avg Views';
+  const axisTitle = isVideoViewsMode
+    ? 'Avg Video Views'
+    : isAudienceBased ? 'Avg Engagement' : 'Avg Views';
 
   // Process data for the scatter plot
   const plotData = data.map((s, index) => {
     const tp = Number(s.totalPosts) || 0;
-    let avgValue = 0;
+    let avgValue = Number(s[metricKey]) || 0;
     
-    if (isAudienceBased) {
+    if (!avgValue && isAudienceBased) {
       const totalEng = (Number(s.totalLikes) || 0) + (Number(s.totalComments) || 0) + (Number(s.totalShares) || 0);
       avgValue = tp > 0 ? Math.round(totalEng / tp) : 0;
-    } else {
+    } else if (!avgValue) {
       avgValue = tp > 0 ? Math.round(Number(s.totalViews) / tp) : 0;
     }
     
@@ -37,7 +47,7 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
     }
 
     return {
-      brand: s.displayName || s.username,
+      brand: s.brand || s.displayName || s.username || 'Unknown',
       avgValue,
       followers,
       isMain
@@ -66,14 +76,14 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
   return (
     <div className="bg-white rounded-3xl border border-[#c2c6d3]/30 p-6 shadow-sm flex flex-col h-full min-h-[400px] relative">
       <h2 className="text-lg font-bold text-[#191c1d] mb-6">
-        {isAudienceBased ? 'Followers vs Avg Engagement' : 'Followers vs Avg Views'}
+        {chartTitle}
       </h2>
       
       <div className="flex-1 flex mt-4 -ml-4 -mb-4 pr-4 sm:pr-8">
         {/* Y-axis Title */}
         <div className="flex items-center justify-center w-6 shrink-0 mr-2">
           <span className="text-[10px] font-bold uppercase text-[#727782] tracking-wider whitespace-nowrap -rotate-90 transform">
-            {isAudienceBased ? 'Avg Engagement' : 'Avg Views'}
+            {axisTitle}
           </span>
         </div>
 
@@ -123,7 +133,7 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
               const leftPct = (point.followers / xMax) * 100;
               const bottomPct = (point.avgValue / yMax) * 100;
               
-              let shortName = point.brand;
+              let shortName = point.brand || 'Unknown';
               if (shortName.length > 12) {
                 shortName = shortName.substring(0, 10) + '..';
               }

@@ -49,14 +49,17 @@ const icons = {
 export default function MetricCards({ data, showProgress = true }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-      {data.map((card, index) => (
-        <div key={index} className="bg-white rounded-2xl border border-[#c2c6d3]/30 p-5 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
+      {data.map((card, index) => {
+        const hasToggle = card.onPrev && card.onNext;
+
+        return (
+        <div key={index} className="relative bg-white rounded-2xl border border-[#c2c6d3]/30 p-5 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 rounded-full bg-[#f0f5ff] text-[#2563eb] flex items-center justify-center shrink-0">
               {icons[card.icon]}
             </div>
-            <div>
-              <p className="text-[13px] font-bold text-[#727782] mb-0.5">{card.title}</p>
+            <div className={`min-w-0 flex-1 ${hasToggle ? 'pr-12' : ''}`}>
+              <p className="text-[13px] font-bold text-[#727782] mb-0.5 truncate" title={card.title}>{card.title}</p>
               <h3 className="text-2xl font-black text-[#191c1d] tracking-tight">
                 {String(card.value).split(' ')[0]}
                 {String(card.value).includes(' ') && (
@@ -66,6 +69,32 @@ export default function MetricCards({ data, showProgress = true }) {
                 )}
               </h3>
             </div>
+            {hasToggle && (
+              <div className="absolute right-4 top-3 flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={card.onPrev}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]"
+                  title={card.toggleLabel || 'Switch metric'}
+                  aria-label={card.toggleLabel || 'Switch metric'}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={card.onNext}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]"
+                  title={card.toggleLabel || 'Switch metric'}
+                  aria-label={card.toggleLabel || 'Switch metric'}
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
           
           <div className="mt-auto">
@@ -96,7 +125,8 @@ export default function MetricCards({ data, showProgress = true }) {
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

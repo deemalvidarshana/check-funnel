@@ -1,8 +1,8 @@
 import React from 'react';
 
-export default function CompetitiveBenchmarkTable({ data, activeTab }) {
-  const platform = activeTab?.toLowerCase();
-  const isAudienceBased = platform === 'instagram' || platform === 'facebook';
+export default function CompetitiveBenchmarkTable({ data, performanceMode }) {
+  const isVideoViewsMode = performanceMode === 'videoViews';
+  const isEngagementMode = performanceMode === 'engagement';
 
   return (
     <div className="bg-white rounded-3xl border border-[#c2c6d3]/30 p-6 shadow-sm overflow-hidden flex flex-col h-full">
@@ -15,10 +15,10 @@ export default function CompetitiveBenchmarkTable({ data, activeTab }) {
               <th className="pb-3 px-2 font-semibold">Brand</th>
               <th className="pb-3 px-2 font-semibold">Followers</th>
               <th className="pb-3 px-2 font-semibold">
-                {isAudienceBased ? 'Avg Eng./Post' : 'Avg Views/Post'}
+                {isVideoViewsMode ? 'Avg Views/Video' : isEngagementMode ? 'Avg Eng./Post' : 'Avg Views/Post'}
               </th>
               <th className="pb-3 px-2 font-semibold">
-                {isAudienceBased ? 'Top Post Eng.' : 'Top Post Views'}
+                {isVideoViewsMode ? 'Top Video Views' : isEngagementMode ? 'Top Post Eng.' : 'Top Post Views'}
               </th>
               <th className="pb-3 px-2 font-semibold text-center">Posts/Month</th>
               <th className="pb-3 px-2 font-semibold text-center">Rank</th>

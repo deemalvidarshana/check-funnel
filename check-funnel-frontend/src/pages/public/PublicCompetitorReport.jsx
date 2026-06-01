@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import MetricCards from '../../components/competitors/MetricCards';
 import AverageViewsChart from '../../components/competitors/AverageViewsChart';
@@ -8,6 +8,13 @@ import TopPerformingContent from '../../components/competitors/TopPerformingCont
 import TopVideosTable from '../../components/competitors/TopVideosTable';
 import FollowersVsAvgViewsChart from '../../components/competitors/FollowersVsAvgViewsChart';
 import { getPublicClientInfo, getPublicCompetitorSummary, getPublicCompetitorPosts } from '../../api/publicInsights';
+import {
+  averageMetricValue,
+  canUseApifyVideoViewsMetric,
+  postMetricValue,
+  postsForMetric,
+  topMetricValue,
+} from '../../utils/apifyVideoMetrics';
 
 // ─── Helper: format numbers ─────────────────────────────
 function fmt(n) {
@@ -50,12 +57,21 @@ export default function PublicCompetitorReport() {
   const [selectedCompetitor, setSelectedCompetitor] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [audienceMetricMode, setAudienceMetricMode] = useState('engagement');
 
   const [dateRange, setDateRange] = useState('all');
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
   const [isCompetitorDropdownOpen, setIsCompetitorDropdownOpen] = useState(false);
 
   const platformKey = activeTab.toLowerCase().replace(' ', '');
+  const effectiveAnalyzeMethod = queryMethod === 'apify' ? 'apify' : 'upload';
+  const canUseVideoViewsMetric = canUseApifyVideoViewsMetric(platformKey, effectiveAnalyzeMethod);
+  const activePerformanceMode = canUseVideoViewsMetric
+    ? audienceMetricMode
+    : (platformKey === 'instagram' || platformKey === 'facebook') ? 'engagement' : 'views';
+  const toggleAudienceMetricMode = useCallback(() => {
+    setAudienceMetricMode(mode => (mode === 'engagement' ? 'videoViews' : 'engagement'));
+  }, []);
 
   // Load client info
   useEffect(() => {
@@ -70,6 +86,12 @@ export default function PublicCompetitorReport() {
     }
     if (shareToken) loadClient();
   }, [shareToken]);
+
+  useEffect(() => {
+    if (!canUseVideoViewsMetric) {
+      setAudienceMetricMode('engagement');
+    }
+  }, [canUseVideoViewsMetric]);
 
   // Fetch data when platform changes
   useEffect(() => {
@@ -182,26 +204,15 @@ export default function PublicCompetitorReport() {
   }, [postsFilteredByDate, summary]);
 
   const metricCardsData = useMemo(() => {
-    const platform = activeTab?.toLowerCase();
-    const isAudienceBased = platform === 'instagram' || platform === 'facebook';
-    
-    const totalPosts = selectedSummary.totalPosts || 1;
-    const avgViews = Math.round(selectedSummary.totalViews / totalPosts);
-    const avgLikes = Math.round(selectedSummary.totalLikes / totalPosts);
-    const topViews = filteredPosts.length > 0
-      ? filteredPosts.reduce((max, p) => { const v = p.views || 0; return v > max ? v : max; }, 0)
-      : 0;
+    const metricMode = activePerformanceMode;
+    const metricPosts = postsForMetric(filteredPosts, metricMode);
+    const avgMetricValue = averageMetricValue(filteredPosts, metricMode);
+    const topMetric = topMetricValue(filteredPosts, metricMode);
 
     const ranked = filteredCompetitorSummaries
       .map(s => {
-        const tp = Number(s.totalPosts) || 0;
-        let score = 0;
-        if (isAudienceBased) {
-          const totalEng = (Number(s.totalLikes) || 0) + (Number(s.totalComments) || 0) + (Number(s.totalShares) || 0);
-          score = tp > 0 ? totalEng / tp : 0;
-        } else {
-          score = tp > 0 ? Number(s.totalViews) / tp : 0;
-        }
+        const accountPosts = postsFilteredByDate.filter(p => accountKeyFromPost(p) === s.accountKey);
+        const score = averageMetricValue(accountPosts, metricMode);
         return { accountKey: s.accountKey, score };
       })
       .sort((a, b) => b.score - a.score);
@@ -212,46 +223,54 @@ export default function PublicCompetitorReport() {
       rank = idx >= 0 ? idx + 1 : totalCompetitors;
     }
 
-    const avgLabel = isAudienceBased ? "Avg Eng./Post" : "Avg Views/Post";
-    const topLabel = isAudienceBased ? "Top Post Eng." : "Top Post Views";
-    const metricIcon = isAudienceBased ? "message" : "play";
-
-    let avgMetricValue = avgViews;
-    let topMetricValue = topViews;
-
-    if (isAudienceBased) {
-      const totalEng = (Number(selectedSummary.totalLikes) || 0) + (Number(selectedSummary.totalComments) || 0) + (Number(selectedSummary.totalShares) || 0);
-      const tp = Number(selectedSummary.totalPosts) || 0;
-      avgMetricValue = tp > 0 ? Math.round(totalEng / tp) : 0;
-      topMetricValue = filteredPosts.length > 0 
-        ? filteredPosts.reduce((max, p) => {
-            const eng = (p.likes || 0) + (p.commentsCount || 0) + (p.shares || 0);
-            return eng > max ? eng : max;
-          }, 0)
-        : 0;
-    }
+    const isVideoViewsMode = metricMode === 'videoViews';
+    const isEngagementMode = metricMode === 'engagement';
+    const totalContentLabel = isVideoViewsMode ? "Total Videos" : "Total Posts";
+    const totalContentCount = metricPosts.length;
+    const avgLabel = isVideoViewsMode ? "Avg Views/Video" : isEngagementMode ? "Avg Eng./Post" : "Avg Views/Post";
+    const topLabel = isVideoViewsMode ? "Top Video Views" : isEngagementMode ? "Top Post Eng." : "Top Post Views";
+    const metricIcon = isEngagementMode ? "message" : "play";
+    const metricToggle = canUseVideoViewsMetric ? {
+      onPrev: toggleAudienceMetricMode,
+      onNext: toggleAudienceMetricMode,
+      toggleLabel: isVideoViewsMode ? 'Show average engagement' : 'Show average video views',
+    } : {};
 
     return [
       { title: "Followers", value: fmt(selectedSummary.followerCount), icon: "users", progress: (selectedSummary.followerCount / 3500) * 100, change: "12%", isPositive: true },
-      { title: "Total Posts", value: fmt(selectedSummary.totalPosts), icon: "video", progress: (selectedSummary.totalPosts / 50) * 100, change: "8%", isPositive: true },
-      { title: avgLabel, value: fmt(avgMetricValue), icon: metricIcon, progress: (avgMetricValue / 3500) * 100, change: "15%", isPositive: true },
-      { title: topLabel, value: fmt(topMetricValue), icon: "flame", progress: (topMetricValue / 15000) * 100, change: "5%", isPositive: false },
+      { title: totalContentLabel, value: fmt(totalContentCount), icon: "video", progress: (totalContentCount / 50) * 100, change: "8%", isPositive: true },
+      { title: avgLabel, value: fmt(avgMetricValue), icon: metricIcon, progress: (avgMetricValue / 3500) * 100, change: "15%", isPositive: true, ...metricToggle },
+      { title: topLabel, value: fmt(topMetric), icon: "flame", progress: (topMetric / 15000) * 100, change: "5%", isPositive: false },
       { title: "Competitive Rank", value: selectedCompetitor === 'all' ? `${totalCompetitors} tracked` : `${ordinal(rank)} / ${totalCompetitors}`, icon: "trophy", progress: ((totalCompetitors - rank + 1) / totalCompetitors) * 100, change: "0", isPositive: rank <= 3 }
     ];
-  }, [selectedSummary, filteredPosts, filteredCompetitorSummaries, selectedCompetitor, activeTab]);
+  }, [
+    activePerformanceMode,
+    canUseVideoViewsMetric,
+    filteredCompetitorSummaries,
+    filteredPosts,
+    postsFilteredByDate,
+    selectedCompetitor,
+    selectedSummary,
+    toggleAudienceMetricMode,
+  ]);
 
   const multiMetricData = useMemo(() => {
     return filteredCompetitorSummaries.map((s) => {
       const tp = s.totalPosts || 1;
       const accountPosts = posts.filter(p => accountKeyFromPost(p) === s.accountKey);
+      const accountDatePosts = postsFilteredByDate.filter(p => accountKeyFromPost(p) === s.accountKey);
       const totalSaves = accountPosts.reduce((acc, p) => acc + (Number(p.rawExtensionData?.saves) || 0), 0);
       const totalEng = (Number(s.totalLikes) || 0) + (Number(s.totalComments) || 0) + (Number(s.totalShares) || 0);
       
       return {
+        accountKey: s.accountKey,
+        username: s.username,
+        displayName: s.displayName,
         brand: s.displayName || s.username,
         isMain: s.accountKey === selectedCompetitor,
         views: tp > 0 ? Math.round(Number(s.totalViews) / tp) : 0,
         engagement: tp > 0 ? Math.round(totalEng / tp) : 0,
+        videoViews: averageMetricValue(accountDatePosts, 'videoViews'),
         followers: Number(s.followerCount) || 0,
         likes: tp > 0 ? Math.round(Number(s.totalLikes) / tp) : 0,
         comments: tp > 0 ? Math.round(Number(s.totalComments) / tp) : 0,
@@ -259,17 +278,14 @@ export default function PublicCompetitorReport() {
         saves: tp > 0 ? Math.round(totalSaves / tp) : 0,
       };
     });
-  }, [posts, selectedCompetitor, filteredCompetitorSummaries]);
+  }, [posts, postsFilteredByDate, selectedCompetitor, filteredCompetitorSummaries]);
 
   const recentPostPerformanceData = useMemo(() => {
     return summary.map(s => {
       const accountKey = accountKeyFromSummary(s);
-      const brandPosts = postsFilteredByDate
+      const brandPosts = postsForMetric(postsFilteredByDate, activePerformanceMode)
         .filter(p => accountKeyFromPost(p) === accountKey && p.createdAt)
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-
-      const platform = activeTab?.toLowerCase();
-      const isAudienceBased = platform === 'instagram' || platform === 'facebook';
 
       return {
         accountKey,
@@ -280,48 +296,32 @@ export default function PublicCompetitorReport() {
           const totalEng = (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0);
           return {
             date: new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            value: isAudienceBased ? totalEng : (Number(p.views) || 0),
+            value: activePerformanceMode === 'engagement' ? totalEng : postMetricValue(p, activePerformanceMode),
           };
         })
       };
     }).filter(group => group.data.length > 0);
-  }, [summary, postsFilteredByDate, selectedCompetitor, activeTab]);
+  }, [summary, postsFilteredByDate, selectedCompetitor, activePerformanceMode]);
 
   const competitiveBenchmarkData = useMemo(() => {
     return summary
       .map(s => {
         const accountKey = accountKeyFromSummary(s);
-        const platform = activeTab?.toLowerCase();
-        const isAudienceBased = platform === 'instagram' || platform === 'facebook';
-        
-        const accountPosts = postsFilteredByDate.filter(p => accountKeyFromPost(p) === accountKey);
+        const accountPosts = postsForMetric(
+          postsFilteredByDate.filter(p => accountKeyFromPost(p) === accountKey),
+          activePerformanceMode
+        );
         const tp = accountPosts.length;
 
-        let avgValue = 0;
-        let topValue = 0;
-
-        if (isAudienceBased) {
-          const totalEng = accountPosts.reduce((sum, p) => sum + (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0), 0);
-          avgValue = tp > 0 ? Math.round(totalEng / tp) : 0;
-          topValue = accountPosts.length > 0 ? accountPosts.reduce((max, p) => {
-            const eng = (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0);
-            return eng > max ? eng : max;
-          }, 0) : 0;
-        } else {
-          const totalViews = accountPosts.reduce((sum, p) => sum + (Number(p.views) || 0), 0);
-          avgValue = tp > 0 ? Math.round(totalViews / tp) : 0;
-          topValue = accountPosts.length > 0 ? accountPosts.reduce((max, p) => {
-            const v = Number(p.views) || 0;
-            return v > max ? v : max;
-          }, 0) : 0;
-        }
+        const avgValue = averageMetricValue(accountPosts, activePerformanceMode);
+        const topValue = topMetricValue(accountPosts, activePerformanceMode);
 
         return {
           brand: s.displayName || s.username,
           followers: Number(s.followerCount) > 0 ? fmt(s.followerCount) : '-',
           avgValue: fmt(avgValue),
           topValue: fmt(topValue),
-          postsPerMonth: tp > 0 ? `${tp} posts` : '0',
+          postsPerMonth: tp > 0 ? `${tp} ${activePerformanceMode === 'videoViews' ? 'videos' : 'posts'}` : '0',
           rank: '',
           isMain: accountKey === selectedCompetitor,
           _sortValue: avgValue,
@@ -329,7 +329,7 @@ export default function PublicCompetitorReport() {
       })
       .sort((a, b) => b._sortValue - a._sortValue)
       .map((row, idx) => ({ ...row, rank: ordinal(idx + 1) }));
-  }, [summary, postsFilteredByDate, selectedCompetitor, activeTab]);
+  }, [summary, postsFilteredByDate, selectedCompetitor, activePerformanceMode]);
 
   const selectedCompetitorLabel = useMemo(() => {
     if (selectedCompetitor === 'all') return 'All Competitors';
@@ -481,12 +481,31 @@ export default function PublicCompetitorReport() {
           <div className="space-y-6">
             <MetricCards data={metricCardsData} showProgress={false} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <AverageViewsChart data={multiMetricData} activeTab={activeTab} />
-              <RecentPostPerformanceChart data={recentPostPerformanceData} selectedCompetitor={selectedCompetitor} activeTab={activeTab} />
+              <AverageViewsChart
+                data={multiMetricData}
+                activeTab={activeTab}
+                performanceMode={activePerformanceMode}
+                enableVideoViewsMetric={canUseVideoViewsMetric}
+              />
+              <RecentPostPerformanceChart
+                data={recentPostPerformanceData}
+                selectedCompetitor={selectedCompetitor}
+                activeTab={activeTab}
+                performanceMode={activePerformanceMode}
+              />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <CompetitiveBenchmarkTable data={competitiveBenchmarkData} activeTab={activeTab} />
-              <FollowersVsAvgViewsChart data={summary} selectedCompetitor={selectedCompetitor} activeTab={activeTab} />
+              <CompetitiveBenchmarkTable
+                data={competitiveBenchmarkData}
+                activeTab={activeTab}
+                performanceMode={activePerformanceMode}
+              />
+              <FollowersVsAvgViewsChart
+                data={multiMetricData}
+                selectedCompetitor={selectedCompetitor}
+                activeTab={activeTab}
+                performanceMode={activePerformanceMode}
+              />
             </div>
             <TopPerformingContent allPosts={postsFilteredByDate} competitors={competitors} />
             <TopVideosTable allPosts={postsFilteredByDate} competitors={competitors} />

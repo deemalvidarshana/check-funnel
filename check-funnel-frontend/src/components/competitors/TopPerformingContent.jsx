@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import PostDetailsModal from './PostDetailsModal';
-import api from '../../api';
+import { engagementValue, isVideoPost, viewValue } from '../../utils/apifyVideoMetrics';
 
 const cleanFbUrl = (url) => {
   if (!url) return '#';
@@ -51,6 +51,7 @@ function TopContentCard({ data, onInfoClick }) {
   const showFallback = !imgSrc || imgError;
 
   const isVideo = React.useMemo(() => {
+    if (data.isVideoContent || data.metricMode === 'videoViews') return true;
     if (data.platform?.toLowerCase() === 'tiktok') return true;
     const url = data.postUrl || '';
     if (url.includes('/reel/') || url.includes('/tv/') || url.includes('/video/') || url.includes('/watch') || url.includes('/videos/')) return true;
@@ -126,7 +127,7 @@ function TopContentCard({ data, onInfoClick }) {
         </h3>
         
         <div className="flex items-center gap-3 text-[#727782]">
-          {(data.platform?.toLowerCase() === 'instagram' || data.platform?.toLowerCase() === 'facebook') ? (
+          {data.metricMode !== 'videoViews' ? (
             <div className="flex items-center gap-1">
               <svg className="w-[14px] h-[14px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -186,14 +187,19 @@ const accountKeyFromCompetitor = (competitor) => String(
 const competitorLabel = (competitor) => competitor?.displayName || competitor?.username || 'Unknown';
 
 export default function TopPerformingContent({ allPosts, competitors, isApify }) {
-  const pf = allPosts[0]?.platform?.toLowerCase();
+  const pf = allPosts?.[0]?.platform?.toLowerCase();
   const isAudienceBased = pf === 'instagram' || pf === 'facebook';
+  const canSwitchMetric = isAudienceBased;
   const [selectedBrand, setSelectedBrand] = useState('all');
+  const [selectedMetric, setSelectedMetric] = useState('engagement');
   const [isOpen, setIsOpen] = useState(false);
+  const [isMetricOpen, setIsMetricOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPostId, setSelectedPostId] = useState(null);
-  const dropdownRef = React.useRef(null);
+  const dropdownRef = useRef(null);
+  const metricDropdownRef = useRef(null);
   const itemsPerPage = 10;
+  const activeMetric = canSwitchMetric ? selectedMetric : 'videoViews';
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -201,15 +207,18 @@ export default function TopPerformingContent({ allPosts, competitors, isApify })
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
       }
+      if (metricDropdownRef.current && !metricDropdownRef.current.contains(event.target)) {
+        setIsMetricOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reset page when brand changes
+  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBrand]);
+  }, [selectedBrand, activeMetric]);
 
   const allRankedPosts = React.useMemo(() => {
     if (!allPosts || allPosts.length === 0) return [];
@@ -219,20 +228,14 @@ export default function TopPerformingContent({ allPosts, competitors, isApify })
       filtered = allPosts.filter(p => accountKeyFromPost(p) === selectedBrand);
     }
 
-    return [...filtered]
-      .sort((a, b) => {
-        const platA = a.platform?.toLowerCase();
-        const platB = b.platform?.toLowerCase();
-        const isAudienceA = platA === 'instagram' || platA === 'facebook';
-        const isAudienceB = platB === 'instagram' || platB === 'facebook';
+    const metricPosts = activeMetric === 'videoViews'
+      ? filtered.filter(isVideoPost)
+      : filtered;
 
-        const scoreA = isAudienceA 
-          ? (Number(a.likes) || 0) + (Number(a.commentsCount) || 0) + (Number(a.shares) || 0)
-          : (Number(a.views) || 0);
-          
-        const scoreB = isAudienceB 
-          ? (Number(b.likes) || 0) + (Number(b.commentsCount) || 0) + (Number(b.shares) || 0)
-          : (Number(b.views) || 0);
+    return [...metricPosts]
+      .sort((a, b) => {
+        const scoreA = activeMetric === 'engagement' ? engagementValue(a) : viewValue(a);
+        const scoreB = activeMetric === 'engagement' ? engagementValue(b) : viewValue(b);
           
         return scoreB - scoreA;
       })
@@ -243,16 +246,18 @@ export default function TopPerformingContent({ allPosts, competitors, isApify })
           title: caption.substring(0, 50) + (caption.length > 50 ? '...' : ''),
           brand: post.trackedAccount?.displayName || post.trackedAccount?.username || 'Unknown',
           platform: post.platform,
-          views: fmt(post.views),
+          views: fmt(viewValue(post)),
           likes: fmt(post.likes),
           comments: fmt(post.commentsCount),
           shares: fmt(post.shares),
           postUrl: post.postUrl,
           imageUrl: post.imageUrl,
           rawExtensionData: post.rawExtensionData,
+          metricMode: activeMetric,
+          isVideoContent: activeMetric === 'videoViews' || isVideoPost(post),
         };
       });
-  }, [allPosts, selectedBrand]);
+  }, [allPosts, selectedBrand, activeMetric]);
 
   const totalPages = Math.ceil(allRankedPosts.length / itemsPerPage);
   const visiblePosts = allRankedPosts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -263,58 +268,108 @@ export default function TopPerformingContent({ allPosts, competitors, isApify })
   const currentSelection = selectedBrand === 'all' 
     ? 'All Competitors' 
     : competitorLabel(selectedCompetitor);
+  const metricSelection = activeMetric === 'engagement' ? 'Engagement' : 'Video';
+  const titleMetric = activeMetric === 'engagement'
+    ? 'Engagement Content'
+    : (isAudienceBased ? 'Video Content' : 'Performing Content');
 
   return (
     <div className="bg-white rounded-3xl border border-[#c2c6d3]/30 p-6 shadow-sm flex flex-col w-full">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <h2 className="text-lg font-bold text-[#191c1d]">Top {isAudienceBased ? 'Engagement Content' : 'Performing Content'}</h2>
+        <h2 className="text-lg font-bold text-[#191c1d]">Top {titleMetric}</h2>
         
-        {/* Custom Stylized Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex h-10 items-center gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] shadow-sm"
-          >
-            <span className="text-sm">{currentSelection}</span>
-            <svg 
-              width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" 
-              className={`text-[#727782] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-
-          {isOpen && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {canSwitchMetric && (
+            <div className="relative" ref={metricDropdownRef}>
               <button
-                onClick={() => {
-                  setSelectedBrand('all');
-                  setIsOpen(false);
-                }}
-                className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
-                  selectedBrand === 'all' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
-                }`}
+                onClick={() => setIsMetricOpen(!isMetricOpen)}
+                className="flex h-10 items-center gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] shadow-sm"
               >
-                All Competitors
+                <span className="text-sm">{metricSelection}</span>
+                <svg
+                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+                  className={`text-[#727782] transition-transform duration-200 ${isMetricOpen ? "rotate-180" : ""}`}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
               </button>
-              <div className="max-h-60 overflow-y-auto no-scrollbar border-t border-slate-50">
-                {competitors?.map((c) => (
+
+              {isMetricOpen && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
                   <button
-                    key={accountKeyFromCompetitor(c)}
                     onClick={() => {
-                      setSelectedBrand(accountKeyFromCompetitor(c));
-                      setIsOpen(false);
+                      setSelectedMetric('engagement');
+                      setIsMetricOpen(false);
                     }}
                     className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
-                      selectedBrand === accountKeyFromCompetitor(c) ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                      selectedMetric === 'engagement' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
                     }`}
                   >
-                    {competitorLabel(c)}
+                    Engagement
                   </button>
-                ))}
-              </div>
+                  <button
+                    onClick={() => {
+                      setSelectedMetric('videoViews');
+                      setIsMetricOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                      selectedMetric === 'videoViews' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                    }`}
+                  >
+                    Video
+                  </button>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Custom Stylized Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex h-10 items-center gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] shadow-sm"
+            >
+              <span className="text-sm">{currentSelection}</span>
+              <svg 
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" 
+                className={`text-[#727782] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {isOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
+                <button
+                  onClick={() => {
+                    setSelectedBrand('all');
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                    selectedBrand === 'all' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                  }`}
+                >
+                  All Competitors
+                </button>
+                <div className="max-h-60 overflow-y-auto no-scrollbar border-t border-slate-50">
+                  {competitors?.map((c) => (
+                    <button
+                      key={accountKeyFromCompetitor(c)}
+                      onClick={() => {
+                        setSelectedBrand(accountKeyFromCompetitor(c));
+                        setIsOpen(false);
+                      }}
+                      className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                        selectedBrand === accountKeyFromCompetitor(c) ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                      }`}
+                    >
+                      {competitorLabel(c)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       
@@ -369,7 +424,7 @@ export default function TopPerformingContent({ allPosts, competitors, isApify })
         </>
       ) : (
         <div className="flex flex-col items-center justify-center py-10 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-           <p className="text-sm font-medium text-slate-500">No content found for this selection</p>
+           <p className="text-sm font-medium text-slate-500">No {activeMetric === 'videoViews' ? 'video content' : 'content'} found for this selection</p>
         </div>
       )}
 

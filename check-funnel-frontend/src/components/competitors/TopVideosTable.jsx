@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import PostDetailsModal from './PostDetailsModal';
+import { engagementValue, isVideoPost, viewValue } from '../../utils/apifyVideoMetrics';
 
 const fmt = (num) => {
   if (!num || isNaN(num)) return '0';
@@ -28,11 +29,19 @@ const competitorLabel = (competitor) => competitor?.displayName || competitor?.u
 
 export default function TopVideosTable({ allPosts, competitors, isApify }) {
   const [selectedBrand, setSelectedBrand] = useState('all');
+  const [selectedMetric, setSelectedMetric] = useState('engagement');
   const [isOpen, setIsOpen] = useState(false);
+  const [isMetricOpen, setIsMetricOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPostId, setSelectedPostId] = useState(null);
   const dropdownRef = useRef(null);
+  const metricDropdownRef = useRef(null);
   const itemsPerPage = 10;
+  const pf = allPosts?.[0]?.platform?.toLowerCase();
+  const isAudienceBased = pf === 'instagram' || pf === 'facebook';
+  const canSwitchMetric = isAudienceBased;
+  const activeMetric = canSwitchMetric ? selectedMetric : 'videoViews';
+  const showVideoColumns = activeMetric === 'videoViews';
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -40,15 +49,18 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
       }
+      if (metricDropdownRef.current && !metricDropdownRef.current.contains(event.target)) {
+        setIsMetricOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reset page when brand changes
+  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBrand]);
+  }, [selectedBrand, activeMetric]);
 
   const allRankedData = useMemo(() => {
     if (!allPosts || allPosts.length === 0) return [];
@@ -58,20 +70,14 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
       filtered = allPosts.filter(p => accountKeyFromPost(p) === selectedBrand);
     }
 
-    return [...filtered]
-      .sort((a, b) => {
-        const platA = a.platform?.toLowerCase();
-        const platB = b.platform?.toLowerCase();
-        const isAudienceA = platA === 'instagram' || platA === 'facebook';
-        const isAudienceB = platB === 'instagram' || platB === 'facebook';
+    const metricPosts = activeMetric === 'videoViews'
+      ? filtered.filter(isVideoPost)
+      : filtered;
 
-        const scoreA = isAudienceA 
-          ? (Number(a.likes) || 0) + (Number(a.commentsCount) || 0) + (Number(a.shares) || 0)
-          : (Number(a.views) || 0);
-          
-        const scoreB = isAudienceB 
-          ? (Number(b.likes) || 0) + (Number(b.commentsCount) || 0) + (Number(b.shares) || 0)
-          : (Number(b.views) || 0);
+    return [...metricPosts]
+      .sort((a, b) => {
+        const scoreA = activeMetric === 'engagement' ? engagementValue(a) : viewValue(a);
+        const scoreB = activeMetric === 'engagement' ? engagementValue(b) : viewValue(b);
           
         return scoreB - scoreA;
       })
@@ -83,14 +89,14 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
         const shares = Number(p.shares) || 0;
         const totalEng = likes + comments + shares;
         
-        // Dynamic Engagement Rate Calculation
         const pform = p.platform?.toLowerCase();
         const isInstagram = pform === 'instagram';
         const isFacebook = pform === 'facebook';
         const isAudienceBased = isInstagram || isFacebook;
+        const views = viewValue(p);
         let engRate = 'N/A';
         
-        if (isAudienceBased) {
+        if (activeMetric === 'engagement' && isAudienceBased) {
           const postAccountKey = accountKeyFromPost(p);
           const postUsername = (p.trackedAccount?.username || p.rawExtensionData?.username || '').toLowerCase().trim();
           const comp = competitors?.find(c => accountKeyFromCompetitor(c) === postAccountKey || (c.username || '').toLowerCase().trim() === postUsername);
@@ -112,7 +118,6 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
             engRate = '0%';
           }
         } else {
-          const views = Number(p.views) || 0;
           const totalEngagement = Number(totalEng) || 0;
           engRate = views > 0 ? ((totalEngagement / views) * 100).toFixed(2) + '%' : 'N/A';
         }
@@ -122,7 +127,7 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
           rank: idx + 1,
           brand: name,
           brandInitial: name.charAt(0).toUpperCase(),
-          views: fmt(p.views),
+          views: fmt(views),
           likes: fmt(p.likes),
           comments: fmt(p.commentsCount),
           shares: fmt(p.shares),
@@ -133,7 +138,7 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
           caption: caption,
         };
       });
-  }, [allPosts, selectedBrand, competitors]);
+  }, [allPosts, selectedBrand, competitors, activeMetric]);
 
   const totalPages = Math.ceil(allRankedData.length / itemsPerPage);
   const tableData = allRankedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -161,10 +166,12 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
     ? 'All Competitors' 
     : competitorLabel(selectedCompetitor);
 
-  const pf = allPosts[0]?.platform?.toLowerCase();
-  const isAudienceBased = pf === 'instagram' || pf === 'facebook';
-
   const [isMaximized, setIsMaximized] = useState(false);
+  const metricSelection = activeMetric === 'engagement' ? 'Engagement' : 'Video';
+  const titleMetric = activeMetric === 'engagement'
+    ? 'Engagement Content'
+    : (isAudienceBased ? 'Video Content' : 'Performing Videos');
+  const rankLabel = activeMetric === 'engagement' ? 'engagement' : 'video views';
 
   const downloadExcel = () => {
     const headers = ['Rank', 'Date', 'Brand', 'Views', 'Likes', 'Comments', 'Shares', 'Saves', 'Engagement Rate', 'Caption', 'Post URL'];
@@ -205,12 +212,12 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
         <div className="flex items-center gap-4">
           <div>
             <h2 className="text-lg font-bold text-[#191c1d] flex items-center gap-2">
-              Top {isAudienceBased ? 'Engagement Content' : 'Performing Videos'}
+              Top {titleMetric}
             </h2>
             <p className="text-xs text-[#727782] font-medium mt-1">
               {allRankedData.length > 0 
-                ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, allRankedData.length)} of ${allRankedData.length} posts ranked by performance`
-                : 'Top posts ranked by performance across selection'
+                ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, allRankedData.length)} of ${allRankedData.length} posts ranked by ${rankLabel}`
+                : `Top posts ranked by ${rankLabel} across selection`
               }
             </p>
           </div>
@@ -247,6 +254,50 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
               </svg>
             </button>
           </div>
+
+          {canSwitchMetric && (
+            <div className="relative" ref={metricDropdownRef}>
+              <button
+                onClick={() => setIsMetricOpen(!isMetricOpen)}
+                className="flex h-10 items-center gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] shadow-sm"
+              >
+                <span className="text-sm">{metricSelection}</span>
+                <svg
+                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+                  className={`text-[#727782] transition-transform duration-200 ${isMetricOpen ? "rotate-180" : ""}`}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {isMetricOpen && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
+                  <button
+                    onClick={() => {
+                      setSelectedMetric('engagement');
+                      setIsMetricOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                      selectedMetric === 'engagement' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                    }`}
+                  >
+                    Engagement
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedMetric('videoViews');
+                      setIsMetricOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
+                      selectedMetric === 'videoViews' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                    }`}
+                  >
+                    Video
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="relative" ref={dropdownRef}>
             <button
@@ -298,16 +349,16 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
     </div>
       
       <div className="overflow-x-auto w-full flex-1 min-h-[400px]">
-        <table className={`w-full ${isAudienceBased ? 'min-w-[700px]' : 'min-w-[900px]'} text-left border-collapse`}>
+        <table className={`w-full ${showVideoColumns ? 'min-w-[900px]' : 'min-w-[700px]'} text-left border-collapse`}>
           <thead>
             <tr className="border-b border-slate-100 text-[11px] font-bold text-[#727782] uppercase tracking-wider bg-blue-50/30 rounded-t-lg">
               <th className="py-3 px-4 text-center rounded-tl-lg">Rank</th>
               <th className="py-3 px-4">Brand</th>
-              {!isAudienceBased && <th className="py-3 px-4 text-center">Views</th>}
+              {showVideoColumns && <th className="py-3 px-4 text-center">Views</th>}
               <th className="py-3 px-4 text-center">Likes</th>
               <th className="py-3 px-4 text-center">Comments</th>
               <th className="py-3 px-4 text-center">Shares</th>
-              {!isAudienceBased && <th className="py-3 px-4 text-center">Saves</th>}
+              {showVideoColumns && <th className="py-3 px-4 text-center">Saves</th>}
               <th className="py-3 px-4 text-center">Eng. Rate</th>
               <th className="py-3 px-4">Caption</th>
               <th className="py-3 px-4 text-center rounded-tr-lg">Actions</th>
@@ -338,11 +389,11 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
                     <span className="text-sm font-semibold text-slate-700">{row.brand}</span>
                   </div>
                 </td>
-                {!isAudienceBased && <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.views}</td>}
+                {showVideoColumns && <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.views}</td>}
                 <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.likes}</td>
                 <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.comments}</td>
                 <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.shares}</td>
-                {!isAudienceBased && <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.saves}</td>}
+                {showVideoColumns && <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.saves}</td>}
                 <td className="py-3 px-4 text-sm font-semibold text-slate-600 text-center">{row.engRate}</td>
                 <td className={`py-3 px-4 text-xs font-medium text-slate-500 ${isMaximized ? 'whitespace-normal min-w-[300px]' : 'max-w-xs truncate'}`} title={row.caption}>
                   {isMaximized ? row.caption : (row.caption.length > 80 ? row.caption.substring(0, 80) + '...' : row.caption)}
@@ -409,7 +460,7 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
         </table>
         {allRankedData.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20">
-            <p className="text-sm font-semibold text-[#727782]">No video data available for this selection</p>
+            <p className="text-sm font-semibold text-[#727782]">No {activeMetric === 'videoViews' ? 'video' : 'content'} data available for this selection</p>
           </div>
         )}
       </div>
