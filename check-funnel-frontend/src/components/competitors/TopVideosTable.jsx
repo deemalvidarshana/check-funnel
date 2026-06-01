@@ -8,6 +8,24 @@ const fmt = (num) => {
   return num.toLocaleString();
 };
 
+const accountKeyFromPost = (post) => String(
+  post?.trackedAccount?.id ??
+  post?.trackedAccountId ??
+  post?.apifyTrackedAccountId ??
+  post?.trackedAccount?.username ??
+  ''
+);
+
+const accountKeyFromCompetitor = (competitor) => String(
+  competitor?.accountKey ??
+  competitor?.accountId ??
+  competitor?.id ??
+  competitor?.username ??
+  ''
+);
+
+const competitorLabel = (competitor) => competitor?.displayName || competitor?.username || 'Unknown';
+
 export default function TopVideosTable({ allPosts, competitors, isApify }) {
   const [selectedBrand, setSelectedBrand] = useState('all');
   const [isOpen, setIsOpen] = useState(false);
@@ -37,7 +55,7 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
     
     let filtered = allPosts;
     if (selectedBrand !== 'all') {
-      filtered = allPosts.filter(p => p.trackedAccount?.username === selectedBrand);
+      filtered = allPosts.filter(p => accountKeyFromPost(p) === selectedBrand);
     }
 
     return [...filtered]
@@ -73,8 +91,9 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
         let engRate = 'N/A';
         
         if (isAudienceBased) {
+          const postAccountKey = accountKeyFromPost(p);
           const postUsername = (p.trackedAccount?.username || p.rawExtensionData?.username || '').toLowerCase().trim();
-          const comp = competitors?.find(c => (c.username || '').toLowerCase().trim() === postUsername);
+          const comp = competitors?.find(c => accountKeyFromCompetitor(c) === postAccountKey || (c.username || '').toLowerCase().trim() === postUsername);
           
           // Try multiple sources for follower count
           const followers = Number(p.rawExtensionData?.follower_count) || 
@@ -137,9 +156,10 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
     return url.split('&fbclid=')[0].split('?fbclid=')[0].split('/&fbclid=')[0];
   };
 
+  const selectedCompetitor = competitors?.find(c => accountKeyFromCompetitor(c) === selectedBrand);
   const currentSelection = selectedBrand === 'all' 
     ? 'All Competitors' 
-    : `@${selectedBrand}`;
+    : competitorLabel(selectedCompetitor);
 
   const pf = allPosts[0]?.platform?.toLowerCase();
   const isAudienceBased = pf === 'instagram' || pf === 'facebook';
@@ -258,16 +278,16 @@ export default function TopVideosTable({ allPosts, competitors, isApify }) {
               <div className="max-h-60 overflow-y-auto no-scrollbar border-t border-slate-50">
                 {competitors?.map((c) => (
                   <button
-                    key={c.username}
+                    key={accountKeyFromCompetitor(c)}
                     onClick={() => {
-                      setSelectedBrand(c.username);
+                      setSelectedBrand(accountKeyFromCompetitor(c));
                       setIsOpen(false);
                     }}
                     className={`w-full px-4 py-2.5 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${
-                      selectedBrand === c.username ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
+                      selectedBrand === accountKeyFromCompetitor(c) ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"
                     }`}
                   >
-                    @{c.username}
+                    {competitorLabel(c)}
                   </button>
                 ))}
               </div>

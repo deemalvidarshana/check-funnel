@@ -21,6 +21,24 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+function accountKeyFromSummary(summaryItem) {
+  return String(summaryItem?.accountId ?? summaryItem?.id ?? summaryItem?.username ?? '');
+}
+
+function accountKeyFromPost(post) {
+  return String(
+    post?.trackedAccount?.id ??
+    post?.trackedAccountId ??
+    post?.apifyTrackedAccountId ??
+    post?.trackedAccount?.username ??
+    ''
+  );
+}
+
+function competitorLabel(competitor) {
+  return competitor?.displayName || competitor?.username || 'Unknown';
+}
+
 export default function PublicCompetitorReport() {
   const { shareToken } = useParams();
   const location = useLocation();
@@ -80,6 +98,7 @@ export default function PublicCompetitorReport() {
   // ─── Derived Data ──────────────────────────────────────
   const competitors = useMemo(() => {
     return summary.map(s => ({
+      accountKey: accountKeyFromSummary(s),
       username: s.username,
       displayName: s.displayName || s.username,
       followerCount: Number(s.followerCount) || 0,
@@ -102,13 +121,13 @@ export default function PublicCompetitorReport() {
 
   const filteredPosts = useMemo(() => {
     if (selectedCompetitor === 'all') return postsFilteredByDate;
-    return postsFilteredByDate.filter(p => p.trackedAccount?.username === selectedCompetitor);
+    return postsFilteredByDate.filter(p => accountKeyFromPost(p) === selectedCompetitor);
   }, [postsFilteredByDate, selectedCompetitor]);
 
   const selectedSummary = useMemo(() => {
     const relevantPosts = selectedCompetitor === 'all' 
       ? postsFilteredByDate 
-      : postsFilteredByDate.filter(p => p.trackedAccount?.username === selectedCompetitor);
+      : postsFilteredByDate.filter(p => accountKeyFromPost(p) === selectedCompetitor);
 
     const metrics = {
       totalPosts: relevantPosts.length,
@@ -117,7 +136,7 @@ export default function PublicCompetitorReport() {
       totalComments: relevantPosts.reduce((a, p) => a + (p.commentsCount || 0), 0),
       totalShares: relevantPosts.reduce((a, p) => a + (p.shares || 0), 0),
       followerCount: summary.reduce((a, s) => {
-        if (selectedCompetitor === 'all' || s.username === selectedCompetitor) {
+        if (selectedCompetitor === 'all' || accountKeyFromSummary(s) === selectedCompetitor) {
           return a + (Number(s.followerCount) || 0);
         }
         return a;
@@ -130,29 +149,33 @@ export default function PublicCompetitorReport() {
   const filteredCompetitorSummaries = useMemo(() => {
     const competitorMap = {};
     postsFilteredByDate.forEach(p => {
-      const username = p.trackedAccount?.username;
-      if (!username) return;
-      if (!competitorMap[username]) {
-        competitorMap[username] = { 
-          username, 
-          displayName: p.trackedAccount.displayName || username,
-          totalPosts: 0, totalViews: 0, totalLikes: 0, totalComments: 0, totalShares: 0 
+      const accountKey = accountKeyFromPost(p);
+      const username = p.trackedAccount?.username || accountKey;
+      if (!accountKey) return;
+      if (!competitorMap[accountKey]) {
+        competitorMap[accountKey] = {
+          accountKey,
+          username,
+          displayName: p.trackedAccount?.displayName || username,
+          totalPosts: 0, totalViews: 0, totalLikes: 0, totalComments: 0, totalShares: 0
         };
       }
-      competitorMap[username].totalPosts++;
-      competitorMap[username].totalViews += (p.views || 0);
-      competitorMap[username].totalLikes += (p.likes || 0);
-      competitorMap[username].totalComments += (p.commentsCount || 0);
-      competitorMap[username].totalShares += (p.shares || 0);
+      competitorMap[accountKey].totalPosts++;
+      competitorMap[accountKey].totalViews += (p.views || 0);
+      competitorMap[accountKey].totalLikes += (p.likes || 0);
+      competitorMap[accountKey].totalComments += (p.commentsCount || 0);
+      competitorMap[accountKey].totalShares += (p.shares || 0);
     });
 
     return summary.map(s => {
-      const filtered = competitorMap[s.username] || { 
-        username: s.username, displayName: s.displayName,
-        totalPosts: 0, totalViews: 0, totalLikes: 0, totalComments: 0, totalShares: 0 
+      const accountKey = accountKeyFromSummary(s);
+      const filtered = competitorMap[accountKey] || {
+        accountKey, username: s.username, displayName: s.displayName,
+        totalPosts: 0, totalViews: 0, totalLikes: 0, totalComments: 0, totalShares: 0
       };
       return {
         ...filtered,
+        accountKey,
         followerCount: s.followerCount
       };
     });
@@ -179,13 +202,13 @@ export default function PublicCompetitorReport() {
         } else {
           score = tp > 0 ? Number(s.totalViews) / tp : 0;
         }
-        return { username: s.username, score };
+        return { accountKey: s.accountKey, score };
       })
       .sort((a, b) => b.score - a.score);
     const totalCompetitors = ranked.length;
     let rank = totalCompetitors;
     if (selectedCompetitor !== 'all') {
-      const idx = ranked.findIndex(r => r.username === selectedCompetitor);
+      const idx = ranked.findIndex(r => r.accountKey === selectedCompetitor);
       rank = idx >= 0 ? idx + 1 : totalCompetitors;
     }
 
@@ -220,13 +243,13 @@ export default function PublicCompetitorReport() {
   const multiMetricData = useMemo(() => {
     return filteredCompetitorSummaries.map((s) => {
       const tp = s.totalPosts || 1;
-      const accountPosts = posts.filter(p => p.trackedAccount?.username === s.username);
+      const accountPosts = posts.filter(p => accountKeyFromPost(p) === s.accountKey);
       const totalSaves = accountPosts.reduce((acc, p) => acc + (Number(p.rawExtensionData?.saves) || 0), 0);
       const totalEng = (Number(s.totalLikes) || 0) + (Number(s.totalComments) || 0) + (Number(s.totalShares) || 0);
       
       return {
         brand: s.displayName || s.username,
-        isMain: s.username === selectedCompetitor,
+        isMain: s.accountKey === selectedCompetitor,
         views: tp > 0 ? Math.round(Number(s.totalViews) / tp) : 0,
         engagement: tp > 0 ? Math.round(totalEng / tp) : 0,
         followers: Number(s.followerCount) || 0,
@@ -240,17 +263,19 @@ export default function PublicCompetitorReport() {
 
   const recentPostPerformanceData = useMemo(() => {
     return summary.map(s => {
+      const accountKey = accountKeyFromSummary(s);
       const brandPosts = postsFilteredByDate
-        .filter(p => p.trackedAccount?.username === s.username && p.createdAt)
+        .filter(p => accountKeyFromPost(p) === accountKey && p.createdAt)
         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
       const platform = activeTab?.toLowerCase();
       const isAudienceBased = platform === 'instagram' || platform === 'facebook';
 
       return {
+        accountKey,
         brand: s.displayName || s.username,
         username: s.username,
-        isMain: s.username === selectedCompetitor,
+        isMain: accountKey === selectedCompetitor,
         data: brandPosts.map(p => {
           const totalEng = (Number(p.likes) || 0) + (Number(p.commentsCount) || 0) + (Number(p.shares) || 0);
           return {
@@ -265,10 +290,11 @@ export default function PublicCompetitorReport() {
   const competitiveBenchmarkData = useMemo(() => {
     return summary
       .map(s => {
+        const accountKey = accountKeyFromSummary(s);
         const platform = activeTab?.toLowerCase();
         const isAudienceBased = platform === 'instagram' || platform === 'facebook';
         
-        const accountPosts = postsFilteredByDate.filter(p => p.trackedAccount?.username === s.username);
+        const accountPosts = postsFilteredByDate.filter(p => accountKeyFromPost(p) === accountKey);
         const tp = accountPosts.length;
 
         let avgValue = 0;
@@ -297,13 +323,19 @@ export default function PublicCompetitorReport() {
           topValue: fmt(topValue),
           postsPerMonth: tp > 0 ? `${tp} posts` : '0',
           rank: '',
-          isMain: s.username === selectedCompetitor,
+          isMain: accountKey === selectedCompetitor,
           _sortValue: avgValue,
         };
       })
       .sort((a, b) => b._sortValue - a._sortValue)
       .map((row, idx) => ({ ...row, rank: ordinal(idx + 1) }));
   }, [summary, postsFilteredByDate, selectedCompetitor, activeTab]);
+
+  const selectedCompetitorLabel = useMemo(() => {
+    if (selectedCompetitor === 'all') return 'All Competitors';
+    const competitor = competitors.find(c => c.accountKey === selectedCompetitor);
+    return competitor ? competitorLabel(competitor) : selectedCompetitor;
+  }, [competitors, selectedCompetitor]);
 
   if (error) {
     return (
@@ -395,7 +427,7 @@ export default function PublicCompetitorReport() {
                   className="flex h-11 items-center gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-white px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] shadow-sm"
                 >
                   <span className="text-xs sm:text-sm">
-                    {selectedCompetitor === 'all' ? 'All Competitors' : `@${selectedCompetitor}`}
+                    {selectedCompetitorLabel}
                   </span>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`text-[#727782] transition-transform ${isCompetitorDropdownOpen ? "rotate-180" : ""}`}>
                     <polyline points="6 9 12 15 18 9" />
@@ -405,7 +437,7 @@ export default function PublicCompetitorReport() {
                   <div className="absolute left-0 lg:right-0 top-full z-50 mt-2 w-64 max-h-64 overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200 no-scrollbar">
                     <button onClick={() => { setSelectedCompetitor('all'); setIsCompetitorDropdownOpen(false); }} className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${selectedCompetitor === 'all' ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"}`}>All Competitors</button>
                     {competitors.map((c) => (
-                      <button key={c.username} onClick={() => { setSelectedCompetitor(c.username); setIsCompetitorDropdownOpen(false); }} className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${selectedCompetitor === c.username ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"}`}>@{c.username}</button>
+                      <button key={c.accountKey} onClick={() => { setSelectedCompetitor(c.accountKey); setIsCompetitorDropdownOpen(false); }} className={`w-full px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${selectedCompetitor === c.accountKey ? "text-[#003870] bg-[#003870]/5" : "text-[#727782]"}`}>{competitorLabel(c)}</button>
                     ))}
                   </div>
                 )}

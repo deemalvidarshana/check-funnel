@@ -366,7 +366,8 @@ export class ApifyService {
     const qb = this.apifyPostRepo
       .createQueryBuilder('post')
       .leftJoin('post.trackedAccount', 'ta')
-      .select('ta.username', 'username')
+      .select('ta.id', 'accountId')
+      .addSelect('ta.username', 'username')
       .addSelect('ta.displayName', 'displayName')
       .addSelect('ta.followerCount', 'followerCount')
       .addSelect('COUNT(*)', 'totalPosts')

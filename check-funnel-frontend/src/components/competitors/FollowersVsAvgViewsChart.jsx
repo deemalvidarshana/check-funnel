@@ -1,5 +1,13 @@
 import React from 'react';
 
+const accountKeyFromSummary = (summaryItem) => String(
+  summaryItem?.accountKey ??
+  summaryItem?.accountId ??
+  summaryItem?.id ??
+  summaryItem?.username ??
+  ''
+);
+
 export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, activeTab }) {
   const platform = activeTab?.toLowerCase();
   const isAudienceBased = platform === 'instagram' || platform === 'facebook';
@@ -19,11 +27,11 @@ export default function FollowersVsAvgViewsChart({ data, selectedCompetitor, act
     // Fallback logic for followers if not provided by backend summary yet.
     let followers = Number(s.followers) || Number(s.followerCount) || Number(s.followersCount);
     if (!followers) {
-        followers = (avgValue * 1.5) + (s.username.length * 1500) + 2000; 
+        followers = (avgValue * 1.5) + ((s.username || '').length * 1500) + 2000;
     }
 
     // Determine if this is the "main" highlighted brand
-    let isMain = s.username === selectedCompetitor;
+    let isMain = accountKeyFromSummary(s) === selectedCompetitor;
     if (selectedCompetitor === 'all') {
       if (index === 0) isMain = true;
     }

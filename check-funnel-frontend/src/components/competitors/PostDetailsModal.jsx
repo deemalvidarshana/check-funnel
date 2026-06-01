@@ -60,6 +60,7 @@ export default function PostDetailsModal({ postId, onClose, isApify }) {
 
   const imgSrc = thumbnail || post?.imageUrl || '';
   const showFallback = !imgSrc || imgError || loading;
+  const accountName = post?.trackedAccount?.displayName || post?.trackedAccount?.username || '?';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
@@ -85,7 +86,7 @@ export default function PostDetailsModal({ postId, onClose, isApify }) {
                       <div className="w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin" />
                     ) : (
                       <span className="text-2xl font-black text-white/40">
-                        {(post?.trackedAccount?.username || '?').charAt(0).toUpperCase()}
+                        {accountName.charAt(0).toUpperCase()}
                       </span>
                     )}
                  </div>
@@ -109,10 +110,10 @@ export default function PostDetailsModal({ postId, onClose, isApify }) {
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#f0f5ff] flex items-center justify-center text-[#2563eb] font-bold text-sm">
-                {(post?.trackedAccount?.username || '?').charAt(0).toUpperCase()}
+                {accountName.charAt(0).toUpperCase()}
               </div>
               <div>
-                <p className="text-[13px] font-bold text-[#2563eb]">@{post?.trackedAccount?.username}</p>
+                <p className="text-[13px] font-bold text-[#2563eb]">{accountName}</p>
                 <p className="text-[11px] font-bold text-[#727782]">{new Date(post?.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
               </div>
             </div>

@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from 'react';
 
 const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"];
 
+const groupKey = (group) => String(group?.accountKey ?? group?.username ?? '');
+
 function buildPoints(data, width, height, maxValue) {
   if (data.length < 2) return "";
   const stepX = width / (data.length - 1);
@@ -45,7 +47,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
       if (selectedCompetitor === 'all') {
         setCurrentIndex(data.length); // The last index is 'All'
       } else {
-        const idx = data.findIndex(group => group.username === selectedCompetitor);
+        const idx = data.findIndex(group => groupKey(group) === selectedCompetitor);
         if (idx !== -1) {
           setCurrentIndex(idx);
           setHiddenCompetitors(new Set()); // Reset hidden when switching to single
@@ -80,7 +82,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
   
   // Filtering for 'All' mode
   const activeGroups = isAll 
-    ? data.filter(g => !hiddenCompetitors.has(g.username))
+    ? data.filter(g => !hiddenCompetitors.has(groupKey(g)))
     : currentGroup ? [currentGroup] : [];
 
   // Calculate max value across only ACTIVE visible data
@@ -103,15 +105,15 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
     setHiddenCompetitors(new Set());
   };
 
-  const toggleCompetitor = (username) => {
+  const toggleCompetitor = (accountKey) => {
     setHiddenCompetitors(prev => {
       const next = new Set(prev);
-      if (next.has(username)) {
-        next.delete(username);
+      if (next.has(accountKey)) {
+        next.delete(accountKey);
       } else {
         // Prevent hiding all competitors
         if (next.size < data.length - 1) {
-          next.add(username);
+          next.add(accountKey);
         }
       }
       return next;
@@ -172,7 +174,8 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
             })}
 
             {data.map((group, gIdx) => {
-              const isHidden = hiddenCompetitors.has(group.username);
+              const accountKey = groupKey(group);
+              const isHidden = hiddenCompetitors.has(accountKey);
               const isVisible = !isAll ? (safeCurrentIndex === gIdx) : !isHidden;
               
               if (!isVisible) return null;
@@ -181,7 +184,7 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
               const gradId = isAll ? `grad-all-${gIdx}` : `grad-single-${safeCurrentIndex}`;
               
               return (
-                <g key={group.username} className="transition-all duration-500">
+                <g key={accountKey} className="transition-all duration-500">
                   {!isAll && (
                     <defs>
                       <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -257,16 +260,17 @@ export default function RecentPostPerformanceChart({ data, selectedCompetitor, a
       {isAll && (
         <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 border-t border-slate-50 pt-3">
           {data.map((group, idx) => {
-            const isHidden = hiddenCompetitors.has(group.username);
+            const accountKey = groupKey(group);
+            const isHidden = hiddenCompetitors.has(accountKey);
             return (
-              <button 
-                key={group.username} 
-                onClick={() => toggleCompetitor(group.username)}
+              <button
+                key={accountKey}
+                onClick={() => toggleCompetitor(accountKey)}
                 className={`flex items-center gap-1.5 transition-all hover:opacity-80 ${isHidden ? "opacity-40 grayscale" : "opacity-100"}`}
               >
                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
                 <span className={`text-[10px] font-bold truncate max-w-[100px] ${isHidden ? "text-slate-400" : "text-slate-600"}`}>
-                  @{group.username}
+                  {group.brand}
                 </span>
               </button>
             );
