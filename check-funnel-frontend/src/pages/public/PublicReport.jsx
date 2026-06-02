@@ -667,11 +667,7 @@ export default function PublicReport() {
               selectedRange={timeRange}
               onRangeChange={handleRangeChange}
               ranges={activePlatform === "tiktok" ? TIKTOK_DATE_RANGES : undefined}
-              extraRanges={
-                ["facebook", "instagram"].includes(activePlatform)
-                  ? [{ label: "Current vs Last Month", value: MONTH_COMPARISON_RANGE }]
-                  : []
-              }
+              extraRanges={[]}
             />
             <div className="h-4 w-[1px] bg-slate-200 hidden sm:block mx-1 opacity-50"></div>
             <div className="bg-white px-4 py-2 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-center gap-3">
