@@ -1,13 +1,14 @@
 # ─────────────────────────────────────────
 # Stage 1: Build NestJS App
 # ─────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
+ENV npm_config_update_notifier=false
 
 # Install all deps (including devDeps for build)
 COPY package*.json ./
-RUN npm ci
+RUN npm install -g npm@11.16.0 && npm ci --no-audit --no-fund
 
 # Copy source and build
 COPY . .
@@ -16,13 +17,14 @@ RUN npm run build
 # ─────────────────────────────────────────
 # Stage 2: Production Image
 # ─────────────────────────────────────────
-FROM node:20-alpine
+FROM node:22-bookworm-slim
 
 WORKDIR /app
+ENV npm_config_update_notifier=false
 
 # Only production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install -g npm@11.16.0 && npm ci --omit=dev --no-audit --no-fund
 
 # Copy built dist
 COPY --from=builder /app/dist ./dist
