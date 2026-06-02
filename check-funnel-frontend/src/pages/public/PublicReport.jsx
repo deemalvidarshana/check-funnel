@@ -763,21 +763,6 @@ export default function PublicReport() {
                   <span className="text-[11px] font-bold text-white tracking-tight">mail@checkfunnel.com</span>
                 </div>
               </div>
-
-              <div className="flex flex-col gap-3 pt-6 border-t border-white/10">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-black text-blue-200 uppercase tracking-widest">Improve your social media?</p>
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                </div>
-                <a
-                  href="https://check-funnel.odoo.com/book/cb4461cd"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3 rounded-2xl bg-white text-[#003870] font-black text-xs uppercase tracking-widest shadow-lg hover:shadow-white/10 transition-all text-center active:scale-95"
-                >
-                  Book Now
-                </a>
-              </div>
             </div>
 
             <div className="text-center py-6 px-4">

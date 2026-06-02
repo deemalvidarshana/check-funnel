@@ -58,21 +58,6 @@ const CheckFunnelBranding = () => (
           </div>
         </div>
       </div>
-
-      <div className="relative z-10 flex flex-col sm:flex-row items-center gap-4">
-        <div className="text-center sm:text-right">
-          <p className="text-[10px] font-black text-blue-200 uppercase tracking-[0.2em] mb-1">Improve your social media?</p>
-          <p className="text-[11px] font-bold text-white/60">Let's talk strategy</p>
-        </div>
-        <a
-          href="https://check-funnel.odoo.com/book/cb4461cd"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-10 py-3.5 rounded-2xl bg-white text-[#003870] font-black text-xs uppercase tracking-[0.15em] shadow-lg hover:shadow-white/10 hover:-translate-y-0.5 active:translate-y-0 transition-all"
-        >
-          Book Now
-        </a>
-      </div>
     </div>
 
     <div className="text-center py-10 px-4 opacity-40">
