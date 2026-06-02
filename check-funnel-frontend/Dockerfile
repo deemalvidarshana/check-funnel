@@ -1,14 +1,14 @@
 # ─────────────────────────────────────────
 # Stage 1: Build React (Vite) App
 # ─────────────────────────────────────────
-FROM node:22-bookworm-slim AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 ENV npm_config_update_notifier=false
 
 # Install dependencies first (cache layer)
 COPY package*.json ./
-RUN npm install -g npm@11.16.0 && npm ci --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 # Copy source and build
 COPY . .
