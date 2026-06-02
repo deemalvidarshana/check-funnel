@@ -88,6 +88,8 @@ jobs:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USER }}
           password: ${{ secrets.HOSTINGER_PASSWORD }}
+          port: ${{ secrets.HOSTINGER_PORT || '22' }}
+          timeout: 60s
           source: "docker-compose.prod.yml,nginx/"
           target: "/root/app"
 
@@ -97,6 +99,8 @@ jobs:
           host: ${{ secrets.HOSTINGER_HOST }}
           username: ${{ secrets.HOSTINGER_USER }}
           password: ${{ secrets.HOSTINGER_PASSWORD }}
+          port: ${{ secrets.HOSTINGER_PORT || '22' }}
+          timeout: 60s
           command_timeout: 30m
           script: |
             set -e
