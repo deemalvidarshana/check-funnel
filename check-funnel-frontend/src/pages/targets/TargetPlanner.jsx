@@ -121,7 +121,7 @@ function getMonthLabelFromKey(monthKey) {
   if (!/^\d{4}-\d{2}$/.test(monthKey || "")) return "Selected month";
   const [year, month] = monthKey.split("-").map(Number);
   return new Date(year, month - 1, 1).toLocaleDateString("en-GB", {
-    month: "long",
+    month: "short",
     year: "numeric",
   });
 }
@@ -1158,8 +1158,8 @@ export default function TargetPlanner() {
     : `${PLATFORM_LABELS[activePlatform]} ${selectedTargetMonthLabel} Target Based on the platform data`;
 
   return (
-    <section className="w-full max-w-full overflow-hidden">
-      <header className="mb-8 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+    <section className="w-full max-w-full">
+      <header className="relative z-20 mb-8 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
         <div className="max-w-5xl">
           <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
             <span className="font-extrabold">Performance </span>
@@ -1204,7 +1204,7 @@ export default function TargetPlanner() {
         </div>
       </header>
 
-      <div className="min-w-0">
+      <div className="relative z-0 min-w-0">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-2xl font-extrabold text-[#191c1d]">
