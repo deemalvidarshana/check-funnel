@@ -28,6 +28,7 @@ export class TiktokService {
   private readonly baseUrl = 'https://open.tiktokapis.com/v2';
   private readonly redirectUri = 'https://deemalvidarshana.github.io/deemal';
   private readonly maxVideoListPages = 12;
+  private readonly requestTimeoutMs = 15000;
 
   // Temporary store for client credentials during OAuth flow
   private pendingAuths = new Map<string, { key: string; secret: string }>();
@@ -72,6 +73,7 @@ export class TiktokService {
     try {
       const response = await axios.post(url, payload, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: this.requestTimeoutMs,
       });
       return response.data;
     } catch (error) {
@@ -99,6 +101,7 @@ export class TiktokService {
     try {
       const response = await axios.post(url, payload, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: this.requestTimeoutMs,
       });
       return response.data;
     } catch (error) {
@@ -119,6 +122,7 @@ export class TiktokService {
           fields:
             'display_name,follower_count,following_count,likes_count,video_count',
         },
+        timeout: this.requestTimeoutMs,
       });
       return response.data;
     } catch (error) {
@@ -152,6 +156,7 @@ export class TiktokService {
           fields:
             'id,title,create_time,view_count,like_count,comment_count,share_count,cover_image_url',
         },
+        timeout: this.requestTimeoutMs,
       });
       return response.data;
     } catch (error) {

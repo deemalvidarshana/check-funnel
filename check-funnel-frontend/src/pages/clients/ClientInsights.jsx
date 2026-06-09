@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
+import { Check, Download, Share2 } from "lucide-react";
 import MetricTabs from "../../components/insights/MetricTabs";
 import PlatformSelector from "../../components/insights/PlatformSelector";
 import ContentVelocityChart from "../../components/insights/ContentVelocityChart";
@@ -9,9 +10,13 @@ import InitializePartnerCard from "../../components/insights/InitializePartnerCa
 import SystemHealthCard from "../../components/insights/SystemHealthCard";
 import DateRangeSelector from "../../components/insights/DateRangeSelector";
 import InsightChatbot from "../../components/insights/InsightChatbot";
+import {
+  downloadInsightsPdf,
+  getInsightsPdfFilename,
+} from "../../components/insights/InsightsPdfReport";
 import { getFacebookInsights } from "../../api/facebook";
 import { getInstagramInsights, getInstagramRangeInsights } from "../../api/instagram";
-import { getClientById, toggleShare } from "../../api/client";
+import { getClientById, getClientInsightsReportData, toggleShare } from "../../api/client";
 import { canManageFeature } from "../../utils/permissions";
 import { getTiktokInsights } from "../../api/tiktok";
 import { buildMonthComparisonRanges } from "../../utils/monthComparisonChart";
@@ -19,10 +24,56 @@ import { buildMonthComparisonRanges } from "../../utils/monthComparisonChart";
 
 const FACEBOOK_INSIGHTS_PAGE_SIZE = 6;
 const MONTH_COMPARISON_RANGE = "month_compare";
+const PDF_REPORT_DATA_TIMEOUT_MS = 60000;
+const PDF_LOADING_GUARD_MS = PDF_REPORT_DATA_TIMEOUT_MS + 15000;
 const TIKTOK_DATE_RANGES = [
   { label: "Last 6 Videos", value: "7" },
   { label: "Last 6 Months", value: "30" },
 ];
+
+function withTimeout(promise, timeoutMs, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]);
+}
+
+function buildFallbackPdfReportData({ client, activePlatform, timeRange, chartRows, tableRows, platformStats }) {
+  const rows = Array.isArray(tableRows) && tableRows.length ? tableRows : chartRows;
+  const fallbackRows = Array.isArray(rows) ? rows : [];
+  const isMonthlyView = timeRange === "30";
+  const platformLabel =
+    activePlatform === 'instagram' ? 'Instagram' :
+    activePlatform === 'tiktok' ? 'TikTok' :
+    'Facebook';
+
+  return {
+    generatedAt: new Date().toISOString(),
+    client: {
+      id: client?.id,
+      name: client?.name || 'Client',
+      industry: client?.industry,
+      activeChannels: client?.activeChannels || [activePlatform],
+    },
+    selectedPlatform: activePlatform,
+    includedPlatforms: [activePlatform],
+    topics: [
+      { key: 'weekly', label: 'Last 10 Weeks', rangeKey: 'weeks10' },
+      { key: 'monthly', label: 'Last 6 Months', rangeKey: 'months6' },
+    ],
+    platforms: {
+      [activePlatform]: {
+        label: platformLabel,
+        available: true,
+        user: activePlatform === 'tiktok' ? platformStats?.tiktok || null : null,
+        weekly: isMonthlyView ? [] : fallbackRows,
+        monthly: isMonthlyView ? fallbackRows : [],
+      },
+    },
+  };
+}
 
 function getTiktokSixMonthStart() {
   const today = new Date();
@@ -720,6 +771,17 @@ export default function ClientInsights() {
   const [shareLoading, setShareLoading] = useState(false);
   const canManageClients = canManageFeature("clients");
   const [showCopied, setShowCopied] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  useEffect(() => {
+    if (!pdfLoading) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setPdfLoading(false);
+    }, PDF_LOADING_GUARD_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pdfLoading]);
 
   const handleRangeChange = (range) => {
     if (['facebook', 'instagram'].includes(activePlatform) && range !== timeRange) {
@@ -771,6 +833,41 @@ export default function ClientInsights() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (pdfLoading) return;
+
+    setPdfLoading(true);
+
+    try {
+      let reportData;
+
+      try {
+        reportData = await withTimeout(
+          getClientInsightsReportData(id, activePlatform),
+          PDF_REPORT_DATA_TIMEOUT_MS,
+          "PDF report data request timed out.",
+        );
+      } catch (reportError) {
+        console.warn("Using current page data for PDF fallback", reportError);
+        reportData = buildFallbackPdfReportData({
+          client,
+          activePlatform,
+          timeRange,
+          chartRows: displayChartData,
+          tableRows: tableData,
+          platformStats,
+        });
+      }
+
+      await downloadInsightsPdf(reportData, getInsightsPdfFilename(reportData));
+    } catch (error) {
+      console.error("Failed to download insights PDF", error);
+      alert("Failed to generate the PDF report. Please try again.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   if (clientLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -788,6 +885,7 @@ export default function ClientInsights() {
   }
 
   return (
+    <>
     <section className="w-full max-w-full overflow-hidden">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -817,26 +915,38 @@ export default function ClientInsights() {
           {canManageClients && <button
             onClick={handleShare}
             disabled={shareLoading}
-            className="flex h-11 items-center gap-2 sm:gap-3 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 sm:px-5 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50"
+            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 font-bold text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50 sm:px-5"
+            title={showCopied ? "Share link copied" : "Share report"}
+            aria-label={showCopied ? "Share link copied" : "Share report"}
           >
             {shareLoading ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#003870] border-t-transparent"></div>
             ) : showCopied ? (
-              <div className="flex items-center gap-2 text-[#003870] animate-in fade-in zoom-in duration-300">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
+              <>
+                <Check className="h-4 w-4 animate-in fade-in zoom-in duration-300" strokeWidth={3} />
                 <span className="text-base sm:text-lg">Copied!</span>
-              </div>
+              </>
             ) : (
               <>
-                <svg className="h-4 w-4 text-[#003870]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
+                <Share2 className="h-4 w-4" strokeWidth={2.5} />
                 <span className="text-base sm:text-lg">Share</span>
               </>
             )}
           </button>}
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfLoading}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 text-[#003870] transition-all hover:bg-[#f3f4f5] active:scale-95 disabled:opacity-50"
+            title="Download full PDF report"
+            aria-label="Download full PDF report"
+          >
+            {pdfLoading ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#003870] border-t-transparent"></div>
+            ) : (
+              <Download className="h-4 w-4" strokeWidth={2.5} />
+            )}
+          </button>
           <DateRangeSelector
             selectedRange={timeRange}
             onRangeChange={handleRangeChange}
@@ -934,5 +1044,6 @@ export default function ClientInsights() {
 
       </div>
     </section>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
+import { CalendarCheck } from 'lucide-react';
 import MetricCards from '../../components/competitors/MetricCards';
 import AverageViewsChart from '../../components/competitors/AverageViewsChart';
 import RecentPostPerformanceChart from '../../components/competitors/RecentPostPerformanceChart';
@@ -45,6 +46,8 @@ function accountKeyFromPost(post) {
 function competitorLabel(competitor) {
   return competitor?.displayName || competitor?.username || 'Unknown';
 }
+
+const BOOK_NOW_URL = 'https://check-funnel.odoo.com/appointment/14?invite_token=1beca73c5cfd4ad3bd269ef45c1eabe7&filter_appointment_type_ids=%5B14%5D&';
 
 export default function PublicCompetitorReport() {
   const { shareToken } = useParams();
@@ -546,6 +549,16 @@ export default function PublicCompetitorReport() {
                   </div>
                 </div>
               </div>
+
+              <a
+                href={BOOK_NOW_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="relative z-10 inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-black text-[#003870] shadow-lg transition hover:bg-blue-50 active:scale-95"
+              >
+                <CalendarCheck className="h-4 w-4" strokeWidth={2.5} />
+                <span>Book Now</span>
+              </a>
             </div>
           </div>
         )}

@@ -5,6 +5,7 @@ import { format, addDays, parseISO, differenceInDays } from 'date-fns';
 @Injectable()
 export class FacebookService {
   private readonly baseUrl = 'https://graph.facebook.com/v25.0';
+  private readonly requestTimeoutMs = 15000;
 
   async getInsights(dto: { pageId: string; accessToken: string; since: string; until: string }) {
     const { pageId, accessToken, since, until } = dto;
@@ -44,7 +45,10 @@ export class FacebookService {
 
   private async apiGet(url: string, params: any) {
     try {
-      const response = await axios.get(url, { params });
+      const response = await axios.get(url, {
+        params,
+        timeout: this.requestTimeoutMs,
+      });
       return response.data;
     } catch (error) {
       const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;

@@ -7,9 +7,16 @@ import * as http from 'http';
 import { GetIgInsightsDto } from './dto/get-ig-insights.dto';
 import { GetIgRangeInsightsDto } from './dto/get-ig-range-insights.dto';
 
+type InstagramContext = {
+  igId: string;
+  pageId?: string;
+  pageToken?: string;
+};
+
 @Injectable()
 export class InstagramService {
   private readonly baseUrl = 'https://graph.facebook.com/v25.0';
+  private readonly rangeConcurrency = 2;
 
   /**
    * Main method to fetch insights dynamically (Weekly or Monthly).
@@ -22,20 +29,20 @@ export class InstagramService {
       const cleanToken = accessToken ? accessToken.trim() : accessToken;
       const cleanPageId = pageId ? pageId.trim() : pageId;
 
-      const igId = await this.getInstagramId(cleanPageId, cleanToken);
-      const pageToken = await this.getPageToken(cleanPageId, cleanToken);
-      const cleanPageToken = pageToken ? pageToken.trim() : pageToken;
+      const context = await this.resolveInstagramContext(cleanPageId, cleanToken);
 
       const weeks = timeRange === '30' ? this.generateLast6Months(until) : this.generateLast7Weeks(until);
 
-      // Parallelize fetching for all 7 weeks
-      const weeksData = await Promise.all(
-        weeks.map(week => this.analyseWeek(igId, cleanPageToken, week, cleanToken, cleanPageId))
+      const weeksData = await this.mapWithConcurrency(
+        weeks,
+        this.rangeConcurrency,
+        (week) => this.analyseWeek(context.igId, context.pageToken, week, cleanToken, context.pageId),
       );
 
       return {
-        facebook_linked_page_id: pageId,
-        instagram_business_id: igId,
+        facebook_linked_page_id: context.pageId || null,
+        instagram_identifier: cleanPageId,
+        instagram_business_id: context.igId,
         period: "Last 7 Weeks",
         generated_at: new Date().toISOString(),
         api_version: "v25.0",
@@ -67,17 +74,18 @@ export class InstagramService {
       const cleanToken = accessToken ? accessToken.trim() : accessToken;
       const cleanPageId = pageId ? pageId.trim() : pageId;
 
-      const igId = await this.getInstagramId(cleanPageId, cleanToken);
-      const pageToken = await this.getPageToken(cleanPageId, cleanToken);
-      const cleanPageToken = pageToken ? pageToken.trim() : pageToken;
+      const context = await this.resolveInstagramContext(cleanPageId, cleanToken);
 
-      const weeksData = await Promise.all(
-        (ranges || []).map((range) => this.analyseWeek(igId, cleanPageToken, range, cleanToken, cleanPageId))
+      const weeksData = await this.mapWithConcurrency(
+        ranges || [],
+        this.rangeConcurrency,
+        (range) => this.analyseWeek(context.igId, context.pageToken, range, cleanToken, context.pageId),
       );
 
       return {
-        facebook_linked_page_id: pageId,
-        instagram_business_id: igId,
+        facebook_linked_page_id: context.pageId || null,
+        instagram_identifier: cleanPageId,
+        instagram_business_id: context.igId,
         period: "Custom Ranges",
         generated_at: new Date().toISOString(),
         api_version: "v25.0",
@@ -206,6 +214,69 @@ export class InstagramService {
       currentParams = {}; // next page URL already contains params
     }
     return items;
+  }
+
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    mapper: (item: T, index: number) => Promise<R>,
+  ) {
+    const results = new Array<R>(items.length);
+    const workerCount = Math.max(1, Math.min(limit, items.length));
+    let nextIndex = 0;
+
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        while (nextIndex < items.length) {
+          const currentIndex = nextIndex;
+          nextIndex += 1;
+          results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+        }
+      }),
+    );
+
+    return results;
+  }
+
+  private async resolveInstagramContext(identifier: string, accessToken: string): Promise<InstagramContext> {
+    const linkedPageContext = await this.tryResolveLinkedPageContext(identifier, accessToken);
+    if (linkedPageContext) return linkedPageContext;
+
+    const igId = await this.resolveDirectInstagramId(identifier, accessToken);
+    return { igId };
+  }
+
+  private async tryResolveLinkedPageContext(pageId: string, accessToken: string): Promise<InstagramContext | null> {
+    try {
+      const data = await this.apiGet(`${this.baseUrl}/${pageId}`, {
+        fields: 'instagram_business_account,access_token',
+        access_token: accessToken,
+      });
+
+      const igId = data.instagram_business_account?.id;
+      if (!igId) return null;
+
+      return {
+        igId: String(igId),
+        pageId,
+        pageToken: data.access_token ? String(data.access_token).trim() : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async resolveDirectInstagramId(identifier: string, accessToken: string) {
+    const data = await this.apiGet(`${this.baseUrl}/${identifier}`, {
+      fields: 'id,username,followers_count',
+      access_token: accessToken,
+    });
+
+    if (!data?.id || (data.username == null && data.followers_count == null)) {
+      throw new Error('Invalid Instagram Account ID or Facebook Page ID.');
+    }
+
+    return String(data.id);
   }
 
   // ── FIX 1: Removed maxUntil safeguard — it was cutting off current week
@@ -431,20 +502,32 @@ export class InstagramService {
     return { interactions, likes, comments, shares };
   }
 
-  private async fetchFollowerMetrics(igId: string, pageToken: string, since: string, until: string, accessToken: string, pageId: string) {
+  private async fetchFollowerMetrics(
+    igId: string,
+    pageToken: string | undefined,
+    since: string,
+    until: string,
+    accessToken: string,
+    pageId?: string,
+  ) {
     let newF = 0, unf = 0, tf: any = 'N/A';
 
     try {
+      const pageInsightsToken = pageId ? (pageToken || accessToken) : undefined;
+      const pageInsightsRequest = pageId && pageInsightsToken
+        ? this.apiGet(`${this.baseUrl}/${pageId}/insights`, {
+            metric: 'page_daily_follows_unique,page_daily_unfollows_unique',
+            period: 'day',
+            since,
+            until,
+            access_token: pageInsightsToken,
+          }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] });
+
       // Parallelize profile count and daily follower insights
       const [resUser, resInsights] = await Promise.all([
         this.apiGet(`${this.baseUrl}/${igId}`, { fields: 'followers_count', access_token: accessToken }).catch(() => ({})),
-        this.apiGet(`${this.baseUrl}/${pageId}/insights`, {
-          metric: 'page_daily_follows_unique,page_daily_unfollows_unique',
-          period: 'day',
-          since,
-          until,
-          access_token: pageToken,
-        }).catch(() => ({ data: [] })),
+        pageInsightsRequest,
       ]);
 
       tf = resUser.followers_count ?? 'N/A';
@@ -458,7 +541,7 @@ export class InstagramService {
     return { newF, unf, tf };
   }
 
-  private async analyseWeek(igId: string, pageToken: string, week: any, accessToken: string, pageId: string) {
+  private async analyseWeek(igId: string, pageToken: string | undefined, week: any, accessToken: string, pageId?: string) {
     const { since, until, label } = week;
 
     // Debug log for checking call parameters on hosted

@@ -51,3 +51,11 @@ export const toggleShare = async (id, isShared) => {
   const response = await api.patch(`/clients/${id}/share`, { isShared });
   return response.data;
 };
+
+export const getClientInsightsReportData = async (id, platform) => {
+  const response = await api.get(`/clients/${id}/insights-report`, {
+    params: platform ? { platform } : undefined,
+    timeout: 60000,
+  });
+  return response.data;
+};

@@ -21,6 +21,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientService } from './client.service';
+import { ClientInsightsReportService } from './client-insights-report.service';
 import { TiktokService } from '../tiktok/tiktok.service';
 import { CreateClientDto, UpdateClientDto } from './dto';
 import * as express from 'express';
@@ -31,6 +32,7 @@ import * as express from 'express';
 export class ClientController {
   constructor(
     private readonly clientService: ClientService,
+    private readonly clientInsightsReportService: ClientInsightsReportService,
     private readonly tiktokService: TiktokService,
   ) {}
 
@@ -81,6 +83,16 @@ export class ClientController {
     }
 
     return insights;
+  }
+
+  @Get(':id/insights-report')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('admin', 'viewer')
+  getInsightsReport(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('platform') platform?: string,
+  ) {
+    return this.clientInsightsReportService.buildReport(id, platform);
   }
 
 

@@ -44,7 +44,7 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
   const isTiktok = platform === 'tiktok';
   const isTiktokMonthly = isTiktok && timeRange === '30';
 
-  const getTrendColor = (current, nextRow, path) => {
+  const getTrendColor = (current, nextRow, path, isLowerBetter = false) => {
     if (!showTrends || !nextRow) return "";
     
     // Resolve nested path (e.g., 'views.organic')
@@ -52,6 +52,7 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
     const previous = getVal(nextRow, path);
     
     if (previous === undefined || previous === null || current === previous) return "";
+    if (isLowerBetter) return current > previous ? "text-red-600" : "text-green-600";
     return current > previous ? "text-green-600" : "text-red-600";
   };
 
@@ -211,7 +212,7 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
                   <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 ${getTrendColor(row.new_follows, nextRow, 'new_follows')}`}>
                     {row.new_follows ?? 0}
                   </td>
-                  <td className={`px-4 py-5 text-center ${getTrendColor(row.unfollows, nextRow, 'unfollows')}`}>
+                  <td className={`px-4 py-5 text-center ${getTrendColor(row.unfollows, nextRow, 'unfollows', true)}`}>
                     {row.unfollows ?? 0}
                   </td>
                   <td className={`px-4 py-5 text-center font-bold text-[#191c1d] ${getTrendColor(row.total_followers, nextRow, 'total_followers')}`}>
