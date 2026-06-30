@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { BetweenVerticalEnd, BetweenVerticalStart } from 'lucide-react';
 
 const EditableCell = ({ value, onSave, className, readOnly = false }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -283,6 +284,7 @@ const CalendarTable = ({
   data,
   onAiEdit,
   onDeleteRow,
+  onInsertRow,
   onUpdateRow,
   onViewRow,
   onOpenReference,
@@ -428,7 +430,7 @@ const CalendarTable = ({
 
             {showActions && (
               <td className={`px-4 py-4 text-center ${actionCellClass}`}>
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex flex-col items-center justify-center gap-3">
                   {isContentRowView ? (
                     <button
                       type="button"
@@ -439,41 +441,62 @@ const CalendarTable = ({
                       <span className="material-symbols-outlined text-[20px] block">edit</span>
                     </button>
                   ) : (
-                    <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-                      {isReelRow(row) && (
+                    <>
+                      <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                        {isReelRow(row) && (
+                          <button
+                            type="button"
+                            onClick={() => onGenerateScript && onGenerateScript(i)}
+                            disabled={generatingScriptIndex === i}
+                            className="h-9 w-9 rounded-xl text-slate-500 hover:bg-[#003870] hover:text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
+                            title="Generate Reel Script"
+                          >
+                            <span className={`material-symbols-outlined text-[20px] block ${generatingScriptIndex === i ? 'animate-spin' : ''}`}>
+                              {generatingScriptIndex === i ? 'progress_activity' : 'movie_creation'}
+                            </span>
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => onGenerateScript && onGenerateScript(i)}
-                          disabled={generatingScriptIndex === i}
-                          className="h-9 w-9 rounded-xl text-slate-500 hover:bg-[#003870] hover:text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
-                          title="Generate Reel Script"
+                          onClick={(e) => onAiEdit && onAiEdit(i, e)}
+                          className={`h-9 w-9 rounded-xl transition-all hover:scale-105 active:scale-95 ${
+                            editingIndex === i
+                              ? 'bg-[#003870] text-white'
+                              : 'text-[#003870] hover:bg-[#003870] hover:text-white'
+                          }`}
+                          title="Edit with AI"
                         >
-                          <span className={`material-symbols-outlined text-[20px] block ${generatingScriptIndex === i ? 'animate-spin' : ''}`}>
-                            {generatingScriptIndex === i ? 'progress_activity' : 'movie_creation'}
-                          </span>
+                          <span className="material-symbols-outlined text-[20px] block">auto_awesome</span>
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => onAiEdit && onAiEdit(i, e)}
-                        className={`h-9 w-9 rounded-xl transition-all hover:scale-105 active:scale-95 ${
-                          editingIndex === i
-                            ? 'bg-[#003870] text-white'
-                            : 'text-[#003870] hover:bg-[#003870] hover:text-white'
-                        }`}
-                        title="Edit with AI"
-                      >
-                        <span className="material-symbols-outlined text-[20px] block">auto_awesome</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteRow && onDeleteRow(i)}
-                        className="h-9 w-9 rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all hover:scale-105 active:scale-95"
-                        title="Delete Row"
-                      >
-                        <span className="material-symbols-outlined text-[20px] block">delete</span>
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteRow && onDeleteRow(i)}
+                          className="h-9 w-9 rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all hover:scale-105 active:scale-95"
+                          title="Delete Row"
+                        >
+                          <span className="material-symbols-outlined text-[20px] block">delete</span>
+                        </button>
+                      </div>
+                      <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
+                        <button
+                          type="button"
+                          onClick={() => onInsertRow && onInsertRow(i, 'above')}
+                          className="h-7 w-8 rounded-lg text-slate-500 hover:bg-blue-50 hover:text-[#003870] transition-all hover:scale-105 active:scale-95"
+                          title="Insert Row Above"
+                        >
+                          <BetweenVerticalStart className="mx-auto h-[18px] w-[18px]" strokeWidth={2.4} />
+                        </button>
+                        <span className="h-4 w-px bg-slate-200" />
+                        <button
+                          type="button"
+                          onClick={() => onInsertRow && onInsertRow(i, 'below')}
+                          className="h-7 w-8 rounded-lg text-slate-500 hover:bg-blue-50 hover:text-[#003870] transition-all hover:scale-105 active:scale-95"
+                          title="Insert Row Below"
+                        >
+                          <BetweenVerticalEnd className="mx-auto h-[18px] w-[18px]" strokeWidth={2.4} />
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               </td>

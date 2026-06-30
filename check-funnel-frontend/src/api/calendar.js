@@ -5,6 +5,11 @@ export const saveCalendar = async (calendarData) => {
   return response.data;
 };
 
+export const createCalendarPost = async (calendarId, postData) => {
+  const response = await api.post(`/calendars/${calendarId}/posts`, postData);
+  return response.data;
+};
+
 export const getCalendars = async (clientId) => {
   const params = {};
   if (clientId) params.clientId = clientId;

@@ -61,6 +61,16 @@ export class CalendarController {
     return this.calendarService.getCalendarById(id);
   }
 
+  @Post(':id/posts')
+  async createPost(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() data: any,
+    @Request() req,
+  ) {
+    this.assertCanManage(req);
+    return this.calendarService.createPost(id, data);
+  }
+
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number, @Request() req) {
     this.assertCanManage(req);

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Calendar } from './entities/calendar.entity';
@@ -70,6 +70,31 @@ export class CalendarService {
     return [];
   }
 
+  private buildCalendarPost(
+    post: any,
+    calendar: Calendar,
+    fallbackSortOrder = 0,
+  ) {
+    return this.calendarPostRepository.create({
+      date: post.date || '',
+      time: post.time || '',
+      sortOrder: Number.isFinite(Number(post.sortOrder))
+        ? Number(post.sortOrder)
+        : fallbackSortOrder,
+      contentType: post.contentType || post.type || '',
+      pillar: post.pillar || '',
+      visualCopy: post.visualCopy || post.visual || '',
+      caption: post.caption || '',
+      reelScript: post.reelScript || '',
+      platforms: this.normalizePlatforms(post.platforms),
+      fbLink: post.fbLink || post.facebookLink || '',
+      igLink: post.igLink || post.instagramLink || '',
+      ttLink: post.ttLink || post.tiktokLink || '',
+      status: post.status || 'DRAFT',
+      calendar,
+    });
+  }
+
   async createCalendar(data: any, userEmail: string): Promise<Calendar> {
     console.log('--- Creating Calendar ---');
     console.log('Incoming Data:', JSON.stringify(data, null, 2));
@@ -93,21 +118,8 @@ export class CalendarService {
 
       if (posts && posts.length > 0) {
         console.log(`Saving ${posts.length} posts...`);
-        const calendarPosts = posts.map((post: any) =>
-          this.calendarPostRepository.create({
-            date: post.date || '',
-            contentType: post.contentType || post.type || '',
-            pillar: post.pillar || '',
-            visualCopy: post.visualCopy || post.visual || '',
-            caption: post.caption || '',
-            reelScript: post.reelScript || '',
-            platforms: this.normalizePlatforms(post.platforms),
-            fbLink: post.fbLink || post.facebookLink || '',
-            igLink: post.igLink || post.instagramLink || '',
-            ttLink: post.ttLink || post.tiktokLink || '',
-            status: post.status || 'DRAFT',
-            calendar: savedCalendar,
-          }),
+        const calendarPosts = posts.map((post: any, index: number) =>
+          this.buildCalendarPost(post, savedCalendar, index),
         );
         savedCalendar.posts = await this.calendarPostRepository.save(calendarPosts);
         console.log('All posts saved successfully.');
@@ -124,7 +136,9 @@ export class CalendarService {
     const query = this.calendarRepository
       .createQueryBuilder('calendar')
       .leftJoinAndSelect('calendar.posts', 'posts')
-      .orderBy('calendar.createdAt', 'DESC');
+      .orderBy('calendar.createdAt', 'DESC')
+      .addOrderBy('posts.sortOrder', 'ASC')
+      .addOrderBy('posts.id', 'ASC');
 
     if (clientId) {
       query.where('calendar.clientId = :clientId', { clientId });
@@ -134,10 +148,26 @@ export class CalendarService {
   }
 
   async getCalendarById(id: number): Promise<Calendar | null> {
-    return this.calendarRepository.findOne({
-      where: { id },
-      relations: ['posts'],
+    return this.calendarRepository
+      .createQueryBuilder('calendar')
+      .leftJoinAndSelect('calendar.posts', 'posts')
+      .where('calendar.id = :id', { id })
+      .orderBy('posts.sortOrder', 'ASC')
+      .addOrderBy('posts.id', 'ASC')
+      .getOne();
+  }
+
+  async createPost(calendarId: number, data: any): Promise<CalendarPost> {
+    const calendar = await this.calendarRepository.findOne({
+      where: { id: Number(calendarId) },
     });
+
+    if (!calendar) {
+      throw new NotFoundException('Calendar not found');
+    }
+
+    const post = this.buildCalendarPost(data, calendar);
+    return this.calendarPostRepository.save(post);
   }
 
   async deleteCalendar(id: number): Promise<void> {

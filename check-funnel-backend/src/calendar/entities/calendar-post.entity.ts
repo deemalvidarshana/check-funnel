@@ -12,6 +12,9 @@ export class CalendarPost {
   @Column({ nullable: true })
   time: string;
 
+  @Column({ default: 0 })
+  sortOrder: number;
+
   @Column()
   contentType: string;
 

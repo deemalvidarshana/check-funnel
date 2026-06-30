@@ -27,7 +27,7 @@ import {
 import { getClients } from '../../services/clientService';
 import api from '../../services/api';
 import { generateCalendarAI, generateReelScriptAI } from '../../api/ai';
-import { saveCalendar, getCalendars, deleteCalendar, deletePost, updatePost, getCalendarSettings, saveCalendarSettings } from '../../api/calendar';
+import { createCalendarPost, saveCalendar, getCalendars, deleteCalendar, deletePost, updatePost, getCalendarSettings, saveCalendarSettings } from '../../api/calendar';
 import CalendarTable from './components/CalendarTable';
 import HistoryFilters from './components/HistoryFilters';
 import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
@@ -213,6 +213,7 @@ const CreateContentCalendar = () => {
   const [aiEditModal, setAiEditModal] = useState({ isOpen: false, rowIndex: null, instruction: '', isProcessing: false });
   const [isSaving, setIsSaving] = useState(false);
   const [savedCalendars, setSavedCalendars] = useState([]);
+  const [activeCalendarId, setActiveCalendarId] = useState(null);
   const [selectedHistoryFilter, setSelectedHistoryFilter] = useState({ client: '', date: '' });
   const [refinementOffset, setRefinementOffset] = useState(0);
   const [selectedRowCenter, setSelectedRowCenter] = useState(null);
@@ -388,6 +389,10 @@ const CreateContentCalendar = () => {
   };
 
   useEffect(() => {
+    if (!selectedHistoryFilter.date) {
+      return;
+    }
+
     if (selectedHistoryFilter.date) {
       const [month, year] = selectedHistoryFilter.date.split(' ');
       const calendar = savedCalendars.find(c => {
@@ -404,6 +409,7 @@ const CreateContentCalendar = () => {
       if (calendar && calendar.posts) {
         setGeneratedData(calendar.posts);
         setIsGenerated(true);
+        setActiveCalendarId(calendar.id);
       }
     }
   }, [selectedHistoryFilter, savedCalendars]);
@@ -715,6 +721,7 @@ CALENDAR PLANNING RULES
 
     setIsGenerating(true);
     try {
+      setActiveCalendarId(null);
       await saveClientCalendarSettings(formData, { silent: true });
       const data = await generateCalendarAI(formData.prompt);
       if (Array.isArray(data)) {
@@ -827,6 +834,7 @@ CALENDAR PLANNING RULES
     Object.entries({
       date: post.date,
       time: post.time,
+      sortOrder: post.sortOrder,
       contentType: post.contentType || post.type,
       pillar: post.pillar,
       visualCopy: post.visualCopy || post.visual,
@@ -863,14 +871,38 @@ CALENDAR PLANNING RULES
     setIsSaving(true);
     try {
       await saveClientCalendarSettings(formData, { silent: true });
-      const existingPosts = dataToUse.filter((post) => post.id);
+      const orderedData = dataToUse.map((post, index) => ({ ...post, sortOrder: index }));
+      const existingPosts = orderedData.filter((post) => post.id);
+      const newPosts = orderedData.filter((post) => !post.id);
+      const existingCalendarId = selectedCalendar?.id
+        || activeCalendarId
+        || existingPosts.find((post) => post.calendarId)?.calendarId
+        || existingPosts.find((post) => post.calendar?.id)?.calendar?.id;
+
       if (existingPosts.length > 0) {
-        const savedPosts = await Promise.all(
-          existingPosts.map((post) => updatePost(post.id, getPostUpdatePayload(post)))
-        );
+        if (newPosts.length > 0 && !existingCalendarId) {
+          throw new Error('Cannot save new rows without an active calendar id.');
+        }
+
+        const [savedPosts, createdPosts] = await Promise.all([
+          Promise.all(existingPosts.map((post) => updatePost(post.id, getPostUpdatePayload(post)))),
+          existingCalendarId && newPosts.length > 0
+            ? Promise.all(newPosts.map((post) => createCalendarPost(existingCalendarId, getPostUpdatePayload(post))))
+            : Promise.resolve([]),
+        ]);
+
+        let createdPostIndex = 0;
         setGeneratedData(
-          dataToUse.map((post) => savedPosts.find((savedPost) => savedPost?.id === post.id) || post)
+          orderedData.map((post) => {
+            if (post.id) {
+              return savedPosts.find((savedPost) => savedPost?.id === post.id) || post;
+            }
+            return createdPosts[createdPostIndex++] || post;
+          })
         );
+        if (existingCalendarId) {
+          setActiveCalendarId(existingCalendarId);
+        }
         if (activeClient?.id) {
           await fetchSavedCalendars(activeClient.id);
         } else {
@@ -890,10 +922,13 @@ CALENDAR PLANNING RULES
         year: startDate.getFullYear(),
         competitors: formData.competitors.map(c => ({ id: c.id, name: c.name })),
         promptUsed: formData.prompt,
-        posts: dataToUse
+        posts: orderedData
       };
 
       const savedCalendar = await saveCalendar(calendarData);
+      if (savedCalendar?.id) {
+        setActiveCalendarId(savedCalendar.id);
+      }
       if (savedCalendar?.posts?.length) {
         setGeneratedData(savedCalendar.posts);
         setIsGenerated(true);
@@ -1045,6 +1080,7 @@ CALENDAR PLANNING RULES
       // Reset view
       setIsGenerated(false);
       setGeneratedData([]);
+      setActiveCalendarId(null);
       setSelectedHistoryFilter({ client: '', date: '' });
       
       // Refresh calendar list
@@ -1067,6 +1103,63 @@ CALENDAR PLANNING RULES
     setIsDeleteRowModalOpen(true);
   };
 
+  const persistRowOrder = async (rows) => {
+    await Promise.all(
+      rows
+        .filter((row) => row.id)
+        .map((row, rowIndex) => updatePost(row.id, { sortOrder: rowIndex }))
+    );
+  };
+
+  const handleInsertEmptyRow = async (index, position) => {
+    const insertAt = position === 'above' ? index : index + 1;
+    const tempId = `new-row-${Date.now()}-${index}-${position}`;
+    const emptyRow = {
+      _tempId: tempId,
+      date: '',
+      time: '',
+      sortOrder: insertAt,
+      contentType: 'Static',
+      pillar: '',
+      visualCopy: '',
+      visual: '',
+      caption: '',
+      reelScript: '',
+      platforms: [],
+      fbLink: '',
+      igLink: '',
+      ttLink: '',
+      status: 'DRAFT',
+    };
+
+    const optimisticRows = [...generatedData];
+    optimisticRows.splice(insertAt, 0, emptyRow);
+    const orderedOptimisticRows = optimisticRows.map((row, rowIndex) => ({ ...row, sortOrder: rowIndex }));
+    setGeneratedData(orderedOptimisticRows);
+
+    const calendarId = activeCalendarId || findSelectedHistoryCalendar()?.id;
+    if (!calendarId) return;
+
+    try {
+      const savedRow = await createCalendarPost(calendarId, getPostUpdatePayload(emptyRow));
+      const savedRows = orderedOptimisticRows.map((row) => (
+        row._tempId === tempId ? savedRow : row
+      )).map((row, rowIndex) => ({ ...row, sortOrder: rowIndex }));
+
+      setGeneratedData(savedRows);
+      setActiveCalendarId(calendarId);
+      await persistRowOrder(savedRows);
+    } catch (err) {
+      console.error("Failed to auto-save inserted row", err);
+      setGeneratedData((currentRows) => (
+        currentRows
+          .filter((row) => row._tempId !== tempId)
+          .map((row, rowIndex) => ({ ...row, sortOrder: rowIndex }))
+      ));
+      setToast({ message: "Failed to auto-save inserted row. Please try again.", type: "error" });
+    }
+  };
+
   const confirmDeleteRow = async () => {
     if (rowToDeleteIndex === null) return;
 
@@ -1079,7 +1172,7 @@ CALENDAR PLANNING RULES
       
       const newData = [...generatedData];
       newData.splice(rowToDeleteIndex, 1);
-      setGeneratedData(newData);
+      setGeneratedData(newData.map((item, index) => ({ ...item, sortOrder: index })));
     } finally {
       setIsDeleteRowModalOpen(false);
       setRowToDeleteIndex(null);
@@ -2090,6 +2183,7 @@ ${row.reelScript}`;
                       data={generatedData} 
                       onAiEdit={handleAiEdit}
                       onDeleteRow={handleDeleteRow}
+                      onInsertRow={handleInsertEmptyRow}
                       onUpdateRow={handleUpdateRow}
                       onOpenReference={(row, rowIndex) => {
                         setReferenceModal({ isOpen: true, row, rowIndex, userPrompt: '', refineInstruction: '', showRefinePanel: false });
