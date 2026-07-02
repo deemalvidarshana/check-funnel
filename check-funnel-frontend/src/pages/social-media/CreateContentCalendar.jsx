@@ -1433,6 +1433,51 @@ CTA:
     scheduleReelScriptAutoSave(updatedRow);
   };
 
+  const closeReferenceModal = () => {
+    setReferenceModal({
+      isOpen: false,
+      row: null,
+      rowIndex: null,
+      userPrompt: '',
+      refineInstruction: '',
+      showRefinePanel: false,
+    });
+  };
+
+  const handleReferenceDoneEditing = async () => {
+    const row = referenceModal.row;
+    const index = referenceModal.rowIndex;
+
+    if (!row || index === null) {
+      closeReferenceModal();
+      return;
+    }
+
+    const manualReference = referenceModal.userPrompt?.trim();
+    const rowToSave = !row.reelScript && manualReference
+      ? { ...row, reelScript: manualReference }
+      : row;
+
+    if (!rowToSave.reelScript) {
+      closeReferenceModal();
+      return;
+    }
+
+    if (rowToSave !== row) {
+      setReferenceModal((previous) => ({ ...previous, row: rowToSave }));
+      setGeneratedData((previousRows) =>
+        previousRows.map((item, rowIndex) => (
+          rowIndex === index ? { ...item, reelScript: rowToSave.reelScript } : item
+        ))
+      );
+    }
+
+    const savedRow = await persistReelScript(rowToSave);
+    if (savedRow) {
+      closeReferenceModal();
+    }
+  };
+
   const handleRefineReelScript = async () => {
     const index = referenceModal.rowIndex;
     const row = referenceModal.row;
@@ -2297,7 +2342,9 @@ ${row.reelScript}`;
             </h3>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                {(referenceModal.row?.reelScript || '').trim() ? referenceModal.row.reelScript.trim().split(/\s+/).length : 0} Words
+                {(referenceModal.row?.reelScript || referenceModal.userPrompt || '').trim()
+                  ? (referenceModal.row?.reelScript || referenceModal.userPrompt).trim().split(/\s+/).length
+                  : 0} Words
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-amber-600">
                   <Clock className="h-4 w-4" strokeWidth={2.5} />
@@ -2359,8 +2406,8 @@ ${row.reelScript}`;
             </div>
           <p className="text-xs text-slate-500 mb-4">
             {referenceModal.row?.reelScript
-              ? 'Generated reel script reference for this row.'
-              : 'Add an optional direction before generating the reel script for this row.'}
+              ? 'Saved reel script reference for this row.'
+              : 'Type and save a reference manually, or use the text as direction for AI.'}
           </p>
 
           {referenceModal.row?.reelScript ? (
@@ -2453,11 +2500,11 @@ ${row.reelScript}`;
               <textarea
                 value={referenceModal.userPrompt}
                 onChange={(event) => setReferenceModal((previous) => ({ ...previous, userPrompt: event.target.value }))}
-                placeholder="Optional: Tell AI what to focus on. e.g. Make it emotional, use a founder POV, add humor, focus on safety benefits..."
+                placeholder="Type a reference manually, or tell AI what to focus on..."
                 className="min-h-[180px] w-full min-w-0 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-relaxed text-slate-700 outline-none transition-all focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/20 sm:px-5 sm:text-base"
               />
               <div className="flex-1 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-4 text-sm font-medium leading-7 text-slate-500">
-                This direction will be combined with the row pillar, visual copy, caption, brand voice, selected frameworks, and content pillars before sending to AI.
+                Save &amp; Close stores this text as the row reference. Generate Script uses it as guidance together with the row pillar, visual copy, caption, and brand settings.
               </div>
             </div>
           )}
@@ -2475,10 +2522,11 @@ ${row.reelScript}`;
               )}
               <button
                 type="button"
-                onClick={() => setReferenceModal({ isOpen: false, row: null, rowIndex: null, userPrompt: '', refineInstruction: '', showRefinePanel: false })}
-              className="px-6 py-2.5 rounded-xl bg-[#003870] text-white font-bold text-sm hover:bg-[#002d5a] transition-all shadow-lg"
+                onClick={handleReferenceDoneEditing}
+                disabled={reelScriptSaveStatus === 'saving'}
+              className="px-6 py-2.5 rounded-xl bg-[#003870] text-white font-bold text-sm hover:bg-[#002d5a] transition-all shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Done Editing
+                {reelScriptSaveStatus === 'saving' ? 'Saving...' : 'Save & Close'}
               </button>
             </div>
         </div>
