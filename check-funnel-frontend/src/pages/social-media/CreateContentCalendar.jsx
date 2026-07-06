@@ -57,6 +57,18 @@ const PLATFORM_OPTIONS = [
   { id: 'tiktok', label: 'TikTok', Icon: TikTokIcon }
 ];
 
+const MANUAL_CONTENT_TYPE_OPTIONS = [
+  { id: 'Reel', label: 'Reel' },
+  { id: 'Static', label: 'Static' },
+  { id: 'Carousel', label: 'Carousel' },
+];
+
+const MANUAL_CALENDAR_PROMPT = 'Manual content calendar generated without AI prompt.';
+
+const createDefaultManualContentCounts = () => Object.fromEntries(
+  MANUAL_CONTENT_TYPE_OPTIONS.map((type) => [type.id, ''])
+);
+
 const CONTENT_FRAMEWORK_OPTIONS = [
   {
     id: 'aida',
@@ -139,6 +151,52 @@ const getDateSpanDays = (startDate, endDate) => {
   const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
   return Math.max(1, diffDays);
 };
+
+const getDistributedDate = (startDate, endDate, rowIndex, totalRows) => {
+  if (!startDate) return '';
+
+  const start = parseDateInput(startDate);
+  const end = endDate ? parseDateInput(endDate) : start;
+
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return startDate;
+  if (totalRows <= 1 || end <= start) return formatDateInput(start);
+
+  const progress = rowIndex / (totalRows - 1);
+  const timestamp = start.getTime() + Math.round((end.getTime() - start.getTime()) * progress);
+  return formatDateInput(new Date(timestamp));
+};
+
+const orderCalendarRows = (rows = []) => [...rows].sort((left, right) => {
+  const leftOrder = Number(left?.sortOrder);
+  const rightOrder = Number(right?.sortOrder);
+
+  if (Number.isFinite(leftOrder) && Number.isFinite(rightOrder) && leftOrder !== rightOrder) {
+    return leftOrder - rightOrder;
+  }
+
+  return Number(left?.id || 0) - Number(right?.id || 0);
+});
+
+const orderManualCalendarRows = (rows = []) => [...rows]
+  .sort((left, right) => {
+    const leftDate = parseDateInput(left?.date)?.getTime();
+    const rightDate = parseDateInput(right?.date)?.getTime();
+
+    if (Number.isFinite(leftDate) && Number.isFinite(rightDate) && leftDate !== rightDate) {
+      return leftDate - rightDate;
+    }
+
+    const leftOrder = Number(left?.sortOrder);
+    const rightOrder = Number(right?.sortOrder);
+    if (Number.isFinite(leftOrder) && Number.isFinite(rightOrder) && leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return Number(left?.id || 0) - Number(right?.id || 0);
+  })
+  .map((row, index) => ({ ...row, sortOrder: index }));
+
+const isManualCalendar = (calendar) => calendar?.promptUsed === MANUAL_CALENDAR_PROMPT;
 
 const getPlatformContentCount = (formData, platformId) => Number(formData.platformContentCounts?.[platformId] || 0);
 
@@ -262,6 +320,29 @@ const CreateContentCalendar = () => {
   }, []);
 
   const [formData, setFormData] = useState(() => getDefaultCalendarFormData());
+  const [generationMode, setGenerationMode] = useState('ai');
+  const [manualContentCounts, setManualContentCounts] = useState(() => createDefaultManualContentCounts());
+  const [isManualGenerating, setIsManualGenerating] = useState(false);
+
+  useEffect(() => {
+    if (generationMode !== 'manual' || generatedData.length < 2) return;
+
+    const orderedRows = orderManualCalendarRows(generatedData);
+    const needsOrdering = orderedRows.some((row, index) => {
+      const currentRow = generatedData[index];
+      const orderedKey = row.id ?? row._tempId;
+      const currentKey = currentRow?.id ?? currentRow?._tempId;
+
+      return orderedKey !== currentKey
+        || row.date !== currentRow?.date
+        || row.contentType !== currentRow?.contentType
+        || Number(currentRow?.sortOrder) !== index;
+    });
+
+    if (needsOrdering) {
+      setGeneratedData(orderedRows);
+    }
+  }, [generationMode, generatedData]);
 
   const saveClientCalendarSettings = async (dataToSave = formData, options = {}) => {
     if (!dataToSave?.clientId) return null;
@@ -407,7 +488,11 @@ const CreateContentCalendar = () => {
       });
       
       if (calendar && calendar.posts) {
-        setGeneratedData(calendar.posts);
+        setGeneratedData(
+          isManualCalendar(calendar)
+            ? orderManualCalendarRows(calendar.posts)
+            : orderCalendarRows(calendar.posts)
+        );
         setIsGenerated(true);
         setActiveCalendarId(calendar.id);
       }
@@ -505,6 +590,92 @@ const CreateContentCalendar = () => {
         [platform]: normalizedValue,
       }
     }));
+  };
+
+  const handleManualContentCountChange = (contentType, value) => {
+    const normalizedValue = value === '' ? '' : Math.max(0, Math.floor(Number(value)));
+
+    setManualContentCounts(prev => ({
+      ...prev,
+      [contentType]: Number.isFinite(Number(normalizedValue)) ? normalizedValue : '',
+    }));
+  };
+
+  const handleManualGenerate = async (event) => {
+    if (event) event.preventDefault();
+
+    if (!selectedClient?.id && !formData.clientId) {
+      setToast({ message: "Please select a client before generating manual rows.", type: "error" });
+      return;
+    }
+
+    if (!formData.startDate || !formData.endDate) {
+      setToast({ message: "Please add both start date and end date.", type: "error" });
+      return;
+    }
+
+    if (parseDateInput(formData.endDate) < parseDateInput(formData.startDate)) {
+      setToast({ message: "End date must be after the start date.", type: "error" });
+      return;
+    }
+
+    const rowPlan = MANUAL_CONTENT_TYPE_OPTIONS.flatMap((type) => {
+      const count = Math.max(0, Number(manualContentCounts?.[type.id] || 0));
+      return Array.from({ length: count }, () => ({ contentType: type.id }));
+    });
+
+    if (rowPlan.length === 0) {
+      setToast({ message: "Add at least one manual content count.", type: "error" });
+      return;
+    }
+
+    const selectedManualFormats = MANUAL_CONTENT_TYPE_OPTIONS
+      .filter((type) => Number(manualContentCounts?.[type.id] || 0) > 0)
+      .map((type) => type.id);
+
+    const manualRows = orderManualCalendarRows(rowPlan.map((plan, index) => ({
+      date: getDistributedDate(formData.startDate, formData.endDate, index, rowPlan.length),
+      time: '',
+      sortOrder: index,
+      contentType: plan.contentType,
+      pillar: '',
+      visualCopy: '',
+      visual: '',
+      caption: '',
+      reelScript: '',
+      platforms: [],
+      fbLink: '',
+      igLink: '',
+      ttLink: '',
+      status: 'DRAFT',
+    })));
+
+    const manualFormData = {
+      ...formData,
+      platformContentCounts: {},
+      preferredFormats: selectedManualFormats,
+      prompt: formData.prompt,
+    };
+
+    setIsManualGenerating(true);
+    try {
+      setFormData(manualFormData);
+      setActiveCalendarId(null);
+      setSelectedHistoryFilter({ client: '', date: '' });
+      setGeneratedData(manualRows);
+      setIsGenerated(true);
+      await handleSaveToDatabase(manualRows, {
+        formDataOverride: manualFormData,
+        promptUsedOverride: MANUAL_CALENDAR_PROMPT,
+        sortByDate: true,
+        successMessage: "Manual rows generated and auto-saved!",
+      });
+      setTimeout(() => {
+        resultsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } finally {
+      setIsManualGenerating(false);
+    }
   };
 
   const nextStep = async () => {
@@ -848,10 +1019,12 @@ CALENDAR PLANNING RULES
     }).filter(([, value]) => value !== undefined)
   );
 
-  const handleSaveToDatabase = async (postsToSave = null) => {
+  const handleSaveToDatabase = async (postsToSave = null, options = {}) => {
     const dataToUse = postsToSave || generatedData;
+    const sourceFormData = options.formDataOverride || formData;
     const selectedCalendar = findSelectedHistoryCalendar();
     const activeClient = selectedClient
+      || clients.find((client) => Number(client.id) === Number(sourceFormData.clientId))
       || clients.find((client) => Number(client.id) === Number(selectedCalendar?.clientId))
       || clients.find((client) => client.name === selectedHistoryFilter.client)
       || (selectedCalendar
@@ -870,8 +1043,13 @@ CALENDAR PLANNING RULES
 
     setIsSaving(true);
     try {
-      await saveClientCalendarSettings(formData, { silent: true });
-      const orderedData = dataToUse.map((post, index) => ({ ...post, sortOrder: index }));
+      await saveClientCalendarSettings(sourceFormData, { silent: true });
+      const shouldSortByDate = options.sortByDate === true
+        || generationMode === 'manual'
+        || isManualCalendar(selectedCalendar);
+      const orderedData = shouldSortByDate
+        ? orderManualCalendarRows(dataToUse)
+        : dataToUse.map((post, index) => ({ ...post, sortOrder: index }));
       const existingPosts = orderedData.filter((post) => post.id);
       const newPosts = orderedData.filter((post) => !post.id);
       const existingCalendarId = selectedCalendar?.id
@@ -912,7 +1090,7 @@ CALENDAR PLANNING RULES
         return;
       }
 
-      const startDate = formData.startDate ? new Date(formData.startDate) : new Date();
+      const startDate = sourceFormData.startDate ? new Date(sourceFormData.startDate) : new Date();
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
       
       const calendarData = {
@@ -920,8 +1098,8 @@ CALENDAR PLANNING RULES
         name: `${activeClient.name} - ${monthNames[startDate.getMonth()]} ${startDate.getFullYear()}`,
         month: monthNames[startDate.getMonth()],
         year: startDate.getFullYear(),
-        competitors: formData.competitors.map(c => ({ id: c.id, name: c.name })),
-        promptUsed: formData.prompt,
+        competitors: sourceFormData.competitors.map(c => ({ id: c.id, name: c.name })),
+        promptUsed: options.promptUsedOverride ?? sourceFormData.prompt,
         posts: orderedData
       };
 
@@ -930,7 +1108,11 @@ CALENDAR PLANNING RULES
         setActiveCalendarId(savedCalendar.id);
       }
       if (savedCalendar?.posts?.length) {
-        setGeneratedData(savedCalendar.posts);
+        setGeneratedData(
+          shouldSortByDate
+            ? orderManualCalendarRows(savedCalendar.posts)
+            : orderCalendarRows(savedCalendar.posts)
+        );
         setIsGenerated(true);
       }
       if (activeClient?.id) {
@@ -938,7 +1120,7 @@ CALENDAR PLANNING RULES
       } else {
         fetchAllCalendars();
       }
-      setToast({ message: postsToSave ? "Calendar generated and auto-saved!" : "Content Calendar saved successfully!", type: "success" });
+      setToast({ message: options.successMessage || (postsToSave ? "Calendar generated and auto-saved!" : "Content Calendar saved successfully!"), type: "success" });
     } catch (err) {
       console.error("Failed to save calendar", err);
       setToast({ message: "Failed to save calendar to database.", type: "error" });
@@ -1635,15 +1817,58 @@ ${row.reelScript}`;
     }
   };
 
+  const manualTotalRows = MANUAL_CONTENT_TYPE_OPTIONS.reduce((total, type) => (
+    total + Math.max(0, Number(manualContentCounts?.[type.id] || 0))
+  ), 0);
+
   return (
     <div className="max-w-[1600px] mx-auto w-full flex flex-col pb-24">
       {/* ──── Header ──── */}
-      <div className="mb-8 shrink-0 pl-1">
-        <h1 className="text-[42px] tracking-[-0.02em] leading-tight text-[#101828]">
-          <span className="font-bold">AI Content</span>
-          <span className="font-normal ml-2">Generator</span>
-        </h1>
-        <p className="text-[#475467] text-lg font-normal mt-1">Define your parameters and let AI build your strategy.</p>
+      <div className="mb-8 flex shrink-0 flex-col gap-4 pl-1 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex items-start gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/content-calendar')}
+            aria-label="Back to content calendar"
+            title="Back to content calendar"
+            className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#003870] transition-all hover:bg-[#003870]/8 active:scale-90 sm:mt-3"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8">
+              <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-[42px] tracking-[-0.02em] leading-tight text-[#101828]">
+              <span className="font-bold">{generationMode === 'ai' ? 'AI Content' : 'Manual Content'}</span>
+              <span className="font-normal ml-2">Generator</span>
+            </h1>
+            <p className="text-[#475467] text-lg font-normal mt-1">
+              {generationMode === 'ai'
+                ? 'Define your parameters and let AI build your strategy.'
+                : 'Create empty calendar rows manually by date and format.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex w-fit rounded-full border border-slate-200/50 bg-slate-100/80 p-1">
+          {[
+            { id: 'ai', label: 'AI' },
+            { id: 'manual', label: 'Manual' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setGenerationMode(tab.id)}
+              className={`rounded-full px-5 py-2 text-sm font-bold transition-all ${
+                generationMode === tab.id
+                  ? 'bg-white text-[#003870] shadow-sm'
+                  : 'text-slate-500 hover:text-[#003870]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col gap-6 flex-1 min-h-0">
@@ -1653,7 +1878,12 @@ ${row.reelScript}`;
           <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-8 relative overflow-hidden">
 
             
-            <form onSubmit={handleSubmit} className="flex flex-col min-h-[350px]">
+            <form
+              onSubmit={generationMode === 'ai' ? handleSubmit : handleManualGenerate}
+              className={`flex flex-col ${generationMode === 'ai' ? 'min-h-[350px]' : 'min-h-0'}`}
+            >
+              {generationMode === 'ai' ? (
+                <>
               
               <div className="flex-1">
                 {/* ─── STEP 1: Basics & Platforms ─── */}
@@ -2201,6 +2431,170 @@ ${row.reelScript}`;
                 </div>
               </div>
 
+                </>
+              ) : (
+                <div className="flex-1">
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                    <section className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
+                      <div className="mb-5 flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#003870] shadow-sm ring-1 ring-slate-200">
+                          <User className="h-5 w-5" strokeWidth={2.3} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-extrabold text-slate-800">Client & Schedule</h3>
+                          <p className="mt-0.5 text-xs font-medium text-slate-500">Choose the client and publishing period.</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="ml-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Client</label>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                              className="group flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:border-[#003870]/30"
+                            >
+                              {selectedClient ? (
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#003870] to-[#0066cc] text-[11px] font-bold text-white shadow-sm shadow-[#003870]/20">
+                                    {selectedClient.name?.charAt(0)}
+                                  </div>
+                                  <span className="text-sm font-bold text-slate-700">{selectedClient.name}</span>
+                                </div>
+                              ) : (
+                                <span className="text-sm font-medium text-slate-400">Choose a client...</span>
+                              )}
+                              <ChevronDown className="h-4.5 w-4.5 text-slate-400 transition-colors group-hover:text-[#003870]" strokeWidth={2.4} />
+                            </button>
+
+                            {isDropdownOpen && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
+                                <div className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[200px] overflow-auto rounded-xl border border-slate-100 bg-white shadow-xl">
+                                  {isLoading ? (
+                                    <div className="p-3 text-center text-sm text-slate-400">Loading...</div>
+                                  ) : clients.length === 0 ? (
+                                    <div className="p-3 text-center text-sm text-slate-400">No clients found</div>
+                                  ) : (
+                                    clients.map(client => (
+                                      <button
+                                        key={client.id}
+                                        type="button"
+                                        onClick={() => selectClient(client)}
+                                        className="flex w-full items-center gap-2 px-4 py-2.5 text-left transition-colors hover:bg-slate-50"
+                                      >
+                                        <span className={`text-sm font-semibold ${formData.clientId === client.id ? 'text-[#003870]' : 'text-slate-600'}`}>
+                                          {client.name}
+                                        </span>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <label className="ml-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Start Date</label>
+                            <input
+                              type="date"
+                              value={formData.startDate}
+                              onChange={e => handleScheduleDateChange('startDate', e.target.value)}
+                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition-all focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/20"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="ml-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">End Date</label>
+                            <input
+                              type="date"
+                              value={formData.endDate || ''}
+                              min={formData.startDate || undefined}
+                              onChange={e => handleScheduleDateChange('endDate', e.target.value)}
+                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition-all focus:border-[#003870] focus:ring-2 focus:ring-[#003870]/20"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
+                      <div className="mb-5 flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#003870] shadow-sm ring-1 ring-slate-200">
+                          <CalendarDays className="h-5 w-5" strokeWidth={2.3} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-extrabold text-slate-800">Content Mix</h3>
+                          <p className="mt-0.5 text-xs font-medium text-slate-500">Set the total number of rows for each format.</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {MANUAL_CONTENT_TYPE_OPTIONS.map((type, index) => {
+                          const count = Math.max(0, Number(manualContentCounts?.[type.id] || 0));
+
+                          return (
+                            <div key={type.id} className={`flex items-center gap-3 rounded-xl border bg-white p-3 transition-all ${
+                              count > 0 ? 'border-[#003870]/25 shadow-sm' : 'border-slate-200'
+                            }`}>
+                              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-extrabold ${
+                                count > 0 ? 'bg-[#003870] text-white' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {String(index + 1).padStart(2, '0')}
+                              </div>
+                              <label className="min-w-0 flex-1 text-sm font-extrabold text-slate-700">{type.label}</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  placeholder="0"
+                                  value={manualContentCounts?.[type.id] ?? ''}
+                                  onChange={(e) => handleManualContentCountChange(type.id, e.target.value)}
+                                  className="w-20 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-extrabold text-slate-700 outline-none transition-all focus:border-[#003870] focus:bg-white focus:ring-2 focus:ring-[#003870]/20"
+                                />
+                                <span className="w-10 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                                  {count === 1 ? 'Row' : 'Rows'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    <div className="flex flex-col gap-4 rounded-2xl border border-[#003870]/10 bg-[#003870]/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-lg font-extrabold text-[#003870] shadow-sm ring-1 ring-[#003870]/10">
+                          {manualTotalRows}
+                        </div>
+                        <div>
+                          <p className="text-sm font-extrabold text-slate-800">
+                            {manualTotalRows === 1 ? '1 empty row is ready' : `${manualTotalRows} empty rows are ready`}
+                          </p>
+                          <p className="mt-0.5 text-xs font-medium text-slate-500">
+                            {manualTotalRows > 0
+                              ? 'Rows will be spread across the selected date range and can be edited after generation.'
+                              : 'Add at least one content count to generate editable rows.'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={!formData.clientId || manualTotalRows === 0 || isManualGenerating || isSaving}
+                        className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#003870] to-[#0055a5] px-7 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#003870]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isManualGenerating || isSaving ? (
+                          <><Loader2 className="h-4.5 w-4.5 animate-spin" strokeWidth={2.5} /> Generating...</>
+                        ) : (
+                          <><Sparkles className="h-4.5 w-4.5" strokeWidth={2.5} /> Generate Rows</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>

@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
+import { ALL_CONTENT_TYPES, CONTENT_TYPE_FILTER_OPTIONS } from '../../../utils/contentTypes';
 
 const CustomDropdown = ({ options, value, onChange, placeholder, minWidth }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownMinWidth = minWidth ? `${minWidth}px` : undefined;
 
   return (
-    <div className="relative w-full lg:w-auto">
+    <div
+      className="relative w-full shrink-0 sm:w-auto"
+      style={dropdownMinWidth ? { '--dropdown-min-width': dropdownMinWidth } : undefined}
+    >
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full lg:min-w-[${minWidth}px] flex items-center justify-between px-6 py-2.5 bg-[#f3f4f5]/50 border border-[#c2c6d3]/20 rounded-full text-sm font-bold text-[#003870] hover:bg-[#f3f4f5] transition-all shadow-sm group`}
+        className="w-full sm:w-auto sm:min-w-[var(--dropdown-min-width)] flex items-center justify-between px-4 py-2.5 bg-[#f3f4f5]/50 border border-[#c2c6d3]/20 rounded-full text-sm font-bold text-[#003870] hover:bg-[#f3f4f5] transition-all shadow-sm group"
       >
-        <span className="truncate">{value || placeholder}</span>
+        <span className="truncate whitespace-nowrap">{value || placeholder}</span>
         <svg
           width="12"
           height="12"
@@ -53,14 +58,14 @@ const CustomDropdown = ({ options, value, onChange, placeholder, minWidth }) => 
 const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false }) => {
   const resetFilters = () => {
     onFilterChange('platform', 'All Platforms');
-    onFilterChange('contentType', 'All Content Types');
+    onFilterChange('contentType', ALL_CONTENT_TYPES);
     if (!hideClientFilter) onFilterChange('client', 'All Clients');
     onFilterChange('status', 'All Statuses');
   };
 
   return (
-    <section className="glass-panel relative z-[60] rounded-2xl p-3 sm:p-4 shadow-sm border border-white flex flex-col lg:flex-row lg:items-center gap-3 sm:gap-4">
-      <div className="flex items-center justify-between">
+    <section className="glass-panel relative z-[60] rounded-2xl p-4 shadow-sm border border-white flex flex-col lg:flex-row lg:flex-wrap lg:items-center gap-3">
+      <div className="flex items-center justify-between lg:shrink-0 lg:justify-start">
         <div className="flex items-center gap-2 text-sm font-bold text-[#003870]">
           <span className="material-symbols-outlined text-[20px]">filter_list</span>
           Filters
@@ -73,15 +78,15 @@ const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false 
         </button>
       </div>
 
-      <div className="h-6 w-px bg-slate-200 mx-2 hidden lg:block"></div>
+      <div className="h-8 w-px bg-slate-200 hidden lg:block"></div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-4 flex-1">
+      <div className="grid grid-cols-1 gap-2.5 sm:flex sm:flex-wrap sm:items-center flex-1 min-w-0 lg:overflow-visible no-scrollbar">
         <CustomDropdown 
-          options={['All Content Types', 'Video', 'Image', 'Carousel', 'Static']}
+          options={CONTENT_TYPE_FILTER_OPTIONS}
           value={filters.contentType}
           onChange={(val) => onFilterChange('contentType', val)}
-          placeholder="All Content Types"
-          minWidth="160"
+          placeholder={ALL_CONTENT_TYPES}
+          minWidth="166"
         />
         {!hideClientFilter && (
           <CustomDropdown
@@ -97,20 +102,20 @@ const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false 
           value={filters.status}
           onChange={(val) => onFilterChange('status', val)}
           placeholder="All Statuses"
-          minWidth="140"
+          minWidth="142"
         />
         <CustomDropdown 
           options={['Calendar View', 'Row View']}
           value={filters.viewType || 'Calendar View'}
           onChange={(val) => onFilterChange('viewType', val)}
           placeholder="View Type"
-          minWidth="140"
+          minWidth="146"
         />
       </div>
 
       <button 
         onClick={resetFilters}
-        className="hidden lg:block text-sm font-semibold text-slate-500 hover:text-[#003870] transition-colors px-4 py-2"
+        className="hidden shrink-0 lg:ml-auto lg:block text-sm font-semibold text-slate-500 hover:text-[#003870] transition-colors px-2 py-2"
       >
         Reset Filters
       </button>

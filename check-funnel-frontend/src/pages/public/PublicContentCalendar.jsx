@@ -5,6 +5,7 @@ import CalendarGrid from '../../components/social-media/calendar/CalendarGrid';
 import ReferenceViewerModal from '../../components/social-media/calendar/ReferenceViewerModal';
 import CalendarTable from '../social-media/components/CalendarTable';
 import { getPublicClientInfo, getPublicContentCalendars } from '../../api/publicInsights';
+import { contentTypeMatchesFilter, getContentTypeFilterValue } from '../../utils/contentTypes';
 
 const getPostPlatforms = (platforms) => {
   if (Array.isArray(platforms)) {
@@ -74,6 +75,7 @@ const PublicContentCalendar = () => {
   const sharedDate = queryParams.get('date');
   const sharedView = queryParams.get('view') === 'week' ? 'week' : 'month';
   const rawViewType = queryParams.get('viewType');
+  const sharedContentType = getContentTypeFilterValue(queryParams.get('contentType'));
   const sharedViewType = rawViewType === 'calendar'
     ? 'Calendar View'
     : rawViewType === 'row'
@@ -93,7 +95,7 @@ const PublicContentCalendar = () => {
   const [referenceModal, setReferenceModal] = useState({ open: false, post: null });
   const [filters, setFilters] = useState({
     platform: 'All Platforms',
-    contentType: 'All Content Types',
+    contentType: sharedContentType,
     client: '',
     status: 'All Statuses',
     viewType: sharedViewType
@@ -143,8 +145,7 @@ const PublicContentCalendar = () => {
         const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' ||
           getPostPlatforms(post.platforms).some((platform) => platform === filters.platform.toLowerCase());
 
-        const matchesType = !filters.contentType || filters.contentType === 'All Content Types' ||
-          (post.contentType && post.contentType.toLowerCase() === filters.contentType.toLowerCase());
+        const matchesType = contentTypeMatchesFilter(post.contentType, filters.contentType);
 
         const matchesStatus = !filters.status || filters.status === 'All Statuses' ||
           (post.status && post.status.toLowerCase() === filters.status.toLowerCase());

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import CalendarDay from './CalendarDay';
 import CalendarPost from './CalendarPost';
 import PostDetailsModal from './PostDetailsModal';
+import { contentTypeMatchesFilter } from '../../../utils/contentTypes';
 
 const getPostPlatforms = (platforms) => {
   if (Array.isArray(platforms)) {
@@ -57,8 +58,7 @@ const CalendarGrid = ({
     // 1. Basic Filters (Case-Insensitive)
     const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' || getPostPlatforms(p.platforms).some(plat => plat === filters.platform.toLowerCase());
     
-    const matchesType = !filters.contentType || filters.contentType === 'All Content Types' || 
-                        (p.contentType && p.contentType.toLowerCase() === filters.contentType.toLowerCase());
+    const matchesType = contentTypeMatchesFilter(p.contentType, filters.contentType);
     
     const matchesStatus = !filters.status || filters.status === 'All Statuses' || 
                          (p.status && p.status.toLowerCase() === filters.status.toLowerCase());

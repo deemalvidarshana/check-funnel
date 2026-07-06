@@ -9,6 +9,7 @@ import PostDetailsModal from '../../components/social-media/calendar/PostDetails
 import ReferenceViewerModal from '../../components/social-media/calendar/ReferenceViewerModal';
 import { getCalendars, updatePost, deletePost } from '../../api/calendar';
 import { getClients, toggleShare } from '../../api/client';
+import { ALL_CONTENT_TYPES, contentTypeMatchesFilter } from '../../utils/contentTypes';
 import { canManageFeature } from '../../utils/permissions';
 
 const getPostPlatforms = (platforms) => {
@@ -44,7 +45,7 @@ const ContentCalendar = () => {
   
   const [filters, setFilters] = useState({
     platform: 'All Platforms',
-    contentType: 'All Content Types',
+    contentType: ALL_CONTENT_TYPES,
     client: 'All Clients',
     status: 'All Statuses',
     viewType: 'Calendar View'
@@ -98,8 +99,7 @@ const ContentCalendar = () => {
       const matchesPlatform = !filters.platform || filters.platform === 'All Platforms' || 
                              getPostPlatforms(p.platforms).some(plat => plat === filters.platform.toLowerCase());
       
-      const matchesType = !filters.contentType || filters.contentType === 'All Content Types' || 
-                         (p.contentType && p.contentType.toLowerCase() === filters.contentType.toLowerCase());
+      const matchesType = contentTypeMatchesFilter(p.contentType, filters.contentType);
       
       const matchesStatus = !filters.status || filters.status === 'All Statuses' || 
                            (p.status && p.status.toLowerCase() === filters.status.toLowerCase());
@@ -212,6 +212,9 @@ const ContentCalendar = () => {
         view,
         date: currentDate.toISOString().split('T')[0],
       });
+      if (filters.contentType && filters.contentType !== ALL_CONTENT_TYPES) {
+        shareParams.set('contentType', filters.contentType);
+      }
       const shareUrl = `${window.location.origin}/public-content-calendar/${updatedClient.shareToken}?${shareParams.toString()}`;
       await copyToClipboard(shareUrl);
       setShareCopied(true);

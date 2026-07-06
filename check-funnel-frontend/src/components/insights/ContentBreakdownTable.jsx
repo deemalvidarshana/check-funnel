@@ -65,6 +65,8 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
     return 0;
   };
 
+  const getTotalViews = (row) => Number(row?.views?.organic || 0) + Number(row?.views?.ads || 0);
+
   return (
     <table className="w-full min-w-[1000px] lg:min-w-[1200px] border-collapse text-left">
       <thead>
@@ -83,7 +85,8 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
             <th className="px-6 py-4 whitespace-nowrap">{periodLabel}</th>
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">No of Posts</th>
             <th className="px-4 py-4 text-center">No of Reels</th>
-            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Views (Organic)</th>
+            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Total Views</th>
+            <th className="px-4 py-4 text-center">Views (Organic)</th>
             <th className="px-4 py-4 text-center">Views (Ads)</th>
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Reach (Organic)</th>
             <th className="px-4 py-4 text-center">Reach (Ads)</th>
@@ -95,7 +98,8 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
             <th className="px-6 py-4 whitespace-nowrap">{periodLabel}</th>
             <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Static Posts</th>
             <th className="px-4 py-4 text-center">Reels</th>
-            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Views (Org.)</th>
+            <th className="px-4 py-4 text-center border-l border-[#c2c6d3]/20">Total Views</th>
+            <th className="px-4 py-4 text-center">Views (Org.)</th>
             <th className="px-4 py-4 text-center">Views (Ads)</th>
             <th className="px-4 py-4 text-center">3s Views (Org.)</th>
             <th className="px-4 py-4 text-center">3s Views (Ads)</th>
@@ -163,7 +167,10 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
                   <td className={`px-4 py-5 text-center ${getTrendColor(row.no_of_reels, nextRow, 'no_of_reels')}`}>
                     {row.no_of_reels ?? 0}
                   </td>
-                  <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 ${getTrendColor(row.views?.organic, nextRow, 'views.organic')}`}>
+                  <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 font-bold text-[#003870] ${getTrendColor(getTotalViews(row), nextRow ? { totalViews: getTotalViews(nextRow) } : null, 'totalViews')}`}>
+                    {getTotalViews(row).toLocaleString()}
+                  </td>
+                  <td className={`px-4 py-5 text-center ${getTrendColor(row.views?.organic, nextRow, 'views.organic')}`}>
                     {row.views?.organic?.toLocaleString() ?? 0}
                   </td>
                   <td className={`px-4 py-5 text-center ${getTrendColor(row.views?.ads, nextRow, 'views.ads')}`}>
@@ -194,7 +201,10 @@ function TableContent({ sortedData, platform, periodLabel, followersCount, showT
                   <td className={`px-4 py-5 text-center ${getTrendColor(row.no_of_reels, nextRow, 'no_of_reels')}`}>
                     {row.no_of_reels ?? 0}
                   </td>
-                  <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 ${getTrendColor(row.views?.organic, nextRow, 'views.organic')}`}>
+                  <td className={`px-4 py-5 text-center border-l border-[#c2c6d3]/10 font-bold text-[#003870] ${getTrendColor(getTotalViews(row), nextRow ? { totalViews: getTotalViews(nextRow) } : null, 'totalViews')}`}>
+                    {getTotalViews(row).toLocaleString()}
+                  </td>
+                  <td className={`px-4 py-5 text-center ${getTrendColor(row.views?.organic, nextRow, 'views.organic')}`}>
                     {row.views?.organic?.toLocaleString() ?? 0}
                   </td>
                   <td className={`px-4 py-5 text-center ${getTrendColor(row.views?.ads, nextRow, 'views.ads')}`}>
@@ -264,9 +274,9 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
     if (isTiktok) {
       headers = [timeRange === '30' ? "Month" : "Upload Date", "Total Views", "Likes", "Comments", "Shares", "ER %", "Total Followers"];
     } else if (isInstagram) {
-      headers = ["Week Period", "Posts", "Reels", "Views (Organic)", "Views (Ads)", "Reach (Organic)", "Reach (Ads)", "Interactions", "Total Followers"];
+      headers = ["Week Period", "Posts", "Reels", "Total Views", "Views (Organic)", "Views (Ads)", "Reach (Organic)", "Reach (Ads)", "Interactions", "Total Followers"];
     } else {
-      headers = ["Week Period", "Static Posts", "Reels", "Views (Org.)", "Views (Ads)", "3s Views (Org.)", "3s Views (Ads)", "Engagements", "New Follows", "Unfollows", "Total Followers"];
+      headers = ["Week Period", "Static Posts", "Reels", "Total Views", "Views (Org.)", "Views (Ads)", "3s Views (Org.)", "3s Views (Ads)", "Engagements", "New Follows", "Unfollows", "Total Followers"];
     }
 
     const rows = sortedData.map(row => {
@@ -294,6 +304,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
           `"${row.week}"`,
           row.no_of_posts ?? 0,
           row.no_of_reels ?? 0,
+          Number(row.views?.organic || 0) + Number(row.views?.ads || 0),
           row.views?.organic ?? 0,
           row.views?.ads ?? 0,
           row.reach?.organic ?? 0,
@@ -306,6 +317,7 @@ export default function ContentBreakdownTable({ clientName, data, platform = 'fa
           `"${row.week}"`,
           row.static_posts ?? 0,
           row.no_of_reels ?? 0,
+          Number(row.views?.organic || 0) + Number(row.views?.ads || 0),
           row.views?.organic ?? 0,
           row.views?.ads ?? 0,
           row.three_second_views?.organic ?? 0,

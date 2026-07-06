@@ -1,22 +1,14 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
 
 const SidebarContext = createContext();
 
 export function SidebarProvider({ children }) {
-  // Initialize from localStorage if available
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    const saved = localStorage.getItem("sidebar_collapsed");
-    return saved === "true";
-  });
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const toggleSidebar = () => {
-    setIsCollapsed((prev) => {
-      const newVal = !prev;
-      localStorage.setItem("sidebar_collapsed", String(newVal));
-      return newVal;
-    });
+    setIsCollapsed((prev) => !prev);
   };
 
   const toggleMobileMenu = () => {
