@@ -47,6 +47,16 @@ function ClientsIcon() {
   );
 }
 
+function IssueBoardIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M8 8h.01M8 12h.01M8 16h.01" strokeLinecap="round" />
+      <path d="M11 8h5M11 12h6M11 16h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function CalendarIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -131,6 +141,7 @@ const navItems = [
   { name: "Competitors", path: "/competitors", icon: <CompetitorIcon />, feature: "competitors" },
   { name: "Targets", path: "/targets", icon: <TargetIcon />, feature: "targets" },
   { name: "Clients", path: "/clients", icon: <ClientsIcon />, feature: "clients" },
+  { name: "Issue Board", path: "/issues", icon: <IssueBoardIcon /> },
   { name: "Manage Users", path: "/users", icon: <ManageIcon />, adminOnly: true },
 ];
 

@@ -21,6 +21,8 @@ import CompetitorPortfolio from "../pages/competitors/CompetitorPortfolio";
 import ContentCalendar from "../pages/social-media/ContentCalendar";
 import CreateContentCalendar from "../pages/social-media/CreateContentCalendar";
 import TargetPlanner from "../pages/targets/TargetPlanner";
+import IssueBoard from "../pages/issues/IssueBoard";
+import IssueDetail from "../pages/issues/IssueDetail";
 
 /**
  * PublicRoute component that prevents logged-in users from accessing auth pages.
@@ -72,6 +74,8 @@ export default function AppRoutes() {
             <Route path="/clients/:id/targets" element={<TargetPlanner />} />
             <Route path="/targets" element={<TargetPlanner />} />
           </Route>
+          <Route path="/issues" element={<IssueBoard />} />
+          <Route path="/issues/:issueId" element={<IssueDetail />} />
           <Route path="/reports" element={<Reports />} />
           
           {/* Admin-only routes */}

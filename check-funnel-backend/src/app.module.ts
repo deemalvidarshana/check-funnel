@@ -25,6 +25,8 @@ import { CalendarPost } from './calendar/entities/calendar-post.entity';
 import { CalendarSettings } from './calendar/entities/calendar-settings.entity';
 import { TargetsModule } from './targets/targets.module';
 import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
+import { IssuesModule } from './issues/issues.module';
+import { IssueCard } from './issues/entities/issue-card.entity';
 
 @Module({
   imports: [
@@ -50,6 +52,7 @@ import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
           CalendarPost,
           CalendarSettings,
           TargetSnapshot,
+          IssueCard,
         ],
         synchronize: true,
         logging: true,
@@ -69,6 +72,7 @@ import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
     AiModule,
     CalendarModule,
     TargetsModule,
+    IssuesModule,
   ],
 })
 export class AppModule {}
