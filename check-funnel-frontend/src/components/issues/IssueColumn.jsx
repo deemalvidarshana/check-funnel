@@ -31,8 +31,8 @@ export default function IssueColumn({
   return (
     <section className="flex min-h-[420px] flex-col rounded-[2rem] border border-slate-200 bg-slate-100/60 p-4">
       <div className="mb-4 flex items-start justify-between gap-3 px-1">
-        <div>
-          <h2 className={`${isFocused ? "text-xl sm:text-2xl tracking-[0.14em]" : "text-sm tracking-[0.18em]"} font-extrabold uppercase text-slate-700`}>
+        <div className="min-w-0">
+          <h2 className={`${isFocused ? "text-xl sm:text-2xl" : "text-base"} break-words font-extrabold leading-snug tracking-tight text-slate-800`}>
             {title}
           </h2>
           <p className={`${isFocused ? "mt-2 text-sm" : "mt-1 text-xs"} font-bold text-slate-400`}>
