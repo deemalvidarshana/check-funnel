@@ -32,8 +32,8 @@ const CustomDropdown = ({ options, value, onChange, placeholder, minWidth }) => 
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-[100]" onClick={() => setIsOpen(false)}></div>
-          <div className="absolute left-0 lg:left-0 right-0 lg:right-auto top-full z-[110] mt-2 min-w-full lg:min-w-[200px] max-h-[400px] overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 no-scrollbar">
+          <div className="fixed inset-0 z-[51]" onClick={() => setIsOpen(false)}></div>
+          <div className="absolute left-0 lg:left-0 right-0 lg:right-auto top-full z-[52] mt-2 min-w-full lg:min-w-[200px] max-h-[400px] overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 no-scrollbar">
             {options.map((option) => (
               <button
                 key={option}
@@ -64,7 +64,7 @@ const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false 
   };
 
   return (
-    <section className="glass-panel relative z-[60] rounded-2xl p-4 shadow-sm border border-white flex flex-col lg:flex-row lg:flex-wrap lg:items-center gap-3">
+    <section className="glass-panel relative z-[54] rounded-2xl p-4 shadow-sm border border-white flex flex-col lg:flex-row lg:flex-wrap lg:items-center gap-3">
       <div className="flex items-center justify-between lg:shrink-0 lg:justify-start">
         <div className="flex items-center gap-2 text-sm font-bold text-[#003870]">
           <span className="material-symbols-outlined text-[20px]">filter_list</span>

@@ -2,6 +2,13 @@ import React from 'react';
 
 const CalendarDay = ({ day, isToday, isCurrentMonth, children, view }) => {
   const isWeekView = view === 'week';
+  const childItems = React.Children.toArray(children);
+  const hasScrollableMonthPosts = !isWeekView && childItems.length > 2;
+  const contentClasses = `min-h-0 flex-grow space-y-3 ${
+    isWeekView || hasScrollableMonthPosts
+      ? 'overflow-y-auto no-scrollbar'
+      : 'overflow-visible'
+  }`;
 
   if (!isCurrentMonth) {
     return (
@@ -13,7 +20,9 @@ const CalendarDay = ({ day, isToday, isCurrentMonth, children, view }) => {
 
   const containerClasses = isWeekView 
     ? "min-h-[300px] sm:min-h-[450px] p-3 sm:p-4 rounded-3xl" 
-    : "min-h-[130px] sm:min-h-[160px] p-2 sm:p-3 rounded-2xl";
+    : hasScrollableMonthPosts
+      ? "min-h-[250px] max-h-[290px] sm:min-h-[280px] sm:max-h-[320px] p-2 sm:p-3 rounded-2xl"
+      : "min-h-[130px] sm:min-h-[160px] p-2 sm:p-3 rounded-2xl";
 
   const headerClasses = isWeekView
     ? "flex items-center justify-between pb-3 border-b border-slate-100 mb-3"
@@ -26,16 +35,9 @@ const CalendarDay = ({ day, isToday, isCurrentMonth, children, view }) => {
           <span className={`${isWeekView ? 'text-lg' : 'text-sm'} font-extrabold text-[#003870]`}>{day}</span>
           <span className="text-[9px] font-extrabold text-[#003870] uppercase tracking-[0.1em]">Today</span>
         </div>
-        <div className="flex-grow overflow-y-auto no-scrollbar space-y-3">
-          {isWeekView ? children : React.Children.toArray(children).slice(0, 2)}
+        <div className={contentClasses}>
+          {isWeekView ? children : childItems}
         </div>
-        {!isWeekView && React.Children.count(children) > 2 && (
-          <div className="mt-1 flex items-center justify-center py-1.5 rounded-xl bg-white/80 border border-[#003870]/10 hover:bg-white transition-all cursor-pointer group shadow-sm">
-            <span className="text-[9px] font-extrabold text-[#003870] group-hover:scale-105 transition-transform">
-              + {React.Children.count(children) - 2} MORE POSTS
-            </span>
-          </div>
-        )}
       </div>
     );
   }
@@ -45,16 +47,9 @@ const CalendarDay = ({ day, isToday, isCurrentMonth, children, view }) => {
       <div className={headerClasses}>
         <span className={`${isWeekView ? 'text-lg font-black' : 'text-sm font-bold'} text-slate-700 group-hover:text-[#003870] transition-colors`}>{day}</span>
       </div>
-      <div className="flex-grow overflow-y-auto no-scrollbar space-y-3">
-        {isWeekView ? children : React.Children.toArray(children).slice(0, 2)}
+      <div className={contentClasses}>
+        {isWeekView ? children : childItems}
       </div>
-      {!isWeekView && React.Children.count(children) > 2 && (
-        <div className="mt-1 flex items-center justify-center py-1.5 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all cursor-pointer group shadow-sm">
-          <span className="text-[9px] font-extrabold text-slate-500 group-hover:text-[#003870]">
-            + {React.Children.count(children) - 2} MORE POSTS
-          </span>
-        </div>
-      )}
     </div>
   );
 };

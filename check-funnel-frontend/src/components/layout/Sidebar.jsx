@@ -246,7 +246,9 @@ export default function Sidebar() {
         </button>
 
         {/* Brand */}
-        <div className={`px-6 mb-10 transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "opacity-0 invisible h-0" : "opacity-100 visible"}`}>
+        <div className={`px-6 mb-10 transition-all duration-300 overflow-hidden whitespace-nowrap opacity-100 visible ${
+          isCollapsed ? "lg:opacity-0 lg:invisible lg:h-0 lg:mb-0" : ""
+        }`}>
           <h2 className="font-extrabold text-2xl tracking-tight text-blue-900">
             Check Funnel
           </h2>
@@ -265,7 +267,7 @@ export default function Sidebar() {
                 key={`${item.name}-${item.path}`}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center ${isCollapsed ? "justify-center gap-0" : "gap-4 px-3.5"} py-3 text-sm font-semibold rounded-xl transition-all ${
+                  `flex items-center gap-4 px-3.5 ${isCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : "lg:justify-start lg:gap-4 lg:px-3.5"} py-3 text-sm font-semibold rounded-xl transition-all ${
                     isActive
                       ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200"
                       : "text-slate-500 hover:bg-blue-50/50 hover:text-blue-900"
@@ -274,7 +276,7 @@ export default function Sidebar() {
                 title={isCollapsed ? item.name : ""}
               >
                 <span className="shrink-0">{item.icon}</span>
-                <span className={`transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "w-0 opacity-0 invisible" : "w-auto opacity-100 visible"}`}>
+                <span className={`w-auto opacity-100 visible transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "lg:w-0 lg:opacity-0 lg:invisible" : ""}`}>
                   {item.name}
                 </span>
               </NavLink>
@@ -285,7 +287,7 @@ export default function Sidebar() {
         <div className="mt-auto px-3 relative" ref={profileRef}>
           {/* Profile Popover Menu */}
           {isProfileOpen && (
-            <div className={`absolute bottom-full mb-3 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300 ${isCollapsed ? "left-0 w-48" : "left-0 right-0"}`}>
+            <div className={`absolute bottom-full left-0 right-0 mb-3 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300 ${isCollapsed ? "lg:right-auto lg:w-48" : ""}`}>
                <div className="px-3 py-2 border-b border-slate-50 mb-1">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Session</p>
                   <div className="mt-2 flex items-center gap-3">
@@ -327,7 +329,7 @@ export default function Sidebar() {
           )}
 
           <div 
-            className={`bg-white rounded-xl border border-slate-200 p-2 shadow-sm flex items-center overflow-hidden transition-all duration-300 group ${isCollapsed ? "justify-center gap-0" : "gap-2"}`}
+            className={`bg-white rounded-xl border border-slate-200 p-2 shadow-sm flex items-center gap-2 overflow-hidden transition-all duration-300 group ${isCollapsed ? "lg:justify-center lg:gap-0" : ""}`}
           >
             {/* Avatar - Clickable for upload */}
             <div 
@@ -353,7 +355,7 @@ export default function Sidebar() {
             {/* User Info - Clickable for menu */}
             <div 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className={`min-w-0 flex-1 transition-all duration-300 cursor-pointer ${isCollapsed ? "w-0 opacity-0 invisible" : "w-auto opacity-100 visible"}`}
+              className={`min-w-0 flex-1 w-auto opacity-100 visible transition-all duration-300 cursor-pointer ${isCollapsed ? "lg:w-0 lg:opacity-0 lg:invisible" : ""}`}
             >
               <p className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-900">
                 {user?.fullName || "Guest User"}

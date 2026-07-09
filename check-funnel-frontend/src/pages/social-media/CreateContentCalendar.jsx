@@ -1838,9 +1838,9 @@ ${row.reelScript}`;
             </svg>
           </button>
           <div>
-            <h1 className="text-[42px] tracking-[-0.02em] leading-tight text-[#101828]">
-              <span className="font-bold">{generationMode === 'ai' ? 'AI Content' : 'Manual Content'}</span>
-              <span className="font-normal ml-2">Generator</span>
+            <h1 className="max-w-full break-words text-[34px] tracking-[-0.02em] leading-tight text-[#101828] sm:text-[42px]">
+              <span className="whitespace-nowrap font-bold">{generationMode === 'ai' ? 'AI Content' : 'Manual Content'}</span>
+              <span className="font-normal sm:ml-2"> Generator</span>
             </h1>
             <p className="text-[#475467] text-lg font-normal mt-1">
               {generationMode === 'ai'
