@@ -63,9 +63,8 @@ export class IssuesService {
     return user.email || 'guest';
   }
 
-  async findAll(user: IssueBoardUser) {
+  async findAll() {
     const issues = await this.issueCardRepository.find({
-      where: { userEmail: this.getUserEmail(user) },
       order: {
         isPinned: 'DESC',
         pinnedAt: 'DESC',
@@ -76,9 +75,9 @@ export class IssuesService {
     return issues.map((issue) => this.issueToResponse(issue));
   }
 
-  async findOne(id: string, user: IssueBoardUser) {
+  async findOne(id: string) {
     const issue = await this.issueCardRepository.findOne({
-      where: { id, userEmail: this.getUserEmail(user) },
+      where: { id },
     });
 
     if (!issue) throw new NotFoundException('Issue card not found');
@@ -110,9 +109,9 @@ export class IssuesService {
     return this.issueToResponse(savedIssue);
   }
 
-  async update(id: string, data: any, user: IssueBoardUser) {
+  async update(id: string, data: any) {
     const issue = await this.issueCardRepository.findOne({
-      where: { id, userEmail: this.getUserEmail(user) },
+      where: { id },
     });
 
     if (!issue) throw new NotFoundException('Issue card not found');
@@ -151,9 +150,9 @@ export class IssuesService {
     return this.issueToResponse(savedIssue);
   }
 
-  async remove(id: string, user: IssueBoardUser) {
+  async remove(id: string) {
     const issue = await this.issueCardRepository.findOne({
-      where: { id, userEmail: this.getUserEmail(user) },
+      where: { id },
     });
 
     if (!issue) throw new NotFoundException('Issue card not found');

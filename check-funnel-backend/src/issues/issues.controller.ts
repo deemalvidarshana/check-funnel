@@ -18,13 +18,13 @@ export class IssuesController {
   constructor(private readonly issuesService: IssuesService) {}
 
   @Get()
-  findAll(@Request() req) {
-    return this.issuesService.findAll(req.user);
+  findAll() {
+    return this.issuesService.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Request() req) {
-    return this.issuesService.findOne(id, req.user);
+  findOne(@Param('id') id: string) {
+    return this.issuesService.findOne(id);
   }
 
   @Post()
@@ -33,12 +33,12 @@ export class IssuesController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() data: any, @Request() req) {
-    return this.issuesService.update(id, data, req.user);
+  update(@Param('id') id: string, @Body() data: any) {
+    return this.issuesService.update(id, data);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @Request() req) {
-    return this.issuesService.remove(id, req.user);
+  remove(@Param('id') id: string) {
+    return this.issuesService.remove(id);
   }
 }
