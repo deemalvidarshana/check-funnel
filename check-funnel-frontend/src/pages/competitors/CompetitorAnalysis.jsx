@@ -51,6 +51,42 @@ function competitorLabel(competitor) {
   return competitor?.displayName || competitor?.username || 'Unknown';
 }
 
+function rankByCompositePerformance(summaries, posts) {
+  const rows = summaries.map((summaryItem, index) => {
+    const accountPosts = posts.filter(p => accountKeyFromPost(p) === summaryItem.accountKey);
+
+    return {
+      accountKey: summaryItem.accountKey,
+      viewsScore: averageMetricValue(accountPosts, 'videoViews'),
+      engagementScore: averageMetricValue(accountPosts, 'engagement'),
+      index,
+    };
+  });
+
+  const viewsRanks = new Map(
+    [...rows]
+      .sort((a, b) => b.viewsScore - a.viewsScore || a.index - b.index)
+      .map((row, index) => [row.accountKey, index + 1])
+  );
+  const engagementRanks = new Map(
+    [...rows]
+      .sort((a, b) => b.engagementScore - a.engagementScore || a.index - b.index)
+      .map((row, index) => [row.accountKey, index + 1])
+  );
+
+  return rows
+    .map(row => ({
+      ...row,
+      score: ((viewsRanks.get(row.accountKey) || rows.length) + (engagementRanks.get(row.accountKey) || rows.length)) / 2,
+    }))
+    .sort((a, b) =>
+      a.score - b.score ||
+      b.engagementScore - a.engagementScore ||
+      b.viewsScore - a.viewsScore ||
+      a.index - b.index
+    );
+}
+
 // ─── Toast Component ──────────────────────────────────────
 function Toast({ message, type, onClose }) {
   useEffect(() => {
@@ -334,14 +370,7 @@ export default function CompetitorAnalysis() {
     const avgMetricValue = averageMetricValue(filteredPosts, metricMode);
     const topMetric = topMetricValue(filteredPosts, metricMode);
 
-    // Calculate rank among competitors (by avg views or engagement)
-    const ranked = filteredCompetitorSummaries
-      .map(s => {
-        const accountPosts = postsFilteredByDate.filter(p => accountKeyFromPost(p) === s.accountKey);
-        const score = averageMetricValue(accountPosts, metricMode);
-        return { accountKey: s.accountKey, score };
-      })
-      .sort((a, b) => b.score - a.score);
+    const ranked = rankByCompositePerformance(filteredCompetitorSummaries, postsFilteredByDate);
     const totalCompetitors = ranked.length;
     let rank = totalCompetitors;
     if (selectedCompetitor !== 'all') {
