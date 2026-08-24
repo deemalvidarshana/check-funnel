@@ -12,7 +12,7 @@ export default function DeleteConfirmationModal({ open, onClose, onConfirm, titl
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
       <div 
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         onClick={onClose}

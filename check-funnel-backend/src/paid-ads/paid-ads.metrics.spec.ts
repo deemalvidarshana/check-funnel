@@ -1,4 +1,11 @@
-import { conversionCount, monthPeriod, normalizeMetrics, percentageChange, previousMonthPeriod } from './paid-ads.metrics';
+import {
+  conversionCount,
+  monthPeriod,
+  normalizeCampaignResults,
+  normalizeMetrics,
+  percentageChange,
+  previousMonthPeriod,
+} from './paid-ads.metrics';
 
 describe('paid ads metric normalization', () => {
   it('calculates derived metrics without double-counting conversions', () => {
@@ -22,5 +29,55 @@ describe('paid ads metric normalization', () => {
     expect(percentageChange(120, 100)).toBe(20);
     expect(percentageChange(0, 0)).toBe(0);
     expect(percentageChange(10, 0)).toBeNull();
+  });
+
+  it('normalizes objective-specific campaign results without double-counting Meta action variants', () => {
+    const result = normalizeCampaignResults({
+      spend: '200',
+      reach: '1000',
+      impressions: '2000',
+      clicks: '100',
+      inline_link_clicks: '80',
+      unique_clicks: '70',
+      actions: [
+        { action_type: 'omni_purchase', value: '5' },
+        { action_type: 'purchase', value: '5' },
+        { action_type: 'offsite_conversion.fb_pixel_purchase', value: '5' },
+        { action_type: 'landing_page_view', value: '60' },
+        { action_type: 'add_to_cart', value: '12' },
+      ],
+      action_values: [
+        { action_type: 'omni_purchase', value: '1000' },
+        { action_type: 'purchase', value: '1000' },
+      ],
+    }, 'OUTCOME_SALES');
+
+    expect(result).toMatchObject({
+      results: 5,
+      resultType: 'Purchases',
+      costPerResult: 40,
+      purchases: 5,
+      purchaseValue: 1000,
+      purchaseRoas: 5,
+      landingPageViews: 60,
+      addToCart: 12,
+      linkClicks: 80,
+      uniqueClicks: 70,
+    });
+  });
+
+  it('maps legacy Meta campaign objectives to the correct result type', () => {
+    const result = normalizeCampaignResults({
+      spend: '90',
+      impressions: '1000',
+      inline_link_clicks: '30',
+      actions: [{ action_type: 'landing_page_view', value: '20' }],
+    }, 'LINK_CLICKS');
+
+    expect(result).toMatchObject({
+      results: 20,
+      resultType: 'Landing page views',
+      costPerResult: 4.5,
+    });
   });
 });

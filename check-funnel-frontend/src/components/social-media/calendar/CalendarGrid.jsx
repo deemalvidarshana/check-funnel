@@ -26,6 +26,7 @@ const CalendarGrid = ({
   filters,
   isLoading,
   readOnly = false,
+  showDriveLink = true,
   onPrevWeek,
   onNextWeek
 }) => {
@@ -258,6 +259,7 @@ const CalendarGrid = ({
         onClose={() => setIsModalOpen(false)} 
         post={selectedPost} 
         hideFooter={readOnly}
+        showDriveLink={showDriveLink}
       />
     </div>
   );

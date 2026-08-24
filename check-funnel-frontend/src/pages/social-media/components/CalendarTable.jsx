@@ -122,9 +122,11 @@ const DropdownCell = ({ value, options, onSave, className, renderDisplay, readOn
   );
 };
 
-const DateCell = ({ value, onSave, className, readOnly = false }) => {
+const DateCell = ({ value, onSave, className, readOnly = false, allowedMonth = null }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [draftValue, setDraftValue] = useState('');
   const inputRef = useRef(null);
+  const editFinishedRef = useRef(false);
 
   const formatDisplayDate = (dateStr) => {
     try {
@@ -155,10 +157,46 @@ const DateCell = ({ value, onSave, className, readOnly = false }) => {
     }
   };
 
-  const handleChange = (e) => {
-    if (e.target.value) {
-      onSave(e.target.value);
-      setIsEditing(false);
+  const beginEditing = () => {
+    editFinishedRef.current = false;
+    setDraftValue(getInputValue(value));
+    setIsEditing(true);
+  };
+
+  const allowedDateRange = (() => {
+    if (!allowedMonth || !/^\d{4}-\d{2}$/.test(allowedMonth)) return {};
+    const [year, month] = allowedMonth.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    return {
+      min: `${allowedMonth}-01`,
+      max: `${allowedMonth}-${String(lastDay).padStart(2, '0')}`
+    };
+  })();
+
+  const commitDate = () => {
+    if (editFinishedRef.current) return;
+    editFinishedRef.current = true;
+    const currentValue = getInputValue(value);
+    const isAllowedDate = !allowedMonth || draftValue.startsWith(`${allowedMonth}-`);
+    if (draftValue && isAllowedDate && draftValue !== currentValue) {
+      onSave(draftValue);
+    }
+    setIsEditing(false);
+  };
+
+  const cancelEditing = () => {
+    editFinishedRef.current = true;
+    setDraftValue(getInputValue(value));
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitDate();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelEditing();
     }
   };
 
@@ -175,7 +213,7 @@ const DateCell = ({ value, onSave, className, readOnly = false }) => {
 
   return (
     <td 
-      onClick={() => setIsEditing(true)}
+      onClick={() => !isEditing && beginEditing()}
       className={`${className} cursor-pointer hover:bg-blue-50/30 transition-colors group/cell relative min-w-[120px]`}
     >
       <div className="flex items-center gap-2">
@@ -189,9 +227,12 @@ const DateCell = ({ value, onSave, className, readOnly = false }) => {
             ref={inputRef}
             type="date"
             autoFocus
-            defaultValue={getInputValue(value)}
-            onChange={handleChange}
-            onBlur={() => setIsEditing(false)}
+            min={allowedDateRange.min}
+            max={allowedDateRange.max}
+            value={draftValue}
+            onChange={(event) => setDraftValue(event.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={commitDate}
             className="w-full text-xs font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-[#003870]"
           />
         </div>
@@ -233,6 +274,17 @@ const PLATFORM_LINKS = [
         <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>
       </svg>
     )
+  },
+  {
+    id: 'drive',
+    label: 'Drive',
+    keys: ['driveLink'],
+    Icon: () => (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8.5 3h7l5.5 9.5-3.5 6H6.5l-3.5-6L8.5 3z"></path>
+        <path d="M8.5 3 14 12.5h7M3 12.5h11L17.5 18.5"></path>
+      </svg>
+    )
   }
 ];
 
@@ -247,8 +299,9 @@ const getPlatformLink = (row, keys) => {
   return normalizePlatformUrl(value);
 };
 
-const PlatformCell = ({ row }) => {
+const PlatformCell = ({ row, showDriveLink = true }) => {
   const linkedPlatforms = PLATFORM_LINKS
+    .filter((platform) => showDriveLink || platform.id !== 'drive')
     .map((platform) => ({
       ...platform,
       href: getPlatformLink(row, platform.keys)
@@ -256,26 +309,28 @@ const PlatformCell = ({ row }) => {
     .filter((platform) => platform.href);
 
   return (
-    <td className="px-6 py-4 border-r border-slate-100">
-      {linkedPlatforms.length > 0 ? (
-        <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
-          {linkedPlatforms.map(({ id, label, href, Icon }) => (
-            <a
-              key={id}
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="h-8 w-8 rounded-xl text-[#003870] flex items-center justify-center transition-all hover:bg-[#003870] hover:text-white hover:scale-105"
-              title={`Open ${label}`}
-            >
-              <Icon />
-            </a>
-          ))}
-        </div>
-      ) : (
-        <span className="inline-flex h-8 items-center rounded-2xl bg-slate-50 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-300">No Links</span>
-      )}
+    <td className="border-r border-slate-100 px-2 py-4">
+      <div className="flex w-full justify-center">
+        {linkedPlatforms.length > 0 ? (
+          <div className="inline-flex items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+            {linkedPlatforms.map(({ id, label, href, Icon }) => (
+              <a
+                key={id}
+                href={href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className={`${linkedPlatforms.length >= 4 ? 'h-7 w-7' : 'h-8 w-8'} rounded-xl text-[#003870] flex items-center justify-center transition-all hover:bg-[#003870] hover:text-white hover:scale-105`}
+                title={`Open ${label}`}
+              >
+                <Icon />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <span className="inline-flex h-8 items-center rounded-2xl bg-slate-50 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-300">No Links</span>
+        )}
+      </div>
     </td>
   );
 };
@@ -294,7 +349,9 @@ const CalendarTable = ({
   generatingScriptIndex = null,
   variant = 'generated',
   readOnly = false,
-  hideActions = false
+  hideActions = false,
+  showDriveLink = true,
+  allowedDateMonth = null
 }) => {
   const isContentRowView = variant === 'contentRow';
   const showActions = !hideActions;
@@ -305,7 +362,6 @@ const CalendarTable = ({
     ? 'sticky right-0 z-30 bg-white group-hover:bg-slate-50 shadow-[-12px_0_18px_-18px_rgba(15,23,42,0.8)]'
     : '';
   const contentTypeOptions = [
-    { value: 'Video', label: 'Video' },
     { value: 'Reel', label: 'Reel' },
     { value: 'Carousel', label: 'Carousel' },
     { value: 'Static', label: 'Static' }
@@ -336,7 +392,7 @@ const CalendarTable = ({
       <thead className="bg-slate-50/80 sticky top-0 z-40 shadow-sm">
         <tr>
           <th className={`${isContentRowView ? 'w-[110px]' : 'w-[120px]'} px-6 py-4 font-bold text-slate-500 text-[11px] uppercase tracking-wider border-b border-r border-slate-100`}>Date</th>
-          <th className={`${isContentRowView ? 'w-[130px]' : 'w-[140px]'} px-6 py-4 font-bold text-slate-500 text-[11px] uppercase tracking-wider border-b border-r border-slate-100`}>Type</th>
+          <th className={`${isContentRowView ? 'w-[130px]' : 'w-[140px]'} px-2 py-4 text-center font-bold text-slate-500 text-[11px] uppercase tracking-wider border-b border-r border-slate-100`}>Type</th>
           {isContentRowView && (
             <th className="w-[135px] px-6 py-4 font-bold text-slate-500 text-[11px] uppercase tracking-wider border-b border-r border-slate-100">Platform</th>
           )}
@@ -360,25 +416,28 @@ const CalendarTable = ({
               onSave={(val) => onUpdateRow && onUpdateRow(i, { date: val })}
               className="px-6 py-4 border-r border-slate-100 whitespace-nowrap"
               readOnly={readOnly}
+              allowedMonth={allowedDateMonth}
             />
             
             <DropdownCell 
               value={row.contentType}
               options={contentTypeOptions}
               onSave={(val) => onUpdateRow && onUpdateRow(i, { contentType: val })}
-              className="px-6 py-4 border-r border-slate-100"
+              className="px-2 py-4 border-r border-slate-100"
               readOnly={readOnly}
               renderDisplay={(val) => (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${editingIndex === i ? 'bg-white text-[#003870]' : 'bg-slate-100 text-slate-700'}`}>
-                  <span className="material-symbols-outlined text-[14px]">
-                    {getContentTypeIcon(val)}
+                <div className="flex w-full justify-center">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${editingIndex === i ? 'bg-white text-[#003870]' : 'bg-slate-100 text-slate-700'}`}>
+                    <span className="material-symbols-outlined text-[14px]">
+                      {getContentTypeIcon(val)}
+                    </span>
+                    {val}
                   </span>
-                  {val}
-                </span>
+                </div>
               )}
             />
 
-            {isContentRowView && <PlatformCell row={row} />}
+            {isContentRowView && <PlatformCell row={row} showDriveLink={showDriveLink} />}
             
             <EditableCell 
               value={row.pillar} 
@@ -435,10 +494,10 @@ const CalendarTable = ({
                     <button
                       type="button"
                       onClick={() => onViewRow && onViewRow(i)}
-                      className="p-2.5 rounded-xl bg-blue-50 text-[#003870] hover:bg-[#003870] hover:text-white transition-all shadow-sm hover:scale-110 active:scale-95 group"
+                      className="rounded-xl bg-blue-50 p-2 text-[#003870] shadow-sm transition-all hover:scale-105 hover:bg-[#003870] hover:text-white active:scale-95 group"
                       title="Edit Post"
                     >
-                      <span className="material-symbols-outlined text-[20px] block">edit</span>
+                      <span className="material-symbols-outlined block text-[18px]">edit</span>
                     </button>
                   ) : (
                     <>
@@ -497,6 +556,22 @@ const CalendarTable = ({
                         </button>
                       </div>
                     </>
+                  )}
+                  {isContentRowView && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateRow && onUpdateRow(i, { isChecked: !row.isChecked })}
+                      className={`flex h-6 w-6 items-center justify-center rounded-md border-2 transition-all active:scale-90 ${
+                        row.isChecked
+                          ? 'border-[#003870] bg-white text-[#003870]'
+                          : 'border-slate-300 bg-white text-transparent hover:border-[#003870]'
+                      }`}
+                      aria-label={row.isChecked ? 'Uncheck post' : 'Check post'}
+                      aria-pressed={Boolean(row.isChecked)}
+                      title={row.isChecked ? 'Uncheck' : 'Mark as checked'}
+                    >
+                      <span className="text-[15px] font-black leading-none">✓</span>
+                    </button>
                   )}
                 </div>
               </td>

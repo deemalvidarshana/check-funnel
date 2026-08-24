@@ -312,6 +312,7 @@ const PublicContentCalendar = () => {
               variant="contentRow"
               readOnly
               hideActions
+              showDriveLink={false}
             />
           </div>
         ) : (
@@ -322,6 +323,7 @@ const PublicContentCalendar = () => {
             filters={filters}
             isLoading={isLoading}
             readOnly
+            showDriveLink={false}
             onPrevWeek={handlePrevWeek}
             onNextWeek={handleNextWeek}
           />

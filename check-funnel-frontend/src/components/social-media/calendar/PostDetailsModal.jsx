@@ -85,7 +85,8 @@ const formatPostDate = (post) => {
 const getInitialLinks = (post) => ({
   fbLink: post?.fbLink || post?.facebookLink || '',
   igLink: post?.igLink || post?.instagramLink || '',
-  ttLink: post?.ttLink || post?.tiktokLink || ''
+  ttLink: post?.ttLink || post?.tiktokLink || '',
+  driveLink: post?.driveLink || ''
 });
 
 const PlatformButton = ({ field, href }) => {
@@ -275,7 +276,11 @@ const PostDetailsModal = ({
   linkEditMode = false,
   hidePreview = false,
   hideFooter = false,
-  onSave
+  showDriveLink = true,
+  onSave,
+  canDelete = false,
+  onDelete,
+  driveOnlyEdit = false
 }) => {
   const [links, setLinks] = useState(getInitialLinks(post));
   const [isSaving, setIsSaving] = useState(false);
@@ -298,7 +303,8 @@ const PostDetailsModal = ({
     const trimmedLinks = {
       fbLink: links.fbLink.trim(),
       igLink: links.igLink.trim(),
-      ttLink: links.ttLink.trim()
+      ttLink: links.ttLink.trim(),
+      driveLink: links.driveLink.trim()
     };
     const linkedPlatforms = PLATFORM_FIELDS
       .filter((field) => trimmedLinks[field.key])
@@ -306,10 +312,12 @@ const PostDetailsModal = ({
 
     setIsSaving(true);
     try {
-      await onSave({
-        ...trimmedLinks,
-        ...(linkedPlatforms.length > 0 ? { platforms: linkedPlatforms } : {})
-      });
+      await onSave(driveOnlyEdit
+        ? { driveLink: trimmedLinks.driveLink }
+        : {
+            ...trimmedLinks,
+            ...(linkedPlatforms.length > 0 ? { platforms: linkedPlatforms } : {})
+          });
       onClose();
     } finally {
       setIsSaving(false);
@@ -323,16 +331,16 @@ const PostDetailsModal = ({
         onClick={onClose}
       ></div>
 
-      <div className={`relative bg-white rounded-[28px] border border-white/80 shadow-[0_24px_80px_-36px_rgba(15,23,42,0.65)] w-full ${hidePreview ? 'max-w-2xl' : 'max-w-5xl'} overflow-hidden animate-in zoom-in-95 duration-200 max-h-[calc(100vh-1rem)] sm:max-h-[88vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}>
-        <div className={hidePreview ? 'h-full' : 'flex flex-col md:flex-row h-full'}>
+      <div className={`relative flex w-full flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-[0_24px_80px_-36px_rgba(15,23,42,0.65)] ${hidePreview ? 'max-w-2xl' : 'max-w-5xl'} max-h-[calc(100vh-1rem)] animate-in zoom-in-95 duration-200 sm:max-h-[88vh]`}>
+        <div className={hidePreview ? 'flex min-h-0 flex-1 flex-col' : 'flex min-h-0 flex-1 flex-col md:flex-row'}>
           {!hidePreview && (
             <div className="md:w-[34%] bg-slate-50 flex items-center justify-center p-4 sm:p-6 border-b md:border-b-0 md:border-r border-slate-100">
               <PlatformPreview post={post} links={links} />
             </div>
           )}
 
-          <div className={`${hidePreview ? 'p-6 sm:p-8' : 'p-6 sm:p-8 md:w-[66%]'} flex flex-col`}>
-            <div className="flex items-start justify-between gap-4 mb-4 pb-4 border-b border-slate-100">
+          <div className={`${hidePreview ? 'p-6 sm:p-8' : 'p-6 sm:p-8 md:w-[66%]'} flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}>
+            <div className="mb-3 flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
                   post.type === 'Published' || post.type === 'Completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-blue-50 text-blue-700 border border-blue-100'
@@ -346,14 +354,14 @@ const PostDetailsModal = ({
               </button>
             </div>
 
-            <h2 className="text-2xl font-extrabold text-slate-950 mb-1.5 leading-tight sm:text-[26px]">{modalTitle}</h2>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-4 break-words">{post.pillar}</p>
+            <h2 className="mb-1 text-2xl font-extrabold leading-tight text-slate-950 sm:text-[26px]">{modalTitle}</h2>
+            <p className="mb-3 break-words text-[10px] font-bold uppercase tracking-widest text-slate-400">{post.pillar}</p>
 
-            <div className="space-y-4 flex-grow">
+            <div className="flex-grow space-y-3">
               {post.visualCopy && (
                 <div>
                   <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Visual Copy</h4>
-                  <p className="text-sm text-slate-900 font-semibold leading-7 bg-[#003870]/5 p-4 rounded-2xl border border-[#003870]/10 shadow-inner shadow-white/60 break-words">
+                  <p className="break-words rounded-2xl border border-[#003870]/10 bg-[#003870]/5 p-3 text-sm font-semibold leading-6 text-slate-900 shadow-inner shadow-white/60">
                     "{post.visualCopy}"
                   </p>
                 </div>
@@ -361,12 +369,12 @@ const PostDetailsModal = ({
 
               <div>
                 <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Caption</h4>
-                <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner shadow-white/70">
+                <p className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-sm leading-relaxed text-slate-600 shadow-inner shadow-white/70">
                   {post.caption || 'No caption provided'}
                 </p>
               </div>
 
-              <div className={linkEditMode ? 'space-y-5' : 'grid grid-cols-2 gap-8'}>
+              <div className={linkEditMode ? 'space-y-4' : 'grid grid-cols-2 gap-8'}>
                 <div>
                   <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">Platform Links</h4>
                   {linkEditMode ? (
@@ -381,8 +389,9 @@ const PostDetailsModal = ({
                             type="url"
                             value={links[field.key]}
                             onChange={(event) => updateLink(field.key, event.target.value)}
+                            disabled={driveOnlyEdit}
                             placeholder={field.placeholder}
-                            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#003870] focus:bg-white focus:ring-4 focus:ring-[#003870]/10"
+                            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#003870] focus:bg-white focus:ring-4 focus:ring-[#003870]/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-70"
                           />
                         </label>
                       ))}
@@ -394,6 +403,31 @@ const PostDetailsModal = ({
                       ))}
                     </div>
                   )}
+
+                  {showDriveLink && <div className="mt-3">
+                    <h4 className="mb-2 text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Drive Link</h4>
+                    {linkEditMode ? (
+                      <input
+                        type="url"
+                        value={links.driveLink}
+                        onChange={(event) => updateLink('driveLink', event.target.value)}
+                        placeholder="https://drive.google.com/..."
+                        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-xs font-semibold text-slate-700 outline-none transition-all placeholder:text-slate-400 focus:border-[#003870] focus:bg-white focus:ring-4 focus:ring-[#003870]/10"
+                      />
+                    ) : links.driveLink ? (
+                      <a
+                        href={normalizeUrl(links.driveLink)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-[#003870] shadow-sm transition-all hover:border-[#003870] hover:bg-[#003870] hover:text-white"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">folder_open</span>
+                        Open Drive Link
+                      </a>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-400">No drive link added</span>
+                    )}
+                  </div>}
                 </div>
 
                 <div>
@@ -410,9 +444,37 @@ const PostDetailsModal = ({
                 </div>
               </div>
             </div>
+          </div>
 
-            {!hideFooter && linkEditMode && (
-              <div className="mt-7 pt-5 border-t border-slate-100 flex gap-4">
+          {!hideFooter && linkEditMode && (
+              <div className="z-20 flex shrink-0 gap-4 border-t border-slate-100 bg-white px-6 pb-5 pt-4 shadow-[0_-12px_28px_-24px_rgba(15,23,42,0.45)] sm:px-8">
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    disabled={isSaving}
+                    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-red-500 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Delete post"
+                    aria-label="Delete post"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v5M14 11v5" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSave}
@@ -420,11 +482,10 @@ const PostDetailsModal = ({
                   className="flex-grow h-12 bg-[#003870] text-white rounded-2xl text-sm font-bold shadow-lg shadow-[#003870]/20 hover:scale-[1.01] active:scale-95 transition-all hover:bg-[#002b56] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-[20px]">{isSaving ? 'sync' : 'save'}</span>
-                  {isSaving ? 'Saving...' : 'Save Links'}
+                  {isSaving ? 'Saving...' : driveOnlyEdit ? 'Save Drive Link' : 'Save Links'}
                 </button>
               </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

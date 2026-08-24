@@ -28,6 +28,14 @@ export class CalendarController {
     throw new ForbiddenException('You do not have permission to manage content calendars');
   }
 
+  private assertCanUpdatePost(req: any, data: Record<string, unknown>) {
+    const viewerEditableFields = new Set(['driveLink', 'isChecked']);
+    const isViewerSafeUpdate = Object.keys(data).every((key) => viewerEditableFields.has(key));
+
+    if (req.user?.role === 'viewer' && isViewerSafeUpdate) return;
+    this.assertCanManage(req);
+  }
+
   @Post()
   async create(@Body() data: any, @Request() req) {
     this.assertCanManage(req);
@@ -85,7 +93,7 @@ export class CalendarController {
 
   @Patch('posts/:id')
   async updatePost(@Param('id', ParseIntPipe) id: number, @Body() data: any, @Request() req) {
-    this.assertCanManage(req);
+    this.assertCanUpdatePost(req, data);
     return this.calendarService.updatePost(id, data);
   }
 }

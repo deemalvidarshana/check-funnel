@@ -42,6 +42,12 @@ export class CalendarPost {
   @Column({ nullable: true })
   ttLink: string;
 
+  @Column({ nullable: true })
+  driveLink: string;
+
+  @Column({ default: false })
+  isChecked: boolean;
+
   @Column({ default: 'DRAFT' })
   status: string;
 

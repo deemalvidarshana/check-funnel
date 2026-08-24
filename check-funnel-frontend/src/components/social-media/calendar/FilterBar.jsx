@@ -55,7 +55,16 @@ const CustomDropdown = ({ options, value, onChange, placeholder, minWidth }) => 
   );
 };
 
-const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false }) => {
+const FilterBar = ({
+  filters,
+  onFilterChange,
+  clients,
+  hideClientFilter = false,
+  canAddRow = false,
+  onAddRow,
+  isAddingRow = false,
+  resultCount = 0
+}) => {
   const resetFilters = () => {
     onFilterChange('platform', 'All Platforms');
     onFilterChange('contentType', ALL_CONTENT_TYPES);
@@ -69,13 +78,45 @@ const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false 
         <div className="flex items-center gap-2 text-sm font-bold text-[#003870]">
           <span className="material-symbols-outlined text-[20px]">filter_list</span>
           Filters
+          <span className="inline-flex h-6 items-center rounded-full bg-[#003870]/8 px-2.5 text-[11px] font-extrabold text-[#003870]">
+            {resultCount} {resultCount === 1 ? 'Row' : 'Rows'}
+          </span>
         </div>
-        <button 
-          onClick={resetFilters}
-          className="lg:hidden text-sm font-semibold text-slate-500 hover:text-[#003870] transition-colors"
-        >
-          Reset
-        </button>
+        <div className="flex items-center gap-2 lg:hidden">
+          <button
+            onClick={resetFilters}
+            className="text-sm font-semibold text-slate-500 transition-colors hover:text-[#003870]"
+          >
+            Reset
+          </button>
+          {canAddRow && (
+            <button
+              type="button"
+              onClick={onAddRow}
+              disabled={isAddingRow}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[#003870] bg-white text-[#003870] transition hover:bg-[#003870] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              title="Add row"
+              aria-label="Add calendar row"
+            >
+              {isAddingRow ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="h-8 w-px bg-slate-200 hidden lg:block"></div>
@@ -113,12 +154,41 @@ const FilterBar = ({ filters, onFilterChange, clients, hideClientFilter = false 
         />
       </div>
 
-      <button 
-        onClick={resetFilters}
-        className="hidden shrink-0 lg:ml-auto lg:block text-sm font-semibold text-slate-500 hover:text-[#003870] transition-colors px-2 py-2"
-      >
-        Reset Filters
-      </button>
+      <div className="hidden shrink-0 items-center gap-3 lg:ml-auto lg:flex">
+        <button
+          onClick={resetFilters}
+          className="px-2 py-2 text-sm font-semibold text-slate-500 transition-colors hover:text-[#003870]"
+        >
+          Reset Filters
+        </button>
+        {canAddRow && (
+          <button
+            type="button"
+            onClick={onAddRow}
+            disabled={isAddingRow}
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-[#003870] bg-white text-[#003870] transition hover:bg-[#003870] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            title="Add row"
+            aria-label="Add calendar row"
+          >
+            {isAddingRow ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
     </section>
   );
 };

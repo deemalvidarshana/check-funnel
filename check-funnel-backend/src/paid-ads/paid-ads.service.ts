@@ -2,7 +2,7 @@ import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { ClientService } from '../client/client.service';
-import { monthPeriod, normalizeMetrics, percentageChange, previousMonthPeriod } from './paid-ads.metrics';
+import { monthPeriod, normalizeCampaignResults, normalizeMetrics, percentageChange, previousMonthPeriod } from './paid-ads.metrics';
 import { MetaInsightRow, PaidAdsMetrics, PaidAdsPeriod } from './paid-ads.types';
 
 interface MetaCampaign {
@@ -132,15 +132,17 @@ export class PaidAdsService {
 
   private normalizeCampaign(row: MetaInsightRow, campaign?: MetaCampaign) {
     const metrics = normalizeMetrics(row);
+    const objective = row.objective || campaign?.objective || '—';
     const rawBudget = campaign?.lifetime_budget || campaign?.daily_budget;
     return {
       id: row.campaign_id || campaign?.id,
       name: row.campaign_name || campaign?.name || 'Unnamed campaign',
       status: campaign?.effective_status || 'UNKNOWN',
-      objective: row.objective || campaign?.objective || '—',
+      objective,
       budget: rawBudget ? Number(rawBudget) / 100 : null,
       budgetType: campaign?.lifetime_budget ? 'lifetime' : campaign?.daily_budget ? 'daily' : null,
       ...metrics,
+      ...normalizeCampaignResults(row, objective),
     };
   }
 
@@ -187,7 +189,12 @@ export class PaidAdsService {
   private fetchInsights(accountId: string, token: string, period: PaidAdsPeriod, level: 'account' | 'campaign' | 'ad', timeIncrement?: number) {
     const metricFields = ['date_start', 'date_stop', 'spend', 'reach', 'impressions', 'clicks', 'actions'];
     const fields = level === 'campaign'
-      ? ['campaign_id', 'campaign_name', 'objective', ...metricFields]
+      ? [
+        'campaign_id', 'campaign_name', 'objective', ...metricFields,
+        'frequency', 'unique_clicks', 'inline_link_clicks', 'inline_link_click_ctr',
+        'ctr', 'cpc', 'cpm', 'cpp', 'cost_per_inline_link_click',
+        'action_values', 'cost_per_action_type', 'purchase_roas', 'website_purchase_roas',
+      ]
       : level === 'ad'
         ? ['ad_id', 'ad_name', 'campaign_id', 'campaign_name', ...metricFields]
         : metricFields;

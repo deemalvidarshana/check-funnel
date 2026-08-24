@@ -11,6 +11,8 @@ import {
   ChevronDown,
   Clock,
   Cloud,
+  Download,
+  FileSpreadsheet,
   Lightbulb,
   Loader2,
   Maximize2,
@@ -21,6 +23,7 @@ import {
   Table2,
   Target,
   User,
+  UploadCloud,
   WandSparkles,
   X,
 } from 'lucide-react';
@@ -64,10 +67,165 @@ const MANUAL_CONTENT_TYPE_OPTIONS = [
 ];
 
 const MANUAL_CALENDAR_PROMPT = 'Manual content calendar generated without AI prompt.';
+const UPLOAD_CALENDAR_PROMPT = 'Content calendar imported from an uploaded file.';
+const UPLOAD_REQUIRED_COLUMNS = ['Date', 'Type', 'Pillar', 'Visual Copy', 'Caption', 'Status', 'Reference'];
+const MAX_UPLOAD_FILE_SIZE = 5 * 1024 * 1024;
 
 const createDefaultManualContentCounts = () => Object.fromEntries(
   MANUAL_CONTENT_TYPE_OPTIONS.map((type) => [type.id, ''])
 );
+
+const normalizeUploadHeader = (value) => String(value || '')
+  .replace(/^\uFEFF/, '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, '');
+
+const parseDelimitedText = (text, delimiter) => {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    const nextCharacter = text[index + 1];
+
+    if (character === '"') {
+      if (quoted && nextCharacter === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === delimiter && !quoted) {
+      row.push(cell);
+      cell = '';
+    } else if ((character === '\n' || character === '\r') && !quoted) {
+      if (character === '\r' && nextCharacter === '\n') index += 1;
+      row.push(cell);
+      if (row.some((value) => String(value).trim())) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += character;
+    }
+  }
+
+  row.push(cell);
+  if (row.some((value) => String(value).trim())) rows.push(row);
+  return rows;
+};
+
+const tabularRowsToObjects = (rows) => {
+  if (!Array.isArray(rows) || rows.length < 2) return [];
+  const headers = rows[0].map((header) => String(header || '').trim());
+  return rows.slice(1)
+    .filter((row) => Array.isArray(row) && row.some((value) => String(value ?? '').trim()))
+    .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ''])));
+};
+
+const normalizeUploadedDate = (value) => {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return formatDateInput(value);
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const excelDate = new Date(Date.UTC(1899, 11, 30) + Math.round(value * 86400000));
+    return `${excelDate.getUTCFullYear()}-${String(excelDate.getUTCMonth() + 1).padStart(2, '0')}-${String(excelDate.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  const text = String(value || '').trim();
+  const isoMatch = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return formatDateInput(new Date(Number(year), Number(month) - 1, Number(day)));
+  }
+
+  const shortMatch = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (shortMatch) {
+    const [, first, second, year] = shortMatch;
+    const month = Number(first) > 12 ? Number(second) : Number(first);
+    const day = Number(first) > 12 ? Number(first) : Number(second);
+    return formatDateInput(new Date(Number(year), month - 1, day));
+  }
+
+  const parsed = new Date(text);
+  return Number.isFinite(parsed.getTime()) ? formatDateInput(parsed) : '';
+};
+
+const normalizeUploadedType = (value) => {
+  const type = String(value || '').trim().toLowerCase();
+  if (type === 'reel' || type === 'video') return 'Reel';
+  if (type === 'static' || type === 'image' || type === 'photo') return 'Static';
+  if (type === 'carousel') return 'Carousel';
+  return '';
+};
+
+const normalizeUploadedPlatforms = (value) => {
+  const values = Array.isArray(value) ? value : String(value || '').split(/[,;|/]+/);
+  return [...new Set(values.map((platform) => {
+    const normalized = String(platform || '').trim().toLowerCase().replace(/\s+/g, '');
+    if (normalized === 'facebook' || normalized === 'fb') return 'facebook';
+    if (normalized === 'instagram' || normalized === 'ig') return 'instagram';
+    if (normalized === 'tiktok' || normalized === 'tik-tok' || normalized === 'tt') return 'tiktok';
+    return '';
+  }).filter(Boolean))];
+};
+
+const normalizeUploadedRows = (rawRows) => {
+  if (!Array.isArray(rawRows) || rawRows.length === 0) throw new Error('The uploaded file has no data rows.');
+
+  const normalizedRows = rawRows.filter((row) => row && typeof row === 'object');
+  const availableHeaders = new Set(normalizedRows.flatMap((row) => Object.keys(row).map(normalizeUploadHeader)));
+  const requiredHeaderAliases = {
+    Date: ['date'],
+    Type: ['type', 'contenttype'],
+    Pillar: ['pillar', 'contentpillar'],
+    'Visual Copy': ['visualcopy', 'visual'],
+    Caption: ['caption'],
+    Status: ['status'],
+    Reference: ['reference', 'reelscript']
+  };
+  const missingColumns = Object.entries(requiredHeaderAliases)
+    .filter(([, aliases]) => !aliases.some((alias) => availableHeaders.has(alias)))
+    .map(([label]) => label);
+  if (missingColumns.length > 0) throw new Error(`Missing columns: ${missingColumns.join(', ')}`);
+
+  const getValue = (row, aliases) => {
+    const entry = Object.entries(row).find(([key]) => aliases.includes(normalizeUploadHeader(key)));
+    return entry?.[1] ?? '';
+  };
+
+  return normalizedRows.map((row, index) => {
+    const date = normalizeUploadedDate(getValue(row, ['date']));
+    const contentType = normalizeUploadedType(getValue(row, ['type', 'contenttype']));
+    const platforms = normalizeUploadedPlatforms(getValue(row, ['platform', 'platforms']));
+    if (!date) throw new Error(`Row ${index + 2}: invalid Date.`);
+    if (!contentType) throw new Error(`Row ${index + 2}: Type must be Reel, Static, or Carousel.`);
+
+    const rawStatus = String(getValue(row, ['status']) || 'DRAFT').trim().toUpperCase();
+    const status = ['DRAFT', 'SCHEDULED', 'PUBLISHED'].includes(rawStatus) ? rawStatus : 'DRAFT';
+    return {
+      date,
+      time: '',
+      sortOrder: index,
+      contentType,
+      platforms,
+      pillar: String(getValue(row, ['pillar', 'contentpillar']) || '').trim(),
+      visualCopy: String(getValue(row, ['visualcopy', 'visual']) || '').trim(),
+      visual: String(getValue(row, ['visualcopy', 'visual']) || '').trim(),
+      caption: String(getValue(row, ['caption']) || '').trim(),
+      status,
+      reelScript: contentType === 'Reel'
+        ? String(getValue(row, ['reference', 'reelscript']) || '').trim()
+        : '',
+      fbLink: String(getValue(row, ['facebooklink', 'fblink']) || '').trim(),
+      igLink: String(getValue(row, ['instagramlink', 'iglink']) || '').trim(),
+      ttLink: String(getValue(row, ['tiktoklink', 'ttlink']) || '').trim(),
+      driveLink: String(getValue(row, ['drivelink']) || '').trim(),
+      isChecked: false
+    };
+  });
+};
 
 const CONTENT_FRAMEWORK_OPTIONS = [
   {
@@ -152,6 +310,29 @@ const getDateSpanDays = (startDate, endDate) => {
   return Math.max(1, diffDays);
 };
 
+const getDominantCalendarDate = (rows = [], fallbackDate = '') => {
+  const monthCounts = new Map();
+
+  rows.forEach((row) => {
+    const date = parseDateInput(row?.date);
+    if (!Number.isFinite(date.getTime())) return;
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    monthCounts.set(monthKey, (monthCounts.get(monthKey) || 0) + 1);
+  });
+
+  if (monthCounts.size === 0) return fallbackDate;
+
+  const fallbackMonth = /^\d{4}-\d{2}/.test(fallbackDate) ? fallbackDate.slice(0, 7) : '';
+  const [dominantMonth] = [...monthCounts.entries()].sort((left, right) => {
+    if (right[1] !== left[1]) return right[1] - left[1];
+    if (left[0] === fallbackMonth) return -1;
+    if (right[0] === fallbackMonth) return 1;
+    return right[0].localeCompare(left[0]);
+  })[0];
+
+  return `${dominantMonth}-01`;
+};
+
 const getDistributedDate = (startDate, endDate, rowIndex, totalRows) => {
   if (!startDate) return '';
 
@@ -196,7 +377,7 @@ const orderManualCalendarRows = (rows = []) => [...rows]
   })
   .map((row, index) => ({ ...row, sortOrder: index }));
 
-const isManualCalendar = (calendar) => calendar?.promptUsed === MANUAL_CALENDAR_PROMPT;
+const isManualCalendar = (calendar) => [MANUAL_CALENDAR_PROMPT, UPLOAD_CALENDAR_PROMPT].includes(calendar?.promptUsed);
 
 const getPlatformContentCount = (formData, platformId) => Number(formData.platformContentCounts?.[platformId] || 0);
 
@@ -323,9 +504,14 @@ const CreateContentCalendar = () => {
   const [generationMode, setGenerationMode] = useState('ai');
   const [manualContentCounts, setManualContentCounts] = useState(() => createDefaultManualContentCounts());
   const [isManualGenerating, setIsManualGenerating] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadedRows, setUploadedRows] = useState([]);
+  const [uploadError, setUploadError] = useState('');
+  const [isUploadParsing, setIsUploadParsing] = useState(false);
+  const [isUploadGenerating, setIsUploadGenerating] = useState(false);
 
   useEffect(() => {
-    if (generationMode !== 'manual' || generatedData.length < 2) return;
+    if (!['manual', 'upload'].includes(generationMode) || generatedData.length < 2) return;
 
     const orderedRows = orderManualCalendarRows(generatedData);
     const needsOrdering = orderedRows.some((row, index) => {
@@ -678,6 +864,97 @@ const CreateContentCalendar = () => {
     }
   };
 
+  const handleUploadFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    setUploadFile(null);
+    setUploadedRows([]);
+    setUploadError('');
+    if (!file) return;
+
+    if (file.size > MAX_UPLOAD_FILE_SIZE) {
+      setUploadError('File size must be 5 MB or less.');
+      event.target.value = '';
+      return;
+    }
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (!['xlsx', 'csv', 'tsv', 'json'].includes(extension)) {
+      setUploadError('Use an XLSX, CSV, TSV, or JSON file.');
+      event.target.value = '';
+      return;
+    }
+
+    setIsUploadParsing(true);
+    try {
+      let rawRows;
+      if (extension === 'xlsx') {
+        const { readSheet } = await import('read-excel-file/browser');
+        rawRows = tabularRowsToObjects(await readSheet(file));
+      } else if (extension === 'json') {
+        const json = JSON.parse(await file.text());
+        rawRows = Array.isArray(json) ? json : json?.rows;
+      } else {
+        rawRows = tabularRowsToObjects(parseDelimitedText(await file.text(), extension === 'tsv' ? '\t' : ','));
+      }
+
+      const normalizedRows = orderManualCalendarRows(normalizeUploadedRows(rawRows));
+      setUploadFile(file);
+      setUploadedRows(normalizedRows);
+      setToast({ message: `${normalizedRows.length} rows loaded from ${file.name}`, type: "success" });
+    } catch (error) {
+      console.error('Failed to parse uploaded calendar', error);
+      setUploadError(error.message || 'Could not read this file.');
+      event.target.value = '';
+    } finally {
+      setIsUploadParsing(false);
+    }
+  };
+
+  const handleUploadGenerate = async (event) => {
+    if (event) event.preventDefault();
+    if (!selectedClient?.id && !formData.clientId) {
+      setToast({ message: "Please select a client before importing rows.", type: "error" });
+      return;
+    }
+    if (uploadedRows.length === 0) {
+      setToast({ message: "Upload a valid content calendar file first.", type: "error" });
+      return;
+    }
+
+    const orderedRows = orderManualCalendarRows(uploadedRows);
+    const importedPlatforms = [...new Set(orderedRows.flatMap((row) => row.platforms || []))];
+    const importedFormats = [...new Set(orderedRows.map((row) => row.contentType).filter(Boolean))];
+    const uploadCalendarDate = getDominantCalendarDate(orderedRows, formData.startDate);
+    const uploadFormData = {
+      ...formData,
+      platforms: importedPlatforms,
+      preferredFormats: importedFormats,
+      platformContentCounts: {},
+      prompt: formData.prompt,
+    };
+
+    setIsUploadGenerating(true);
+    try {
+      setFormData(uploadFormData);
+      setActiveCalendarId(null);
+      setSelectedHistoryFilter({ client: '', date: '' });
+      setGeneratedData(orderedRows);
+      setIsGenerated(true);
+      await handleSaveToDatabase(orderedRows, {
+        formDataOverride: uploadFormData,
+        promptUsedOverride: UPLOAD_CALENDAR_PROMPT,
+        sortByDate: true,
+        calendarDateOverride: uploadCalendarDate,
+        successMessage: "Uploaded rows imported and auto-saved!",
+      });
+      setTimeout(() => {
+        resultsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } finally {
+      setIsUploadGenerating(false);
+    }
+  };
+
   const nextStep = async () => {
     if (currentStep === 2) {
       const missingPlatformCounts = getMissingPlatformCountLabels(formData);
@@ -1015,6 +1292,8 @@ CALENDAR PLANNING RULES
       fbLink: post.fbLink || post.facebookLink,
       igLink: post.igLink || post.instagramLink,
       ttLink: post.ttLink || post.tiktokLink,
+      driveLink: post.driveLink,
+      isChecked: Boolean(post.isChecked),
       reelScript: post.reelScript,
     }).filter(([, value]) => value !== undefined)
   );
@@ -1046,6 +1325,7 @@ CALENDAR PLANNING RULES
       await saveClientCalendarSettings(sourceFormData, { silent: true });
       const shouldSortByDate = options.sortByDate === true
         || generationMode === 'manual'
+        || generationMode === 'upload'
         || isManualCalendar(selectedCalendar);
       const orderedData = shouldSortByDate
         ? orderManualCalendarRows(dataToUse)
@@ -1090,14 +1370,17 @@ CALENDAR PLANNING RULES
         return;
       }
 
-      const startDate = sourceFormData.startDate ? new Date(sourceFormData.startDate) : new Date();
+      const calendarDate = options.calendarDateOverride || sourceFormData.startDate;
+      const startDate = calendarDate ? parseDateInput(calendarDate) : new Date();
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      const calendarMonth = monthNames[startDate.getMonth()];
+      const calendarYear = startDate.getFullYear();
       
       const calendarData = {
         clientId: activeClient.id,
-        name: `${activeClient.name} - ${monthNames[startDate.getMonth()]} ${startDate.getFullYear()}`,
-        month: monthNames[startDate.getMonth()],
-        year: startDate.getFullYear(),
+        name: `${activeClient.name} - ${calendarMonth} ${calendarYear}`,
+        month: calendarMonth,
+        year: calendarYear,
         competitors: sourceFormData.competitors.map(c => ({ id: c.id, name: c.name })),
         promptUsed: options.promptUsedOverride ?? sourceFormData.prompt,
         posts: orderedData
@@ -1116,10 +1399,14 @@ CALENDAR PLANNING RULES
         setIsGenerated(true);
       }
       if (activeClient?.id) {
-        fetchSavedCalendars(activeClient.id);
+        await fetchSavedCalendars(activeClient.id);
       } else {
-        fetchAllCalendars();
+        await fetchAllCalendars();
       }
+      setSelectedHistoryFilter({
+        client: activeClient.name,
+        date: `${calendarMonth} ${calendarYear}`,
+      });
       setToast({ message: options.successMessage || (postsToSave ? "Calendar generated and auto-saved!" : "Content Calendar saved successfully!"), type: "success" });
     } catch (err) {
       console.error("Failed to save calendar", err);
@@ -1820,6 +2107,7 @@ ${row.reelScript}`;
   const manualTotalRows = MANUAL_CONTENT_TYPE_OPTIONS.reduce((total, type) => (
     total + Math.max(0, Number(manualContentCounts?.[type.id] || 0))
   ), 0);
+  const readyRowCount = generationMode === 'upload' ? uploadedRows.length : manualTotalRows;
 
   return (
     <div className="max-w-[1600px] mx-auto w-full flex flex-col pb-24">
@@ -1839,13 +2127,17 @@ ${row.reelScript}`;
           </button>
           <div>
             <h1 className="max-w-full break-words text-[34px] tracking-[-0.02em] leading-tight text-[#101828] sm:text-[42px]">
-              <span className="whitespace-nowrap font-bold">{generationMode === 'ai' ? 'AI Content' : 'Manual Content'}</span>
+              <span className="whitespace-nowrap font-bold">
+                {generationMode === 'ai' ? 'AI Content' : generationMode === 'upload' ? 'Upload Content' : 'Manual Content'}
+              </span>
               <span className="font-normal sm:ml-2"> Generator</span>
             </h1>
             <p className="text-[#475467] text-lg font-normal mt-1">
               {generationMode === 'ai'
                 ? 'Define your parameters and let AI build your strategy.'
-                : 'Create empty calendar rows manually by date and format.'}
+                : generationMode === 'upload'
+                  ? 'Import structured calendar rows from a spreadsheet or data file.'
+                  : 'Create empty calendar rows manually by date and format.'}
             </p>
           </div>
         </div>
@@ -1854,6 +2146,7 @@ ${row.reelScript}`;
           {[
             { id: 'ai', label: 'AI' },
             { id: 'manual', label: 'Manual' },
+            { id: 'upload', label: 'Upload' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1879,7 +2172,7 @@ ${row.reelScript}`;
 
             
             <form
-              onSubmit={generationMode === 'ai' ? handleSubmit : handleManualGenerate}
+              onSubmit={generationMode === 'ai' ? handleSubmit : generationMode === 'upload' ? handleUploadGenerate : handleManualGenerate}
               className={`flex flex-col ${generationMode === 'ai' ? 'min-h-[350px]' : 'min-h-0'}`}
             >
               {generationMode === 'ai' ? (
@@ -2520,6 +2813,70 @@ ${row.reelScript}`;
                       </div>
                     </section>
 
+                    {generationMode === 'upload' ? (
+                    <section className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
+                      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#003870] shadow-sm ring-1 ring-slate-200">
+                            <FileSpreadsheet className="h-5 w-5" strokeWidth={2.3} />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-extrabold text-slate-800">Upload</h3>
+                            <p className="mt-0.5 text-xs font-medium text-slate-500">Import rows from XLSX, CSV, TSV, or JSON.</p>
+                          </div>
+                        </div>
+                        <a
+                          href="/templates/content-calendar-upload-template.xlsx"
+                          download="content-calendar-upload-template.xlsx"
+                          className="inline-flex w-fit items-center gap-2 rounded-xl border border-[#003870]/15 bg-white px-3 py-2 text-xs font-extrabold text-[#003870] shadow-sm transition-all hover:border-[#003870]/35 hover:bg-[#003870]/[0.03]"
+                        >
+                          <Download className="h-4 w-4" strokeWidth={2.3} />
+                          Download XLSX Sample
+                        </a>
+                      </div>
+
+                      <label className={`flex min-h-[150px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed bg-white px-5 py-6 text-center transition-all hover:border-[#003870]/50 hover:bg-[#003870]/[0.02] ${
+                        uploadError ? 'border-red-300' : uploadFile ? 'border-emerald-300' : 'border-slate-200'
+                      }`}>
+                        <input
+                          type="file"
+                          accept=".xlsx,.csv,.tsv,.json"
+                          onChange={handleUploadFileChange}
+                          className="sr-only"
+                        />
+                        {isUploadParsing ? (
+                          <Loader2 className="mb-3 h-8 w-8 animate-spin text-[#003870]" strokeWidth={2.2} />
+                        ) : (
+                          <UploadCloud className="mb-3 h-8 w-8 text-[#003870]" strokeWidth={2.1} />
+                        )}
+                        <span className="text-sm font-extrabold text-slate-700">
+                          {uploadFile ? uploadFile.name : 'Choose a calendar file'}
+                        </span>
+                        <span className="mt-1 text-xs font-medium text-slate-400">Maximum file size: 5 MB</span>
+                        {uploadFile && !uploadError && (
+                          <span className="mt-3 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-extrabold text-emerald-700">
+                            {uploadedRows.length} {uploadedRows.length === 1 ? 'row' : 'rows'} ready
+                          </span>
+                        )}
+                      </label>
+
+                      {uploadError && <p className="mt-3 text-xs font-bold text-red-600">{uploadError}</p>}
+
+                      <div className="mt-4">
+                        <p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Required columns</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {UPLOAD_REQUIRED_COLUMNS.map((column) => (
+                            <span key={column} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600">
+                              {column}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-[10px] font-semibold text-slate-400">
+                          Reference is used as the video script for Reel rows only.
+                        </p>
+                      </div>
+                    </section>
+                    ) : (
                     <section className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
                       <div className="mb-5 flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#003870] shadow-sm ring-1 ring-slate-200">
@@ -2563,33 +2920,42 @@ ${row.reelScript}`;
                         })}
                       </div>
                     </section>
+                    )}
 
                     <div className="flex flex-col gap-4 rounded-2xl border border-[#003870]/10 bg-[#003870]/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
                       <div className="flex items-center gap-4">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-lg font-extrabold text-[#003870] shadow-sm ring-1 ring-[#003870]/10">
-                          {manualTotalRows}
+                          {readyRowCount}
                         </div>
                         <div>
                           <p className="text-sm font-extrabold text-slate-800">
-                            {manualTotalRows === 1 ? '1 empty row is ready' : `${manualTotalRows} empty rows are ready`}
+                            {generationMode === 'upload'
+                              ? `${readyRowCount} imported ${readyRowCount === 1 ? 'row is' : 'rows are'} ready`
+                              : manualTotalRows === 1 ? '1 empty row is ready' : `${manualTotalRows} empty rows are ready`}
                           </p>
                           <p className="mt-0.5 text-xs font-medium text-slate-500">
-                            {manualTotalRows > 0
-                              ? 'Rows will be spread across the selected date range and can be edited after generation.'
-                              : 'Add at least one content count to generate editable rows.'}
+                            {generationMode === 'upload'
+                              ? readyRowCount > 0
+                                ? 'Imported dates and values will be editable after the rows are saved.'
+                                : 'Upload a file with the required calendar columns.'
+                              : manualTotalRows > 0
+                                ? 'Rows will be spread across the selected date range and can be edited after generation.'
+                                : 'Add at least one content count to generate editable rows.'}
                           </p>
                         </div>
                       </div>
                       <button
                         type="submit"
-                        disabled={!formData.clientId || manualTotalRows === 0 || isManualGenerating || isSaving}
+                        disabled={!formData.clientId || readyRowCount === 0 || isManualGenerating || isUploadGenerating || isUploadParsing || isSaving}
                         className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#003870] to-[#0055a5] px-7 py-3 text-sm font-extrabold text-white shadow-lg shadow-[#003870]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {isManualGenerating || isSaving ? (
-                          <><Loader2 className="h-4.5 w-4.5 animate-spin" strokeWidth={2.5} /> Generating...</>
-                        ) : (
-                          <><Sparkles className="h-4.5 w-4.5" strokeWidth={2.5} /> Generate Rows</>
-                        )}
+                          {isManualGenerating || isUploadGenerating || isSaving ? (
+                            <><Loader2 className="h-4.5 w-4.5 animate-spin" strokeWidth={2.5} /> {generationMode === 'upload' ? 'Importing...' : 'Generating...'}</>
+                          ) : (
+                            generationMode === 'upload'
+                              ? <><UploadCloud className="h-4.5 w-4.5" strokeWidth={2.5} /> Import Rows</>
+                              : <><Sparkles className="h-4.5 w-4.5" strokeWidth={2.5} /> Generate Rows</>
+                          )}
                       </button>
                     </div>
                   </div>

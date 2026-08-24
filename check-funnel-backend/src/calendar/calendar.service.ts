@@ -90,6 +90,8 @@ export class CalendarService {
       fbLink: post.fbLink || post.facebookLink || '',
       igLink: post.igLink || post.instagramLink || '',
       ttLink: post.ttLink || post.tiktokLink || '',
+      driveLink: post.driveLink || '',
+      isChecked: Boolean(post.isChecked),
       status: post.status || 'DRAFT',
       calendar,
     });
