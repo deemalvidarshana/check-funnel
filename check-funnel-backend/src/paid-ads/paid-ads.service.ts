@@ -1,0 +1,338 @@
+import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import axios, { AxiosError } from 'axios';
+import { ClientService } from '../client/client.service';
+import { monthPeriod, normalizeMetrics, percentageChange, previousMonthPeriod } from './paid-ads.metrics';
+import { MetaInsightRow, PaidAdsMetrics, PaidAdsPeriod } from './paid-ads.types';
+
+interface MetaCampaign {
+  id: string;
+  name: string;
+  objective?: string;
+  effective_status?: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+}
+
+interface MetaAd {
+  id: string;
+  name: string;
+  effective_status?: string;
+  creative?: {
+    id?: string;
+    name?: string;
+    thumbnail_url?: string;
+    image_url?: string;
+  };
+}
+
+interface MetaCreative {
+  id: string;
+  thumbnail_url?: string;
+  image_url?: string;
+  effective_object_story_id?: string;
+  object_story_spec?: {
+    link_data?: { picture?: string };
+    video_data?: { image_url?: string };
+  };
+}
+
+@Injectable()
+export class PaidAdsService {
+  private readonly graphBaseUrl: string;
+  private readonly timeoutMs = 30000;
+
+  constructor(
+    private readonly clientService: ClientService,
+    configService: ConfigService,
+  ) {
+    const version = configService.get<string>('META_GRAPH_API_VERSION') || 'v25.0';
+    this.graphBaseUrl = `https://graph.facebook.com/${version}`;
+  }
+
+  async getInsights(clientId: number, month: string) {
+    const client = await this.clientService.findOne(clientId);
+    if (!client.metaAdsAccessToken) {
+      throw new BadRequestException('This client does not have a Meta Ads access token');
+    }
+
+    const accessToken = client.metaAdsAccessToken;
+    const accountId = await this.resolveAdAccountId(client.metaAdAccountId, accessToken);
+    const currentPeriod = monthPeriod(month);
+    const previousPeriod = previousMonthPeriod(month);
+
+    const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, deviceRows] = await Promise.all([
+      this.graphGet(`/${accountId}`, accessToken, { fields: 'id,name,currency,timezone_name' }),
+      this.fetchInsights(accountId, accessToken, currentPeriod, 'account'),
+      this.fetchInsights(accountId, accessToken, previousPeriod, 'account'),
+      this.fetchInsights(accountId, accessToken, currentPeriod, 'account', 1),
+      this.fetchInsights(accountId, accessToken, previousPeriod, 'account', 1),
+      this.fetchInsights(accountId, accessToken, currentPeriod, 'campaign'),
+      this.fetchCampaigns(accountId, accessToken),
+      this.fetchInsights(accountId, accessToken, currentPeriod, 'ad'),
+      this.fetchAds(accountId, accessToken),
+      this.fetchBreakdown(accountId, accessToken, currentPeriod, 'age'),
+      this.fetchBreakdown(accountId, accessToken, currentPeriod, 'gender'),
+      this.fetchBreakdown(accountId, accessToken, currentPeriod, 'country'),
+      this.fetchBreakdown(accountId, accessToken, currentPeriod, 'impression_device'),
+    ]);
+
+    const currentAdIds = new Set(adRows.map((row) => row.ad_id).filter((id): id is string => Boolean(id)));
+    const creativeIds = [...new Set(
+      ads
+        .filter((ad) => currentAdIds.has(ad.id))
+        .map((ad) => ad.creative?.id)
+        .filter((id): id is string => Boolean(id)),
+    )];
+    const adCreatives = await this.fetchAdCreatives(creativeIds, accessToken);
+    const storyThumbnails = await this.fetchStoryThumbnails(
+      adCreatives,
+      [client.facebookApiKey, accessToken].filter((token): token is string => Boolean(token)),
+    );
+
+    const current = normalizeMetrics(currentTotalRows[0]);
+    const previous = normalizeMetrics(previousTotalRows[0]);
+    const campaignsById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+    const adsById = new Map(ads.map((ad) => [ad.id, ad]));
+    const adCreativesById = new Map(adCreatives.map((creative) => [creative.id, creative]));
+
+    return {
+      source: 'meta-marketing-api',
+      syncedAt: new Date().toISOString(),
+      client: { id: client.id, name: client.name },
+      account: { id: accountId, name: account.name || accountId, currency: account.currency || 'USD', timezone: account.timezone_name || 'UTC' },
+      period: currentPeriod,
+      comparisonPeriod: previousPeriod,
+      totals: this.withComparison(current, previous),
+      daily: dailyRows.map((row) => ({ date: row.date_start, ...normalizeMetrics(row) })),
+      previousDaily: previousDailyRows.map((row) => ({ date: row.date_start, ...normalizeMetrics(row) })),
+      campaigns: campaignRows.map((row) => this.normalizeCampaign(row, campaignsById.get(row.campaign_id || ''))),
+      creatives: adRows
+        .map((row) => {
+          const ad = adsById.get(row.ad_id || '');
+          const creative = adCreativesById.get(ad?.creative?.id || '');
+          return this.normalizeCreative(row, ad, creative, storyThumbnails.get(creative?.id || ''));
+        })
+        .sort((a, b) => b.spend - a.spend),
+      audience: {
+        age: this.normalizeBreakdown(ageRows, 'age'),
+        gender: this.normalizeBreakdown(genderRows, 'gender'),
+        countries: this.normalizeBreakdown(countryRows, 'country'),
+        devices: this.normalizeBreakdown(deviceRows, 'impression_device'),
+      },
+    };
+  }
+
+  private withComparison(current: PaidAdsMetrics, previous: PaidAdsMetrics) {
+    return Object.fromEntries(Object.keys(current).map((key) => {
+      const metric = key as keyof PaidAdsMetrics;
+      return [metric, { current: current[metric], previous: previous[metric], change: percentageChange(current[metric], previous[metric]) }];
+    }));
+  }
+
+  private normalizeCampaign(row: MetaInsightRow, campaign?: MetaCampaign) {
+    const metrics = normalizeMetrics(row);
+    const rawBudget = campaign?.lifetime_budget || campaign?.daily_budget;
+    return {
+      id: row.campaign_id || campaign?.id,
+      name: row.campaign_name || campaign?.name || 'Unnamed campaign',
+      status: campaign?.effective_status || 'UNKNOWN',
+      objective: row.objective || campaign?.objective || '—',
+      budget: rawBudget ? Number(rawBudget) / 100 : null,
+      budgetType: campaign?.lifetime_budget ? 'lifetime' : campaign?.daily_budget ? 'daily' : null,
+      ...metrics,
+    };
+  }
+
+  private normalizeCreative(row: MetaInsightRow, ad?: MetaAd, creative?: MetaCreative, storyThumbnail?: string) {
+    return {
+      id: row.ad_id || ad?.id,
+      name: row.ad_name || ad?.name || 'Unnamed ad',
+      campaignName: row.campaign_name || 'Unknown campaign',
+      status: ad?.effective_status || 'UNKNOWN',
+      thumbnailUrl:
+        storyThumbnail
+        || creative?.object_story_spec?.video_data?.image_url
+        || creative?.object_story_spec?.link_data?.picture
+        || creative?.thumbnail_url
+        || creative?.image_url
+        || ad?.creative?.thumbnail_url
+        || ad?.creative?.image_url
+        || null,
+      creativeId: ad?.creative?.id || null,
+      ...normalizeMetrics(row),
+    };
+  }
+
+  private normalizeBreakdown(rows: Array<MetaInsightRow & Record<string, unknown>>, dimension: string) {
+    return rows
+      .map((row) => ({ key: String(row[dimension] || 'unknown'), ...normalizeMetrics(row) }))
+      .sort((a, b) => b.conversions - a.conversions);
+  }
+
+  private async resolveAdAccountId(configuredId: string | null, accessToken: string): Promise<string> {
+    if (configuredId) return configuredId.startsWith('act_') ? configuredId : `act_${configuredId}`;
+    let response: any;
+    try {
+      response = await this.graphGet('/me/adaccounts', accessToken, { fields: 'id,name,account_status', limit: 100 });
+    } catch {
+      throw new BadRequestException('Save this client’s Meta Ad Account ID (act_...) and use a token with ads_read permission');
+    }
+    const accessible = (response.data || []).filter((account: any) => Number(account.account_status) === 1);
+    if (accessible.length === 1) return accessible[0].id;
+    if (accessible.length === 0) throw new BadRequestException('No active Meta ad account is accessible with this token');
+    throw new BadRequestException('Multiple Meta ad accounts are accessible. Save the Meta Ad Account ID on this client for accurate mapping');
+  }
+
+  private fetchInsights(accountId: string, token: string, period: PaidAdsPeriod, level: 'account' | 'campaign' | 'ad', timeIncrement?: number) {
+    const metricFields = ['date_start', 'date_stop', 'spend', 'reach', 'impressions', 'clicks', 'actions'];
+    const fields = level === 'campaign'
+      ? ['campaign_id', 'campaign_name', 'objective', ...metricFields]
+      : level === 'ad'
+        ? ['ad_id', 'ad_name', 'campaign_id', 'campaign_name', ...metricFields]
+        : metricFields;
+    return this.graphGetAll(`/${accountId}/insights`, token, {
+      fields: fields.join(','),
+      level,
+      time_range: JSON.stringify({ since: period.since, until: period.until }),
+      ...(timeIncrement ? { time_increment: timeIncrement } : {}),
+      limit: 500,
+    });
+  }
+
+  private fetchCampaigns(accountId: string, token: string): Promise<MetaCampaign[]> {
+    return this.graphGetAll(`/${accountId}/campaigns`, token, {
+      fields: 'id,name,objective,effective_status,daily_budget,lifetime_budget',
+      limit: 500,
+    });
+  }
+
+  private fetchAds(accountId: string, token: string): Promise<MetaAd[]> {
+    return this.graphGetAll(`/${accountId}/ads`, token, {
+      fields: 'id,name,effective_status,creative{id,name,thumbnail_url,image_url}',
+      limit: 500,
+    });
+  }
+
+  private async fetchAdCreatives(creativeIds: string[], token: string): Promise<MetaCreative[]> {
+    if (creativeIds.length === 0) return [];
+
+    const chunks: string[][] = [];
+    for (let index = 0; index < creativeIds.length; index += 50) {
+      chunks.push(creativeIds.slice(index, index + 50));
+    }
+
+    const responses = await Promise.all(chunks.map((ids) => this.graphGet('/', token, {
+      ids: ids.join(','),
+      fields: 'id,thumbnail_url,image_url,effective_object_story_id,object_story_spec',
+      thumbnail_width: 1200,
+      thumbnail_height: 675,
+    })));
+
+    return responses.flatMap((response) => Object.values(response) as MetaCreative[]);
+  }
+
+  private async fetchStoryThumbnails(creatives: MetaCreative[], tokens: string[]): Promise<Map<string, string>> {
+    const storyToCreative = new Map<string, string>();
+    creatives.forEach((creative) => {
+      if (creative.effective_object_story_id) {
+        storyToCreative.set(creative.effective_object_story_id, creative.id);
+      }
+    });
+
+    const thumbnails = new Map<string, string>();
+    const uniqueTokens = [...new Set(tokens)];
+
+    for (const token of uniqueTokens) {
+      const remainingStories = [...storyToCreative.entries()]
+        .filter(([, creativeId]) => !thumbnails.has(creativeId))
+        .map(([storyId]) => storyId);
+
+      for (let index = 0; index < remainingStories.length; index += 50) {
+        const storyIds = remainingStories.slice(index, index + 50);
+        try {
+          const response = await this.graphGet('/', token, {
+            ids: storyIds.join(','),
+            fields: 'id,full_picture,attachments{media,type,subattachments}',
+          });
+
+          Object.entries(response).forEach(([storyId, rawStory]) => {
+            const story = rawStory as any;
+            const attachment = story.attachments?.data?.[0];
+            const subAttachment = attachment?.subattachments?.data?.[0];
+            const image = story.full_picture
+              || attachment?.media?.image?.src
+              || subAttachment?.media?.image?.src;
+            const creativeId = storyToCreative.get(storyId);
+            if (creativeId && image) thumbnails.set(creativeId, image);
+          });
+        } catch {
+          // A page token can only read stories belonging to pages it manages.
+          // The next available token may still resolve the remaining stories.
+        }
+      }
+    }
+
+    return thumbnails;
+  }
+
+  private fetchBreakdown(accountId: string, token: string, period: PaidAdsPeriod, breakdown: 'age' | 'gender' | 'country' | 'impression_device') {
+    return this.graphGetAll(`/${accountId}/insights`, token, {
+      fields: 'spend,reach,impressions,clicks,actions',
+      level: 'account',
+      breakdowns: breakdown,
+      time_range: JSON.stringify({ since: period.since, until: period.until }),
+      limit: 500,
+    });
+  }
+
+  private async graphGetAll(path: string, accessToken: string, params: Record<string, unknown>): Promise<any[]> {
+    const rows: any[] = [];
+    let url: string | null = `${this.graphBaseUrl}${path}`;
+    let requestParams: Record<string, unknown> = { ...params, access_token: accessToken };
+    while (url) {
+      const response = await this.rawGet(url, requestParams);
+      rows.push(...(response.data || []));
+      url = response.paging?.next || null;
+      requestParams = {};
+    }
+    return rows;
+  }
+
+  private graphGet(path: string, accessToken: string, params: Record<string, unknown>) {
+    return this.rawGet(`${this.graphBaseUrl}${path}`, { ...params, access_token: accessToken });
+  }
+
+  private async rawGet(url: string, params: Record<string, unknown>) {
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await axios.get(url, { params, timeout: this.timeoutMs });
+        return response.data;
+      } catch (error) {
+        const axiosError = error as AxiosError<any>;
+        const metaMessage = axiosError.response?.data?.error?.message;
+        const status = axiosError.response?.status;
+        const retryable = !axiosError.response || (status !== undefined && status >= 500);
+
+        if (retryable && attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+          continue;
+        }
+
+        const networkMessage = axiosError.code === 'ECONNABORTED'
+          ? 'Meta Marketing API request timed out. Please retry.'
+          : 'Meta Marketing API is temporarily unreachable. Please retry.';
+
+        throw new BadGatewayException({
+          message: metaMessage || networkMessage,
+          provider: 'meta',
+          providerStatus: status || null,
+        });
+      }
+    }
+
+    throw new BadGatewayException('Meta Marketing API request failed');
+  }
+}

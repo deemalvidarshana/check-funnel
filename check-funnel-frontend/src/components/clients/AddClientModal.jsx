@@ -168,6 +168,8 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
     tiktok: false,
     facebookApi: "",
     facebookPageId: "",
+    metaAdAccountId: "",
+    metaAdsAccessToken: "",
     instagramApi: "",
     instagramAccountId: "",
     tiktokApi: "",
@@ -214,6 +216,8 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
         tiktok: active.includes("tiktok"),
         facebookApi: initialData.facebookApiKey || "",
         facebookPageId: initialData.facebookPageId || "",
+        metaAdAccountId: initialData.metaAdAccountId || "",
+        metaAdsAccessToken: initialData.metaAdsAccessToken || "",
         instagramApi: initialData.instagramApiKey || "",
         instagramAccountId: initialData.instagramAccountId || "",
         tiktokApi: initialData.tiktokApiKey || "",
@@ -241,6 +245,8 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
         tiktok: false,
         facebookApi: "",
         facebookPageId: "",
+        metaAdAccountId: "",
+        metaAdsAccessToken: "",
         instagramApi: "",
         instagramAccountId: "",
         tiktokApi: "",
@@ -262,6 +268,7 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
   };
 
   const [showFb, setShowFb] = useState(false);
+  const [showMetaAds, setShowMetaAds] = useState(false);
   const [showIg, setShowIg] = useState(false);
   const responsibleUsers = users.filter((user) => user.status !== "pending" && user.status !== "rejected");
 
@@ -467,6 +474,18 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
                 <div>
                   <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-[#727782]">Facebook Page ID</label>
                   <input type="text" value={form.facebookPageId} onChange={(e) => updateField("facebookPageId", e.target.value)} placeholder="Enter Page ID..." className="w-full rounded-2xl border-none bg-[#f8f9fa] px-4 py-3 font-body outline-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff]" />
+                </div>
+                <div>
+                  <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-[#727782]">Meta Ad Account ID</label>
+                  <input type="text" value={form.metaAdAccountId} onChange={(e) => updateField("metaAdAccountId", e.target.value)} placeholder="e.g. act_123456789" className="w-full rounded-2xl border-none bg-[#f8f9fa] px-4 py-3 font-body outline-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff]" />
+                  <p className="mt-1.5 ml-1 text-[11px] font-medium text-[#727782]">Required when the token can access more than one ad account.</p>
+                </div>
+                <div>
+                  <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-[#727782]">Meta Ads Access Token</label>
+                  <div className="relative">
+                    <input type={showMetaAds ? "text" : "password"} value={form.metaAdsAccessToken} onChange={(e) => updateField("metaAdsAccessToken", e.target.value)} placeholder="Paste token with ads_read permission..." className="w-full rounded-2xl border-none bg-[#f8f9fa] px-4 py-3 pr-12 font-body outline-none ring-1 ring-[#c2c6d3]/40 focus:ring-2 focus:ring-[#a8c8ff]" />
+                    <button type="button" onClick={() => setShowMetaAds(!showMetaAds)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#727782] hover:text-[#003870]"><EyeIcon /></button>
+                  </div>
                 </div>
               </div>
 

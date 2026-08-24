@@ -194,6 +194,8 @@ export default function ClientDirectory() {
         hashtags: JSON.stringify(hashtagsArray),
         facebookApiKey: formData.facebookApi || "",
         facebookPageId: formData.facebookPageId || "",
+        metaAdAccountId: formData.metaAdAccountId || "",
+        metaAdsAccessToken: formData.metaAdsAccessToken || "",
         instagramApiKey: formData.instagramApi || "",
         instagramAccountId: formData.instagramAccountId || "",
         responsiblePersonId: formData.responsiblePersonId || "",

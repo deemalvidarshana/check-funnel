@@ -56,6 +56,14 @@ export class CreateClientDto {
 
   @IsOptional()
   @IsString()
+  metaAdAccountId?: string;
+
+  @IsOptional()
+  @IsString()
+  metaAdsAccessToken?: string;
+
+  @IsOptional()
+  @IsString()
   instagramApiKey?: string;
 
   @IsOptional()

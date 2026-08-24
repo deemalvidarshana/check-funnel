@@ -27,6 +27,7 @@ import { TargetsModule } from './targets/targets.module';
 import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
 import { IssuesModule } from './issues/issues.module';
 import { IssueCard } from './issues/entities/issue-card.entity';
+import { PaidAdsModule } from './paid-ads/paid-ads.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { IssueCard } from './issues/entities/issue-card.entity';
     CalendarModule,
     TargetsModule,
     IssuesModule,
+    PaidAdsModule,
   ],
 })
 export class AppModule {}

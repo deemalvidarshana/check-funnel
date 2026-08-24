@@ -23,6 +23,7 @@ import CreateContentCalendar from "../pages/social-media/CreateContentCalendar";
 import TargetPlanner from "../pages/targets/TargetPlanner";
 import IssueBoard from "../pages/issues/IssueBoard";
 import IssueDetail from "../pages/issues/IssueDetail";
+import PaidAdsAnalysis from "../pages/paid-ads/PaidAdsAnalysis";
 
 /**
  * PublicRoute component that prevents logged-in users from accessing auth pages.
@@ -76,6 +77,7 @@ export default function AppRoutes() {
           </Route>
           <Route path="/issues" element={<IssueBoard />} />
           <Route path="/issues/:issueId" element={<IssueDetail />} />
+          <Route path="/paid-ads-analysis" element={<PaidAdsAnalysis />} />
           <Route path="/reports" element={<Reports />} />
           
           {/* Admin-only routes */}

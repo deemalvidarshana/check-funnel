@@ -87,6 +87,8 @@ export class ClientService {
         'hashtags',
         'facebookApiKey',
         'facebookPageId',
+        'metaAdAccountId',
+        'metaAdsAccessToken',
         'instagramApiKey',
         'instagramAccountId',
         'facebookUrl',

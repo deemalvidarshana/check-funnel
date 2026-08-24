@@ -47,6 +47,12 @@ export class Client {
   @Column({ nullable: true })
   facebookPageId: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  metaAdAccountId: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  metaAdsAccessToken: string | null;
+
   @Column({ nullable: true })
   instagramApiKey: string;
 

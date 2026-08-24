@@ -57,6 +57,15 @@ function IssueBoardIcon() {
   );
 }
 
+function PaidAdsIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 13v-2a2 2 0 0 1 2-2h3l7-4v14l-7-4H6a2 2 0 0 1-2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 15l1.5 5H7l-1-5M19 9a4 4 0 0 1 0 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function CalendarIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -141,6 +150,7 @@ const navItems = [
   { name: "Competitors", path: "/competitors", icon: <CompetitorIcon />, feature: "competitors" },
   { name: "Targets", path: "/targets", icon: <TargetIcon />, feature: "targets" },
   { name: "Clients", path: "/clients", icon: <ClientsIcon />, feature: "clients" },
+  { name: "Paid Ads Analysis", path: "/paid-ads-analysis", icon: <PaidAdsIcon /> },
   { name: "Issue Board", path: "/issues", icon: <IssueBoardIcon /> },
   { name: "Manage Users", path: "/users", icon: <ManageIcon />, adminOnly: true },
 ];
