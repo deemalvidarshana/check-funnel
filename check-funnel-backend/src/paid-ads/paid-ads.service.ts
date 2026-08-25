@@ -2,7 +2,7 @@ import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { ClientService } from '../client/client.service';
-import { monthPeriod, normalizeCampaignResults, normalizeMetrics, percentageChange, previousMonthPeriod } from './paid-ads.metrics';
+import { customPeriod, monthPeriod, normalizeCampaignResults, normalizeMetrics, percentageChange, precedingPeriod, previousMonthPeriod } from './paid-ads.metrics';
 import { MetaInsightRow, PaidAdsMetrics, PaidAdsPeriod } from './paid-ads.types';
 
 interface MetaCampaign {
@@ -37,6 +37,13 @@ interface MetaCreative {
   };
 }
 
+interface PaidAdsRangeOptions {
+  since?: string;
+  until?: string;
+  compareSince?: string;
+  compareUntil?: string;
+}
+
 @Injectable()
 export class PaidAdsService {
   private readonly graphBaseUrl: string;
@@ -50,7 +57,7 @@ export class PaidAdsService {
     this.graphBaseUrl = `https://graph.facebook.com/${version}`;
   }
 
-  async getInsights(clientId: number, month: string) {
+  async getInsights(clientId: number, month: string, range: PaidAdsRangeOptions = {}) {
     const client = await this.clientService.findOne(clientId);
     if (!client.metaAdsAccessToken) {
       throw new BadRequestException('This client does not have a Meta Ads access token');
@@ -58,8 +65,26 @@ export class PaidAdsService {
 
     const accessToken = client.metaAdsAccessToken;
     const accountId = await this.resolveAdAccountId(client.metaAdAccountId, accessToken);
-    const currentPeriod = monthPeriod(month);
-    const previousPeriod = previousMonthPeriod(month);
+    const hasCurrentRange = Boolean(range.since || range.until);
+    const hasComparisonRange = Boolean(range.compareSince || range.compareUntil);
+    if (hasCurrentRange && (!range.since || !range.until)) {
+      throw new BadRequestException('Both since and until are required for a custom range');
+    }
+    if (hasComparisonRange && (!range.compareSince || !range.compareUntil)) {
+      throw new BadRequestException('Both compareSince and compareUntil are required for a custom comparison');
+    }
+    if (hasComparisonRange && !hasCurrentRange) {
+      throw new BadRequestException('A custom comparison requires a custom current range');
+    }
+
+    const currentPeriod = hasCurrentRange
+      ? customPeriod(range.since!, range.until!)
+      : monthPeriod(month);
+    const previousPeriod = hasComparisonRange
+      ? customPeriod(range.compareSince!, range.compareUntil!)
+      : hasCurrentRange
+        ? precedingPeriod(currentPeriod)
+        : previousMonthPeriod(month);
 
     const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, deviceRows] = await Promise.all([
       this.graphGet(`/${accountId}`, accessToken, { fields: 'id,name,currency,timezone_name' }),
@@ -104,8 +129,8 @@ export class PaidAdsService {
       period: currentPeriod,
       comparisonPeriod: previousPeriod,
       totals: this.withComparison(current, previous),
-      daily: dailyRows.map((row) => ({ date: row.date_start, ...normalizeMetrics(row) })),
-      previousDaily: previousDailyRows.map((row) => ({ date: row.date_start, ...normalizeMetrics(row) })),
+      daily: dailyRows.map((row) => this.normalizeDaily(row)),
+      previousDaily: previousDailyRows.map((row) => this.normalizeDaily(row)),
       campaigns: campaignRows.map((row) => this.normalizeCampaign(row, campaignsById.get(row.campaign_id || ''))),
       creatives: adRows
         .map((row) => {
@@ -128,6 +153,17 @@ export class PaidAdsService {
       const metric = key as keyof PaidAdsMetrics;
       return [metric, { current: current[metric], previous: previous[metric], change: percentageChange(current[metric], previous[metric]) }];
     }));
+  }
+
+  private normalizeDaily(row: MetaInsightRow) {
+    const resultMetrics = normalizeCampaignResults(row);
+    return {
+      date: row.date_start,
+      ...normalizeMetrics(row),
+      landingPageViews: resultMetrics.landingPageViews,
+      leads: resultMetrics.leads,
+      purchases: resultMetrics.purchases,
+    };
   }
 
   private normalizeCampaign(row: MetaInsightRow, campaign?: MetaCampaign) {

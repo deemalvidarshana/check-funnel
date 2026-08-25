@@ -181,3 +181,39 @@ export function previousMonthPeriod(month: string): PaidAdsPeriod {
   const previous = new Date(Date.UTC(year, monthNumber - 2, 1));
   return monthPeriod(`${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, '0')}`);
 }
+
+function parseIsoDate(value: string, fieldName: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new BadRequestException(`${fieldName} must use YYYY-MM-DD format`);
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new BadRequestException(`${fieldName} must be a valid date`);
+  }
+  return date;
+}
+
+function rangeLabel(since: Date, until: Date): string {
+  const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' };
+  return `${since.toLocaleDateString('en-GB', options)} – ${until.toLocaleDateString('en-GB', options)}`;
+}
+
+export function customPeriod(sinceValue: string, untilValue: string): PaidAdsPeriod {
+  const since = parseIsoDate(sinceValue, 'since');
+  const until = parseIsoDate(untilValue, 'until');
+  if (since > until) throw new BadRequestException('since must be on or before until');
+
+  const durationDays = Math.round((until.getTime() - since.getTime()) / 86_400_000) + 1;
+  if (durationDays > 366) throw new BadRequestException('Custom date ranges cannot exceed 366 days');
+
+  return { since: sinceValue, until: untilValue, label: rangeLabel(since, until) };
+}
+
+export function precedingPeriod(period: PaidAdsPeriod): PaidAdsPeriod {
+  const since = parseIsoDate(period.since, 'since');
+  const until = parseIsoDate(period.until, 'until');
+  const durationMs = until.getTime() - since.getTime();
+  const previousUntil = new Date(since.getTime() - 86_400_000);
+  const previousSince = new Date(previousUntil.getTime() - durationMs);
+  return customPeriod(previousSince.toISOString().slice(0, 10), previousUntil.toISOString().slice(0, 10));
+}

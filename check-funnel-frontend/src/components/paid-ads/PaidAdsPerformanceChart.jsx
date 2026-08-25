@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatPaidAdsChange, formatPaidAdsMoney, formatPaidAdsNumber } from '../../utils/paidAdsFormatters';
 
 const seriesConfig = [
@@ -9,10 +9,18 @@ const seriesConfig = [
   { key: 'conversions', label: 'Conversions', color: '#ff536b' },
 ];
 
-function points(rows, key, max, count) {
+function points(rows, key, max) {
   if (!rows.length) return '';
-  const denominator = Math.max(count - 1, 1);
+  const denominator = Math.max(rows.length - 1, 1);
   return rows.map((row, index) => `${58 + index * (952 / denominator)},${278 - (Number(row[key] || 0) / max) * 226}`).join(' ');
+}
+
+function niceScaleMax(value) {
+  const number = Math.max(1, Number(value || 0));
+  const magnitude = 10 ** Math.floor(Math.log10(number));
+  const normalized = number / magnitude;
+  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+  return step * magnitude;
 }
 
 function compact(value) {
@@ -46,10 +54,71 @@ function tooltipDate(row, fallbackPeriod, index) {
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function compactPeriodLabel(period) {
+  if (!period?.since || !period?.until) return period?.label || '';
+  const since = new Date(`${period.since}T00:00:00`);
+  const until = new Date(`${period.until}T00:00:00`);
+  const sameYear = since.getFullYear() === until.getFullYear();
+  const sameMonth = sameYear && since.getMonth() === until.getMonth();
+  if (sameMonth) {
+    return `${since.getDate()}–${until.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
+  if (sameYear) {
+    return `${since.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}–${until.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
+  return period.label;
+}
+
+function RangeSelector({ period, comparisonPeriod, loading, onApplyRange }) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState('custom');
+  const [draft, setDraft] = useState({ since: period.since, until: period.until, compareSince: comparisonPeriod.since, compareUntil: comparisonPeriod.until });
+  const [error, setError] = useState('');
+  const comparisonLabel = `${compactPeriodLabel(period)} vs ${compactPeriodLabel(comparisonPeriod)}`;
+
+  useEffect(() => {
+    setDraft({ since: period.since, until: period.until, compareSince: comparisonPeriod.since, compareUntil: comparisonPeriod.until });
+  }, [period.since, period.until, comparisonPeriod.since, comparisonPeriod.until]);
+
+  const apply = async () => {
+    setError('');
+    if (mode === 'custom') {
+      if (Object.values(draft).some(value => !value)) return setError('Select all four dates.');
+      if (draft.since > draft.until || draft.compareSince > draft.compareUntil) return setError('Start dates must be before end dates.');
+    }
+    try {
+      await onApplyRange(mode === 'custom' ? draft : {});
+      setOpen(false);
+    } catch (requestError) {
+      setError(requestError?.response?.data?.message || requestError?.message || 'Unable to load this comparison.');
+    }
+  };
+
+  return <div className="relative">
+    <button type="button" onClick={() => setOpen(value => !value)} className="flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-[#003870]/20 bg-[#003870]/5 px-4 text-xs font-bold text-[#003870] transition hover:border-[#003870]/40 sm:w-auto" aria-expanded={open} title={`${period.label} vs ${comparisonPeriod.label}`}>
+      <span className="whitespace-nowrap text-left">{comparisonLabel}</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points={open ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} /></svg>
+    </button>
+    {open && <div className="absolute right-0 top-[calc(100%+10px)] z-40 w-[min(92vw,430px)] rounded-2xl border border-[#dfe3e8] bg-white p-4 shadow-2xl">
+      <p className="text-sm font-extrabold text-[#273548]">Compare performance</p>
+      <div className="mt-3 grid grid-cols-2 rounded-xl bg-[#f3f5f7] p-1 text-xs font-bold">
+        <button type="button" onClick={() => setMode('month')} className={`rounded-lg px-3 py-2 ${mode === 'month' ? 'bg-white text-[#003870] shadow-sm' : 'text-[#727782]'}`}>Month vs previous</button>
+        <button type="button" onClick={() => setMode('custom')} className={`rounded-lg px-3 py-2 ${mode === 'custom' ? 'bg-white text-[#003870] shadow-sm' : 'text-[#727782]'}`}>Custom ranges</button>
+      </div>
+      {mode === 'custom' && <div className="mt-4 space-y-4">
+        <div><p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#727782]">Current range</p><div className="grid grid-cols-2 gap-2"><input type="date" value={draft.since} onChange={event => setDraft(value => ({ ...value, since: event.target.value }))} className="min-w-0 rounded-xl border border-[#dfe3e8] px-3 py-2 text-xs font-semibold text-[#273548]"/><input type="date" value={draft.until} onChange={event => setDraft(value => ({ ...value, until: event.target.value }))} className="min-w-0 rounded-xl border border-[#dfe3e8] px-3 py-2 text-xs font-semibold text-[#273548]"/></div></div>
+        <div><p className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#727782]">Comparison range</p><div className="grid grid-cols-2 gap-2"><input type="date" value={draft.compareSince} onChange={event => setDraft(value => ({ ...value, compareSince: event.target.value }))} className="min-w-0 rounded-xl border border-[#dfe3e8] px-3 py-2 text-xs font-semibold text-[#273548]"/><input type="date" value={draft.compareUntil} onChange={event => setDraft(value => ({ ...value, compareUntil: event.target.value }))} className="min-w-0 rounded-xl border border-[#dfe3e8] px-3 py-2 text-xs font-semibold text-[#273548]"/></div></div>
+      </div>}
+      {error && <p className="mt-3 text-[11px] font-bold text-red-500">{error}</p>}
+      <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setOpen(false)} className="rounded-xl px-4 py-2 text-xs font-bold text-[#727782]">Cancel</button><button type="button" onClick={apply} disabled={loading} className="rounded-xl bg-[#003870] px-5 py-2 text-xs font-bold text-white disabled:opacity-50">{loading ? 'Loading…' : 'Apply'}</button></div>
+    </div>}
+  </div>;
+}
+
 function ChartTooltip({ hover, daily, previousDaily, period, comparisonPeriod, currency, visibleMetrics, visiblePeriods }) {
   if (!hover) return null;
-  const currentRow = daily[hover.index];
-  const previousRow = previousDaily[hover.index];
+  const currentRow = daily[hover.currentIndex];
+  const previousRow = previousDaily[hover.previousIndex];
   const showCurrent = visiblePeriods.has('current');
   const showPrevious = visiblePeriods.has('previous');
   const metrics = seriesConfig.filter(series => visibleMetrics.has(series.key));
@@ -60,8 +129,8 @@ function ChartTooltip({ hover, daily, previousDaily, period, comparisonPeriod, c
     <div className="pointer-events-none absolute top-4 z-20 w-[300px] rounded-2xl border border-[#dfe3e8] bg-white/95 p-4 shadow-xl backdrop-blur" style={{ left: `${(hover.x / 1200) * 100}%`, transform }}>
       <div className="grid grid-cols-[1fr_auto_auto] items-end gap-x-3 border-b border-[#edf0f2] pb-2 text-[9px] font-bold text-[#8a9099]">
         <span>Metric</span>
-        {showCurrent && <span className="text-right">{tooltipDate(currentRow, period, hover.index)}</span>}
-        {showPrevious && <span className="text-right">{tooltipDate(previousRow, comparisonPeriod, hover.index)}</span>}
+        {showCurrent && <span className="text-right">{tooltipDate(currentRow, period, hover.currentIndex)}</span>}
+        {showPrevious && <span className="text-right">{tooltipDate(previousRow, comparisonPeriod, hover.previousIndex)}</span>}
       </div>
       <div className="mt-2 space-y-2">
         {metrics.map(series => <div key={series.key} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 text-[10px]"><span className="flex min-w-0 items-center gap-2 font-semibold text-[#59606b]"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: series.color }} />{series.label}</span>{showCurrent && <span className="text-right font-extrabold text-[#273548]">{tooltipValue(series.key, currentRow?.[series.key], currency)}</span>}{showPrevious && <span className="text-right font-bold text-[#8a9099]">{tooltipValue(series.key, previousRow?.[series.key], currency)}</span>}</div>)}
@@ -74,7 +143,7 @@ function MonthlyComparisonBars({ totals, account, period, comparisonPeriod }) {
   return (
     <div className="mt-6 rounded-2xl border border-[#c2c6d3]/25 bg-[#fbfcfd] p-5 sm:p-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div><h3 className="text-sm font-extrabold text-[#273548]">Monthly Metrics Comparison</h3><p className="mt-1 text-[10px] font-semibold text-[#8a9099]">{period.label} compared with {comparisonPeriod.label}</p></div>
+        <div><h3 className="text-sm font-extrabold text-[#273548]">Metrics Comparison</h3><p className="mt-1 text-[10px] font-semibold text-[#8a9099]">{period.label} compared with {comparisonPeriod.label}</p></div>
         <div className="flex items-center gap-4 text-[10px] font-bold text-[#727782]"><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#2563eb]" />{period.label}</span><span className="flex items-center gap-2"><span className="h-3 w-3 rounded-sm bg-[#cfd5de]" />{comparisonPeriod.label}</span></div>
       </div>
       <div className="overflow-x-auto">
@@ -98,16 +167,16 @@ function MonthlyComparisonBars({ totals, account, period, comparisonPeriod }) {
   );
 }
 
-export default function PaidAdsPerformanceChart({ data }) {
+export default function PaidAdsPerformanceChart({ data, onApplyRange, loading = false }) {
   const [visibleMetrics, setVisibleMetrics] = useState(() => new Set(seriesConfig.map(series => series.key)));
   const [visiblePeriods, setVisiblePeriods] = useState(() => new Set(['current', 'previous']));
   const [hover, setHover] = useState(null);
   const [chartView, setChartView] = useState(0);
   const { daily = [], previousDaily = [], totals, account, period, comparisonPeriod } = data;
-  const count = Math.max(daily.length, previousDaily.length, 1);
-  const maxByKey = Object.fromEntries(seriesConfig.map(({ key }) => [key, Math.max(1, ...daily.map((row) => Number(row[key] || 0)), ...previousDaily.map((row) => Number(row[key] || 0)))]));
-  const labelStep = Math.max(1, Math.ceil(daily.length / 8));
-  const labelIndexes = daily.map((_, index) => index).filter(index => index === 0 || index % labelStep === 0);
+  const labelRows = daily.length ? daily : previousDaily;
+  const maxByKey = Object.fromEntries(seriesConfig.map(({ key }) => [key, niceScaleMax(Math.max(1, ...daily.map((row) => Number(row[key] || 0)), ...previousDaily.map((row) => Number(row[key] || 0))))]));
+  const labelStep = Math.max(1, Math.ceil(labelRows.length / 8));
+  const labelIndexes = labelRows.map((_, index) => index).filter(index => index === 0 || index === labelRows.length - 1 || index % labelStep === 0);
   const toggleMetric = key => setVisibleMetrics(current => {
     const next = new Set(current);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -121,15 +190,18 @@ export default function PaidAdsPerformanceChart({ data }) {
   const handleChartHover = event => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
-    const index = Math.round(ratio * Math.max(count - 1, 0));
-    setHover({ index, x: 58 + index * (952 / Math.max(count - 1, 1)) });
+    setHover({
+      currentIndex: Math.round(ratio * Math.max(daily.length - 1, 0)),
+      previousIndex: Math.round(ratio * Math.max(previousDaily.length - 1, 0)),
+      x: 58 + ratio * 952,
+    });
   };
 
   return (
     <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div><h2 className="text-lg font-extrabold text-[#191c1d]">Campaign Performance</h2><p className="mt-1 text-xs font-semibold text-[#727782]">Meta account: {account.name}</p></div>
-        <div className="flex items-center gap-2"><div className="rounded-xl border border-[#003870]/20 bg-[#003870]/5 px-4 py-3 text-xs font-bold text-[#003870]">{period.label} vs {comparisonPeriod.label}</div><button type="button" onClick={() => setChartView(view => view === 0 ? 1 : 0)} className="rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]" aria-label="Previous chart view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg></button><button type="button" onClick={() => setChartView(view => view === 0 ? 1 : 0)} className="rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]" aria-label="Next chart view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg></button></div>
+        <div className="flex items-center gap-2"><RangeSelector period={period} comparisonPeriod={comparisonPeriod} loading={loading} onApplyRange={onApplyRange}/><button type="button" onClick={() => setChartView(view => view === 0 ? 1 : 0)} className="rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]" aria-label="Previous chart view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg></button><button type="button" onClick={() => setChartView(view => view === 0 ? 1 : 0)} className="rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]" aria-label="Next chart view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg></button></div>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -139,14 +211,14 @@ export default function PaidAdsPerformanceChart({ data }) {
         })}
       </div>
 
-      {chartView === 0 ? (daily.length ? <div className="mt-5">
+      {chartView === 0 ? ((daily.length || previousDaily.length) ? <div className="mt-5">
         <div className="overflow-x-auto"><div className="relative min-w-[1120px]"><svg className="h-[330px] w-full" viewBox="0 0 1200 330" preserveAspectRatio="none" role="img" aria-label="Meta Ads daily performance chart">
           <rect x="1018" y="25" width="177" height="260" rx="10" fill="#fafbfc" />
           {[52, 108, 165, 221, 278].map((y) => <line key={y} x1="58" y1={y} x2="1010" y2={y} stroke="#e7e9ed" strokeDasharray="3 4" />)}
           <line x1="58" y1="42" x2="58" y2="278" stroke="#dfe3e8" /><line x1="1010" y1="42" x2="1010" y2="278" stroke="#dfe3e8" />
-          {seriesConfig.map((series) => visibleMetrics.has(series.key) && <g key={series.key}>{visiblePeriods.has('previous') && <polyline points={points(previousDaily, series.key, maxByKey[series.key], count)} fill="none" stroke={series.color} strokeOpacity=".3" strokeWidth="1.8" strokeDasharray="6 5" />}{visiblePeriods.has('current') && <><polyline points={points(daily, series.key, maxByKey[series.key], count)} fill="none" stroke={series.color} strokeWidth="2.5" strokeLinejoin="round" />{daily.map((row, index) => index % 3 === 0 && <circle key={row.date} cx={58 + index * (952 / Math.max(count - 1, 1))} cy={278 - (Number(row[series.key] || 0) / maxByKey[series.key]) * 226} r="3.2" fill="white" stroke={series.color} strokeWidth="2" />)}</>}</g>)}
+          {seriesConfig.map((series) => visibleMetrics.has(series.key) && <g key={series.key}>{visiblePeriods.has('previous') && <polyline points={points(previousDaily, series.key, maxByKey[series.key])} fill="none" stroke={series.color} strokeOpacity=".3" strokeWidth="1.8" strokeDasharray="6 5" />}{visiblePeriods.has('current') && <><polyline points={points(daily, series.key, maxByKey[series.key])} fill="none" stroke={series.color} strokeWidth="2.5" strokeLinejoin="round" />{daily.map((row, index) => index % Math.max(1, Math.ceil(daily.length / 10)) === 0 && <circle key={row.date} cx={58 + index * (952 / Math.max(daily.length - 1, 1))} cy={278 - (Number(row[series.key] || 0) / maxByKey[series.key]) * 226} r="3.2" fill="white" stroke={series.color} strokeWidth="2" />)}</>}</g>)}
           {hover && <line x1={hover.x} x2={hover.x} y1="42" y2="278" stroke="#727782" strokeOpacity=".45" strokeWidth="1" strokeDasharray="4 4" />}
-          {labelIndexes.map((index) => <text key={daily[index].date} x={58 + index * (952 / Math.max(count - 1, 1))} y="306" textAnchor="middle" fill="#727782" fontSize="10" fontWeight="600">{new Date(`${daily[index].date}T00:00:00`).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}</text>)}
+          {labelIndexes.map((index) => <text key={labelRows[index].date} x={58 + index * (952 / Math.max(labelRows.length - 1, 1))} y="306" textAnchor="middle" fill="#727782" fontSize="10" fontWeight="600">{new Date(`${labelRows[index].date}T00:00:00`).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}</text>)}
           {[1, .75, .5, .25, 0].map((ratio) => <text key={ratio} x="55" y={56 + (1 - ratio) * 224} textAnchor="end" fill="#2563eb" opacity={visibleMetrics.has('spend') ? 1 : .2} fontSize="9" fontWeight="700">{formatAxisMoney(maxByKey.spend * ratio, account.currency)}</text>)}
           {[1, .75, .5, .25, 0].map((ratio) => <text key={ratio} x="1038" y={56 + (1 - ratio) * 224} textAnchor="middle" fill="#06b6d4" opacity={visibleMetrics.has('reach') ? 1 : .2} fontSize="9" fontWeight="700">{compact(maxByKey.reach * ratio)}</text>)}
           {[1, .75, .5, .25, 0].map((ratio) => <text key={ratio} x="1088" y={56 + (1 - ratio) * 224} textAnchor="middle" fill="#8b5cf6" opacity={visibleMetrics.has('impressions') ? 1 : .2} fontSize="9" fontWeight="700">{compact(maxByKey.impressions * ratio)}</text>)}
@@ -159,7 +231,7 @@ export default function PaidAdsPerformanceChart({ data }) {
           <button type="button" aria-pressed={visiblePeriods.has('current')} onClick={() => togglePeriod('current')} className={`flex items-center gap-2 text-xs font-semibold transition ${visiblePeriods.has('current') ? 'text-[#59606b]' : 'text-[#a8adb5] line-through'}`}><span className={`h-0.5 w-7 ${visiblePeriods.has('current') ? 'bg-[#727782]' : 'bg-[#c9cdd3]'}`} />Current</button>
           <button type="button" aria-pressed={visiblePeriods.has('previous')} onClick={() => togglePeriod('previous')} className={`flex items-center gap-2 text-xs font-semibold transition ${visiblePeriods.has('previous') ? 'text-[#59606b]' : 'text-[#a8adb5] line-through'}`}><span className={`w-7 border-t-2 border-dashed ${visiblePeriods.has('previous') ? 'border-[#9ca3af]' : 'border-[#c9cdd3]'}`} />Previous</button>
         </div>
-      </div> : <div className="mt-6 rounded-2xl bg-[#f8f9fa] p-12 text-center text-sm font-bold text-[#727782]">No daily Meta Ads data for this month.</div>) : <MonthlyComparisonBars totals={totals} account={account} period={period} comparisonPeriod={comparisonPeriod} />}
+      </div> : <div className="mt-6 rounded-2xl bg-[#f8f9fa] p-12 text-center text-sm font-bold text-[#727782]">No daily Meta Ads data for this range.</div>) : <MonthlyComparisonBars totals={totals} account={account} period={period} comparisonPeriod={comparisonPeriod} />}
     </section>
   );
 }

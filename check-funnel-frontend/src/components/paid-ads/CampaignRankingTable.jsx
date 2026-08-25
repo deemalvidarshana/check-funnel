@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatPaidAdsMoney, formatPaidAdsNumber } from '../../utils/paidAdsFormatters';
 
 const columns = [
@@ -66,16 +66,53 @@ function rate(numerator, denominator, multiplier = 1) {
   return denominator > 0 ? (numerator / denominator) * multiplier : 0;
 }
 
+function RankingFilterDropdown({ value, onChange, options, allLabel, className = '' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const close = (event) => ref.current && !ref.current.contains(event.target) && setOpen(false);
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  const selectedLabel = value === 'all' ? allLabel : options.find((option) => option.value === value)?.label || allLabel;
+  const items = [{ value: 'all', label: allLabel }, ...options];
+
+  return <div ref={ref} className={`relative ${className}`}>
+    <button type="button" onClick={() => setOpen((current) => !current)} className="flex h-10 w-full items-center justify-between gap-4 rounded-full border border-[#c2c6d3]/30 bg-white px-4 text-xs font-bold text-[#003870] shadow-sm transition hover:bg-[#f8f9fa]" aria-expanded={open}>
+      <span className="truncate text-left">{selectedLabel}</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
+    </button>
+    {open && <div className="absolute right-0 top-full z-50 mt-2 max-h-64 min-w-full overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white py-1 shadow-xl">
+      {items.map((option) => <button key={option.value} type="button" onClick={() => { onChange(option.value); setOpen(false); }} className={`block w-full whitespace-nowrap px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${value === option.value ? 'bg-[#003870]/5 text-[#003870]' : 'text-[#727782]'}`}>{option.label}</button>)}
+    </div>}
+  </div>;
+}
+
 export default function CampaignRankingTable({ campaigns, totals, currency }) {
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [deliveryFilter, setDeliveryFilter] = useState('all');
+  const [objectiveFilter, setObjectiveFilter] = useState('all');
+  const [resultTypeFilter, setResultTypeFilter] = useState('all');
+  const filterOptions = useMemo(() => ({
+    deliveries: [...new Set(campaigns.map((campaign) => campaign.status).filter(Boolean))].sort(),
+    objectives: [...new Set(campaigns.map((campaign) => campaign.objective).filter(Boolean))].sort(),
+    resultTypes: [...new Set(campaigns.map((campaign) => campaign.resultType).filter(Boolean))].sort(),
+  }), [campaigns]);
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return campaigns
       .filter((campaign) => !normalizedQuery || [campaign.name, campaign.objective, campaign.status, campaign.resultType]
         .some((value) => String(value || '').toLowerCase().includes(normalizedQuery)))
-      .sort((a, b) => b.spend - a.spend);
-  }, [campaigns, query]);
+      .filter((campaign) => deliveryFilter === 'all' || campaign.status === deliveryFilter)
+      .filter((campaign) => objectiveFilter === 'all' || campaign.objective === objectiveFilter)
+      .filter((campaign) => resultTypeFilter === 'all' || campaign.resultType === resultTypeFilter)
+      .sort((a, b) => {
+        const activeOrder = Number(String(b.status || '').toUpperCase() === 'ACTIVE')
+          - Number(String(a.status || '').toUpperCase() === 'ACTIVE');
+        return activeOrder || Number(b.spend || 0) - Number(a.spend || 0);
+      });
+  }, [campaigns, query, deliveryFilter, objectiveFilter, resultTypeFilter]);
   const visibleRows = showAll ? rows : rows.slice(0, 5);
 
   const total = useMemo(() => {
@@ -132,11 +169,14 @@ export default function CampaignRankingTable({ campaigns, totals, currency }) {
           <h2 className="text-lg font-extrabold text-[#191c1d]">Campaign Ranking</h2>
           <p className="mt-1 text-[11px] font-semibold text-[#727782]">Meta campaign delivery, costs and objective-specific results</p>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-[#c2c6d3]/30 px-4 shadow-sm sm:w-72">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-[#c2c6d3]/30 px-4 shadow-sm sm:w-64 sm:flex-none">
             <span className="text-[#727782]">⌕</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs outline-none" placeholder="Search campaigns..." />
           </label>
+          <RankingFilterDropdown value={deliveryFilter} onChange={setDeliveryFilter} allLabel="All Delivery" className="w-40" options={filterOptions.deliveries.map((status) => ({ value: status, label: status.replaceAll('_', ' ') }))} />
+          <RankingFilterDropdown value={objectiveFilter} onChange={setObjectiveFilter} allLabel="All Objectives" className="w-48" options={filterOptions.objectives.map((objective) => ({ value: objective, label: objective.replaceAll('_', ' ') }))} />
+          <RankingFilterDropdown value={resultTypeFilter} onChange={setResultTypeFilter} allLabel="All Result Types" className="w-48" options={filterOptions.resultTypes.map((resultType) => ({ value: resultType, label: resultType }))} />
           <button onClick={() => setShowAll((value) => !value)} className="h-10 rounded-full border border-[#c2c6d3]/30 px-5 text-xs font-bold text-[#003870] shadow-sm">
             {showAll ? 'Show Top 5' : 'View All'}
           </button>

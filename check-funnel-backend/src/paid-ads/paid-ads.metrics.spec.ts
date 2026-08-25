@@ -1,9 +1,11 @@
 import {
   conversionCount,
+  customPeriod,
   monthPeriod,
   normalizeCampaignResults,
   normalizeMetrics,
   percentageChange,
+  precedingPeriod,
   previousMonthPeriod,
 } from './paid-ads.metrics';
 
@@ -23,6 +25,13 @@ describe('paid ads metric normalization', () => {
   it('builds calendar-month ranges including leap years', () => {
     expect(monthPeriod('2024-02')).toMatchObject({ since: '2024-02-01', until: '2024-02-29' });
     expect(previousMonthPeriod('2024-01')).toMatchObject({ since: '2023-12-01', until: '2023-12-31' });
+  });
+
+  it('builds and validates custom comparison ranges', () => {
+    const current = customPeriod('2026-08-10', '2026-08-25');
+    expect(current).toMatchObject({ since: '2026-08-10', until: '2026-08-25' });
+    expect(precedingPeriod(current)).toMatchObject({ since: '2026-07-25', until: '2026-08-09' });
+    expect(() => customPeriod('2026-08-25', '2026-08-10')).toThrow('since must be on or before until');
   });
 
   it('handles percentage comparisons with zero baselines', () => {

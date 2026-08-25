@@ -14,7 +14,11 @@ export class PaidAdsController {
   getInsights(
     @Param('clientId', ParseIntPipe) clientId: number,
     @Query('month') month: string,
+    @Query('since') since?: string,
+    @Query('until') until?: string,
+    @Query('compareSince') compareSince?: string,
+    @Query('compareUntil') compareUntil?: string,
   ) {
-    return this.paidAdsService.getInsights(clientId, month);
+    return this.paidAdsService.getInsights(clientId, month, { since, until, compareSince, compareUntil });
   }
 }
