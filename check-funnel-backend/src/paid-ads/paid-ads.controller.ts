@@ -18,7 +18,8 @@ export class PaidAdsController {
     @Query('until') until?: string,
     @Query('compareSince') compareSince?: string,
     @Query('compareUntil') compareUntil?: string,
+    @Query('campaignId') campaignId?: string,
   ) {
-    return this.paidAdsService.getInsights(clientId, month, { since, until, compareSince, compareUntil });
+    return this.paidAdsService.getInsights(clientId, month, { since, until, compareSince, compareUntil, campaignId });
   }
 }

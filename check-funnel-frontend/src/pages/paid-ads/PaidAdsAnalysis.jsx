@@ -28,6 +28,7 @@ export default function PaidAdsAnalysis() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const [data, setData] = useState(null);
   const [performanceData, setPerformanceData] = useState(null);
+  const [conversionData, setConversionData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,8 +58,9 @@ export default function PaidAdsAnalysis() {
       const result = await getPaidAdsInsights(selectedClient, selectedMonth);
       setData(result);
       setPerformanceData(result);
+      setConversionData(result);
     }
-    catch (requestError) { setData(null); setPerformanceData(null); setError(paidAdsErrorMessage(requestError)); }
+    catch (requestError) { setData(null); setPerformanceData(null); setConversionData(null); setError(paidAdsErrorMessage(requestError)); }
     finally { setLoading(false); }
   },[selectedClient,selectedMonth]);
 
@@ -70,16 +72,24 @@ export default function PaidAdsAnalysis() {
     try {
       const result = await getPaidAdsInsights(selectedClient, selectedMonth, range);
       setPerformanceData(result);
+      return result;
     } finally {
       setComparisonLoading(false);
     }
   }, [selectedClient, selectedMonth]);
 
+  const applyConversionRange = useCallback(async (range) => {
+    if (selectedClient === 'all') return;
+    const result = await getPaidAdsInsights(selectedClient, selectedMonth, range);
+    setConversionData(result);
+    return result;
+  }, [selectedClient, selectedMonth]);
+
   return <main className="min-h-full w-full bg-[#f8f9fa]"><div className="mx-auto max-w-[1800px]">
-    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between"><div className="shrink-0"><h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl"><span className="font-extrabold">Paid Ads </span><span className="font-medium">Analytics</span></h1><p className="mt-3 max-w-2xl text-base leading-7 text-[#424751] sm:text-lg">Live Meta Marketing API performance for the selected client and month.</p></div><div className="flex flex-wrap items-center gap-3 lg:justify-end"><MonthPicker value={selectedMonth} onChange={setSelectedMonth}/><ClientDropdown clients={clients} value={selectedClient} onChange={setSelectedClient} loading={clientsLoading}/><button onClick={loadInsights} disabled={selectedClient==='all'||loading} className="flex h-11 items-center gap-2 rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50">↻ {loading?'Syncing...':'Sync Live Data'}</button></div></div>
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between"><div className="shrink-0"><h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl"><span className="font-extrabold">Paid Ads </span><span className="font-medium">Analytics</span></h1><p className="mt-3 max-w-2xl text-base leading-7 text-[#424751] sm:text-lg">Live Meta Marketing API performance for the selected client and month.</p></div><div className="flex flex-col gap-3 lg:items-end"><div className="grid w-full grid-cols-2 items-center gap-3 sm:flex sm:w-auto sm:flex-wrap lg:justify-end"><MonthPicker value={selectedMonth} onChange={setSelectedMonth}/><ClientDropdown clients={clients} value={selectedClient} onChange={setSelectedClient} loading={clientsLoading}/><button onClick={loadInsights} disabled={selectedClient==='all'||loading} className="col-span-2 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">↻ {loading?'Syncing...':'Sync Live Data'}</button></div>{data&&!loading&&<p className="text-xs font-bold text-[#727782]">Synced {new Date(data.syncedAt).toLocaleString()}</p>}</div></div>
     {(clientsLoading || (selectedClient!=='all'&&loading))&&<DashboardState type="loading"/>}
     {!clientsLoading&&selectedClient==='all'&&<DashboardState message="Select a client to load live Meta Ads data from its saved credentials."/>}
     {!clientsLoading&&selectedClient!=='all'&&!loading&&error&&<DashboardState type="error" message={error}/>} 
-    {!clientsLoading&&selectedClient!=='all'&&!loading&&data&&<><div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#c2c6d3]/30 bg-white px-5 py-3 text-xs font-bold text-[#727782]"><span>{data.client.name} · {data.account.name} · {data.account.currency}</span><span>Synced {new Date(data.syncedAt).toLocaleString()}</span></div><PaidAdsMetricCards totals={data.totals} currency={data.account.currency}/><PaidAdsPerformanceChart data={performanceData || data} onApplyRange={applyPerformanceRange} loading={comparisonLoading}/><CampaignRankingTable campaigns={data.campaigns} totals={data.totals} currency={data.account.currency}/><CreativePerformance creatives={data.creatives} currency={data.account.currency}/><AudienceAnalytics audience={data.audience} daily={data.daily} previousDaily={data.previousDaily}/></>}
+    {!clientsLoading&&selectedClient!=='all'&&!loading&&data&&<><PaidAdsMetricCards totals={data.totals} currency={data.account.currency}/><PaidAdsPerformanceChart data={performanceData || data} onApplyRange={applyPerformanceRange} loading={comparisonLoading}/><CampaignRankingTable campaigns={data.campaigns} totals={data.totals} currency={data.account.currency}/><CreativePerformance creatives={data.creatives} currency={data.account.currency}/><AudienceAnalytics audience={data.audience} conversionData={conversionData || data} onApplyConversionRange={applyConversionRange}/></>}
   </div></main>;
 }

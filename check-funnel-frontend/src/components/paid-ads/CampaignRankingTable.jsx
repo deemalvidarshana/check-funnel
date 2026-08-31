@@ -169,15 +169,15 @@ export default function CampaignRankingTable({ campaigns, totals, currency }) {
           <h2 className="text-lg font-extrabold text-[#191c1d]">Campaign Ranking</h2>
           <p className="mt-1 text-[11px] font-semibold text-[#727782]">Meta campaign delivery, costs and objective-specific results</p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-[#c2c6d3]/30 px-4 shadow-sm sm:w-64 sm:flex-none">
+        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+          <label className="flex h-10 min-w-0 w-full items-center gap-2 rounded-full border border-[#c2c6d3]/30 px-4 shadow-sm sm:w-64 sm:flex-none">
             <span className="text-[#727782]">⌕</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs outline-none" placeholder="Search campaigns..." />
           </label>
-          <RankingFilterDropdown value={deliveryFilter} onChange={setDeliveryFilter} allLabel="All Delivery" className="w-40" options={filterOptions.deliveries.map((status) => ({ value: status, label: status.replaceAll('_', ' ') }))} />
-          <RankingFilterDropdown value={objectiveFilter} onChange={setObjectiveFilter} allLabel="All Objectives" className="w-48" options={filterOptions.objectives.map((objective) => ({ value: objective, label: objective.replaceAll('_', ' ') }))} />
-          <RankingFilterDropdown value={resultTypeFilter} onChange={setResultTypeFilter} allLabel="All Result Types" className="w-48" options={filterOptions.resultTypes.map((resultType) => ({ value: resultType, label: resultType }))} />
-          <button onClick={() => setShowAll((value) => !value)} className="h-10 rounded-full border border-[#c2c6d3]/30 px-5 text-xs font-bold text-[#003870] shadow-sm">
+          <RankingFilterDropdown value={deliveryFilter} onChange={setDeliveryFilter} allLabel="All Delivery" className="w-full sm:w-40" options={filterOptions.deliveries.map((status) => ({ value: status, label: status.replaceAll('_', ' ') }))} />
+          <RankingFilterDropdown value={objectiveFilter} onChange={setObjectiveFilter} allLabel="All Objectives" className="w-full sm:w-48" options={filterOptions.objectives.map((objective) => ({ value: objective, label: objective.replaceAll('_', ' ') }))} />
+          <RankingFilterDropdown value={resultTypeFilter} onChange={setResultTypeFilter} allLabel="All Result Types" className="w-full sm:w-48" options={filterOptions.resultTypes.map((resultType) => ({ value: resultType, label: resultType }))} />
+          <button onClick={() => setShowAll((value) => !value)} className="h-10 w-full rounded-full border border-[#c2c6d3]/30 px-5 text-xs font-bold text-[#003870] shadow-sm sm:w-auto">
             {showAll ? 'Show Top 5' : 'View All'}
           </button>
         </div>

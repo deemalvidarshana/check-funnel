@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { ClientService } from '../client/client.service';
 import { customPeriod, monthPeriod, normalizeCampaignResults, normalizeMetrics, percentageChange, precedingPeriod, previousMonthPeriod } from './paid-ads.metrics';
-import { MetaInsightRow, PaidAdsMetrics, PaidAdsPeriod } from './paid-ads.types';
+import { MetaInsightRow, PaidAdsPeriod } from './paid-ads.types';
 
 interface MetaCampaign {
   id: string;
@@ -42,6 +42,7 @@ interface PaidAdsRangeOptions {
   until?: string;
   compareSince?: string;
   compareUntil?: string;
+  campaignId?: string;
 }
 
 @Injectable()
@@ -86,7 +87,7 @@ export class PaidAdsService {
         ? precedingPeriod(currentPeriod)
         : previousMonthPeriod(month);
 
-    const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, deviceRows] = await Promise.all([
+    const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, deviceRows, campaignDailyRows] = await Promise.all([
       this.graphGet(`/${accountId}`, accessToken, { fields: 'id,name,currency,timezone_name' }),
       this.fetchInsights(accountId, accessToken, currentPeriod, 'account'),
       this.fetchInsights(accountId, accessToken, previousPeriod, 'account'),
@@ -100,6 +101,9 @@ export class PaidAdsService {
       this.fetchBreakdown(accountId, accessToken, currentPeriod, 'gender'),
       this.fetchBreakdown(accountId, accessToken, currentPeriod, 'country'),
       this.fetchBreakdown(accountId, accessToken, currentPeriod, 'impression_device'),
+      range.campaignId
+        ? this.fetchInsights(accountId, accessToken, currentPeriod, 'campaign', 1, range.campaignId)
+        : Promise.resolve([]),
     ]);
 
     const currentAdIds = new Set(adRows.map((row) => row.ad_id).filter((id): id is string => Boolean(id)));
@@ -115,8 +119,8 @@ export class PaidAdsService {
       [client.facebookApiKey, accessToken].filter((token): token is string => Boolean(token)),
     );
 
-    const current = normalizeMetrics(currentTotalRows[0]);
-    const previous = normalizeMetrics(previousTotalRows[0]);
+    const current = this.normalizeFullMetrics(currentTotalRows[0] || {});
+    const previous = this.normalizeFullMetrics(previousTotalRows[0] || {});
     const campaignsById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
     const adsById = new Map(ads.map((ad) => [ad.id, ad]));
     const adCreativesById = new Map(adCreatives.map((creative) => [creative.id, creative]));
@@ -132,6 +136,13 @@ export class PaidAdsService {
       daily: dailyRows.map((row) => this.normalizeDaily(row)),
       previousDaily: previousDailyRows.map((row) => this.normalizeDaily(row)),
       campaigns: campaignRows.map((row) => this.normalizeCampaign(row, campaignsById.get(row.campaign_id || ''))),
+      selectedCampaign: range.campaignId
+        ? this.normalizeCampaign(
+          campaignRows.find((row) => row.campaign_id === range.campaignId) || {},
+          campaignsById.get(range.campaignId),
+        )
+        : null,
+      campaignDaily: campaignDailyRows.map((row) => this.normalizeDaily(row)),
       creatives: adRows
         .map((row) => {
           const ad = adsById.get(row.ad_id || '');
@@ -148,21 +159,26 @@ export class PaidAdsService {
     };
   }
 
-  private withComparison(current: PaidAdsMetrics, previous: PaidAdsMetrics) {
+  private withComparison(current: Record<string, number>, previous: Record<string, number>) {
     return Object.fromEntries(Object.keys(current).map((key) => {
-      const metric = key as keyof PaidAdsMetrics;
-      return [metric, { current: current[metric], previous: previous[metric], change: percentageChange(current[metric], previous[metric]) }];
+      return [key, { current: current[key], previous: previous[key] || 0, change: percentageChange(current[key], previous[key] || 0) }];
     }));
   }
 
+  private normalizeFullMetrics(row: MetaInsightRow): Record<string, number> {
+    const {
+      resultType: _resultType,
+      rawActions: _rawActions,
+      rawActionValues: _rawActionValues,
+      ...resultMetrics
+    } = normalizeCampaignResults(row);
+    return { ...normalizeMetrics(row), ...resultMetrics };
+  }
+
   private normalizeDaily(row: MetaInsightRow) {
-    const resultMetrics = normalizeCampaignResults(row);
     return {
       date: row.date_start,
-      ...normalizeMetrics(row),
-      landingPageViews: resultMetrics.landingPageViews,
-      leads: resultMetrics.leads,
-      purchases: resultMetrics.purchases,
+      ...this.normalizeFullMetrics(row),
     };
   }
 
@@ -222,14 +238,17 @@ export class PaidAdsService {
     throw new BadRequestException('Multiple Meta ad accounts are accessible. Save the Meta Ad Account ID on this client for accurate mapping');
   }
 
-  private fetchInsights(accountId: string, token: string, period: PaidAdsPeriod, level: 'account' | 'campaign' | 'ad', timeIncrement?: number) {
-    const metricFields = ['date_start', 'date_stop', 'spend', 'reach', 'impressions', 'clicks', 'actions'];
+  private fetchInsights(accountId: string, token: string, period: PaidAdsPeriod, level: 'account' | 'campaign' | 'ad', timeIncrement?: number, campaignId?: string) {
+    const metricFields = [
+      'date_start', 'date_stop', 'spend', 'reach', 'impressions', 'clicks',
+      'frequency', 'unique_clicks', 'inline_link_clicks', 'inline_link_click_ctr',
+      'ctr', 'cpc', 'cpm', 'cpp', 'cost_per_inline_link_click',
+      'actions', 'action_values', 'cost_per_action_type',
+      'purchase_roas', 'website_purchase_roas',
+    ];
     const fields = level === 'campaign'
       ? [
         'campaign_id', 'campaign_name', 'objective', ...metricFields,
-        'frequency', 'unique_clicks', 'inline_link_clicks', 'inline_link_click_ctr',
-        'ctr', 'cpc', 'cpm', 'cpp', 'cost_per_inline_link_click',
-        'action_values', 'cost_per_action_type', 'purchase_roas', 'website_purchase_roas',
       ]
       : level === 'ad'
         ? ['ad_id', 'ad_name', 'campaign_id', 'campaign_name', ...metricFields]
@@ -239,6 +258,7 @@ export class PaidAdsService {
       level,
       time_range: JSON.stringify({ since: period.since, until: period.until }),
       ...(timeIncrement ? { time_increment: timeIncrement } : {}),
+      ...(campaignId ? { filtering: JSON.stringify([{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]) } : {}),
       limit: 500,
     });
   }

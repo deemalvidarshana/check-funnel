@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const colors = ['#2563eb', '#22b982', '#ff536b', '#8b5cf6', '#f59e0b', '#06b6d4', '#64748b'];
 
@@ -79,7 +79,32 @@ function rateSummary(rows, series) {
   return rateValue(numerator, denominator);
 }
 
-function ConversionRateChart({ daily, previousDaily }) {
+function ConversionDropdown({ value, onChange, options, disabled = false }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => { const close = event => ref.current && !ref.current.contains(event.target) && setOpen(false); document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close); }, []);
+  const label = options.find(option => option.value === value)?.label || 'All Campaigns';
+  return <div ref={ref} className="relative min-w-0 flex-1 sm:w-64 sm:flex-none"><button type="button" disabled={disabled} onClick={() => setOpen(current => !current)} className="flex h-11 w-full items-center justify-between gap-3 rounded-full border border-[#c2c6d3]/30 bg-[#f3f4f5]/50 px-5 text-xs font-bold text-[#003870] shadow-sm transition hover:bg-[#f3f4f5] disabled:opacity-50"><span className="min-w-0 flex-1 truncate text-left">{label}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg></button>{open&&!disabled&&<div className="absolute inset-x-0 top-full z-50 mt-2 max-h-[min(14rem,45vh)] w-full overflow-x-hidden overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white py-1 shadow-xl">{options.map(option=><button key={option.value} type="button" onClick={()=>{onChange(option.value);setOpen(false);}} className={`flex w-full min-w-0 overflow-hidden px-4 py-3 text-left text-sm font-bold transition hover:bg-[#f3f4f5] ${value===option.value?'bg-[#003870]/5 text-[#003870]':'text-[#727782]'}`}><span className="min-w-0 flex-1 truncate" title={option.label}>{option.label}</span></button>)}</div>}</div>;
+}
+
+function ConversionRateChart({ data, onApplyRange }) {
+  const daily = data.selectedCampaign ? (data.campaignDaily || []) : (data.daily || []);
+  const previousDaily = data.selectedCampaign ? [] : (data.previousDaily || []);
+  const [rangeOpen, setRangeOpen] = useState(false);
+  const [draft, setDraft] = useState({ since: data.period.since, until: data.period.until });
+  const [campaignId, setCampaignId] = useState(data.selectedCampaign?.id || 'all');
+  const [filterLoading, setFilterLoading] = useState(false);
+  const [filterError, setFilterError] = useState('');
+  useEffect(() => { setDraft({ since: data.period.since, until: data.period.until }); setCampaignId(data.selectedCampaign?.id || 'all'); }, [data.period.since, data.period.until, data.selectedCampaign?.id]);
+  const applyRange = async () => {
+    if (!draft.since || !draft.until || draft.since > draft.until) return setFilterError('Select a valid date range.');
+    setFilterLoading(true); setFilterError('');
+    try { await onApplyRange(draft); setCampaignId('all'); setRangeOpen(false); } catch (error) { setFilterError(error?.response?.data?.message || error?.message || 'Unable to load this range.'); } finally { setFilterLoading(false); }
+  };
+  const selectCampaign = async value => {
+    setCampaignId(value); setFilterLoading(true); setFilterError('');
+    try { await onApplyRange(value === 'all' ? draft : { ...draft, campaignId: value }); } catch (error) { setFilterError(error?.response?.data?.message || error?.message || 'Unable to load this campaign.'); } finally { setFilterLoading(false); }
+  };
   const currentRows = rateRows(daily);
   const comparisonRows = rateRows(previousDaily);
   const [visibleMetrics, setVisibleMetrics] = useState(() => new Set(conversionRateSeries.map((series) => series.key)));
@@ -103,7 +128,8 @@ function ConversionRateChart({ daily, previousDaily }) {
   const previousHoverRow = hover ? comparisonRows[hover.previousIndex] : null;
 
   return <div className="mt-4 rounded-2xl border border-[#c2c6d3]/25 p-4 sm:p-5">
-    <div><h3 className="text-base font-extrabold text-[#273548]">Conversion Performance</h3><p className="mt-1 text-[10px] font-semibold text-[#8a9099]">Daily conversion efficiency across reach, leads, and purchases</p></div>
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h3 className="text-base font-extrabold text-[#273548]">Conversion Performance</h3><p className="mt-1 text-[10px] font-semibold text-[#8a9099]">Daily conversion efficiency across reach, leads, and purchases</p></div><div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row lg:w-auto"><div className="relative min-w-0 flex-1 sm:w-60 sm:flex-none"><button type="button" onClick={()=>setRangeOpen(value=>!value)} className="flex h-11 w-full items-center justify-between gap-3 rounded-full border border-[#c2c6d3]/30 bg-[#f3f4f5]/50 px-5 text-xs font-bold text-[#003870] shadow-sm transition hover:bg-[#f3f4f5]"><span>{new Date(`${draft.since}T00:00:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})} – {new Date(`${draft.until}T00:00:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`shrink-0 transition-transform ${rangeOpen?'rotate-180':''}`}><polyline points="6 9 12 15 18 9" /></svg></button>{rangeOpen&&<div className="absolute right-0 top-full z-50 mt-2 w-[min(92vw,360px)] rounded-2xl border border-[#c2c6d3]/20 bg-white p-4 shadow-xl"><p className="text-sm font-extrabold text-[#273548]">Conversion date range</p><div className="mt-3 grid grid-cols-2 gap-2"><input type="date" value={draft.since} onChange={event=>setDraft(value=>({...value,since:event.target.value}))} className="min-w-0 rounded-xl border border-[#dfe3e8] px-3 py-2 text-xs font-semibold"/><input type="date" value={draft.until} onChange={event=>setDraft(value=>({...value,until:event.target.value}))} className="min-w-0 rounded-xl border border-[#dfe3e8] px-3 py-2 text-xs font-semibold"/></div>{filterError&&<p className="mt-3 text-[11px] font-bold text-red-500">{filterError}</p>}<div className="mt-4 flex justify-end gap-2"><button type="button" onClick={()=>setRangeOpen(false)} className="rounded-xl px-4 py-2 text-xs font-bold text-[#727782]">Cancel</button><button type="button" onClick={applyRange} disabled={filterLoading} className="rounded-xl bg-[#003870] px-5 py-2 text-xs font-bold text-white disabled:opacity-50">{filterLoading?'Loading…':'Apply'}</button></div></div>}</div><ConversionDropdown value={campaignId} onChange={selectCampaign} disabled={filterLoading} options={[{value:'all',label:'All Campaigns'},...(data.campaigns||[]).map(campaign=>({value:campaign.id,label:campaign.name}))]}/></div></div>
+    {!rangeOpen&&filterError&&<p className="mt-2 text-right text-[11px] font-bold text-red-500">{filterError}</p>}
     <div className="mt-4 grid gap-3 md:grid-cols-3">
       {summaries.map((series) => <div key={series.key} className="rounded-2xl border border-[#c2c6d3]/25 px-4 py-3.5"><div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold text-[#727782]">{series.label}</p><p className="mt-1 text-[9px] font-semibold text-[#9aa0a9]">{series.formula}</p></div><span className={`text-[10px] font-extrabold ${series.change == null ? 'text-[#8a9099]' : series.change >= 0 ? 'text-green-600' : 'text-red-500'}`}>{series.change == null ? '—' : `${series.change >= 0 ? '+' : ''}${series.change.toFixed(1)}%`}</span></div><p className="mt-2 text-xl font-black" style={{ color: series.color }}>{series.current.toFixed(2)}%</p><p className="mt-1 text-[9px] font-semibold text-[#8a9099]">Previous: {series.previous.toFixed(2)}%</p></div>)}
     </div>
@@ -120,10 +146,10 @@ function ConversionRateChart({ daily, previousDaily }) {
   </div>;
 }
 
-export default function AudienceAnalytics({ audience = {}, daily = [], previousDaily = [] }) {
+export default function AudienceAnalytics({ audience = {}, conversionData, onApplyConversionRange }) {
   const ageRows = mergeRows(audience.age || [], key => ['55-64', '65+'].includes(key) ? '55+' : key);
   const genderRows = mergeRows(audience.gender || [], key => key === 'female' ? 'Female' : key === 'male' ? 'Male' : 'Other');
   const deviceRows = mergeRows(audience.devices || [], key => key.includes('tablet') || key === 'ipad' ? 'Tablet' : key.includes('smartphone') || ['iphone','ipod'].includes(key) ? 'Mobile' : key === 'desktop' ? 'Desktop' : 'Other');
 
-  return <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6"><div><h2 className="text-lg font-extrabold text-[#191c1d]">Audience Analytics</h2><p className="mt-1 text-xs font-semibold text-[#727782]">Meta Ads audience breakdown for the selected month</p></div><div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"><DonutCard title="Age Group" rows={ageRows} /><DonutCard title="Gender" rows={genderRows} /><LocationCard rows={audience.countries || []} /><DonutCard title="Device" rows={deviceRows} /></div><ConversionRateChart daily={daily} previousDaily={previousDaily} /></section>;
+  return <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6"><div><h2 className="text-lg font-extrabold text-[#191c1d]">Audience Analytics</h2><p className="mt-1 text-xs font-semibold text-[#727782]">Meta Ads audience breakdown for the selected month</p></div><div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"><DonutCard title="Age Group" rows={ageRows} /><DonutCard title="Gender" rows={genderRows} /><LocationCard rows={audience.countries || []} /><DonutCard title="Device" rows={deviceRows} /></div><ConversionRateChart data={conversionData} onApplyRange={onApplyConversionRange} /></section>;
 }

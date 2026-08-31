@@ -24,6 +24,7 @@ import TargetPlanner from "../pages/targets/TargetPlanner";
 import IssueBoard from "../pages/issues/IssueBoard";
 import IssueDetail from "../pages/issues/IssueDetail";
 import PaidAdsAnalysis from "../pages/paid-ads/PaidAdsAnalysis";
+import ReportBuilder from "../pages/report-builder/ReportBuilder";
 
 /**
  * PublicRoute component that prevents logged-in users from accessing auth pages.
@@ -78,6 +79,7 @@ export default function AppRoutes() {
           <Route path="/issues" element={<IssueBoard />} />
           <Route path="/issues/:issueId" element={<IssueDetail />} />
           <Route path="/paid-ads-analysis" element={<PaidAdsAnalysis />} />
+          <Route path="/report-builder" element={<ReportBuilder />} />
           <Route path="/reports" element={<Reports />} />
           
           {/* Admin-only routes */}

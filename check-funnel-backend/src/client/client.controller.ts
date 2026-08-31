@@ -91,8 +91,18 @@ export class ClientController {
   getInsightsReport(
     @Param('id', ParseIntPipe) id: number,
     @Query('platform') platform?: string,
+    @Query('currentSince') currentSince?: string,
+    @Query('currentUntil') currentUntil?: string,
+    @Query('compareSince') compareSince?: string,
+    @Query('compareUntil') compareUntil?: string,
   ) {
-    return this.clientInsightsReportService.buildReport(id, platform);
+    const customRanges = currentSince && currentUntil && compareSince && compareUntil
+      ? [
+          { label: `${currentSince} - ${currentUntil}`, since: currentSince, until: currentUntil },
+          { label: `${compareSince} - ${compareUntil}`, since: compareSince, until: compareUntil },
+        ]
+      : undefined;
+    return this.clientInsightsReportService.buildReport(id, platform, customRanges);
   }
 
 

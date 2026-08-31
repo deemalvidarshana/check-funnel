@@ -66,6 +66,15 @@ function PaidAdsIcon() {
   );
 }
 
+function ReportBuilderIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M6 3h9l3 3v15H6z" strokeLinejoin="round" />
+      <path d="M15 3v4h4M9 12h6M9 16h6M9 8h2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function CalendarIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -151,6 +160,7 @@ const navItems = [
   { name: "Targets", path: "/targets", icon: <TargetIcon />, feature: "targets" },
   { name: "Clients", path: "/clients", icon: <ClientsIcon />, feature: "clients" },
   { name: "Paid Ads Analysis", path: "/paid-ads-analysis", icon: <PaidAdsIcon /> },
+  { name: "Report Builder", path: "/report-builder", icon: <ReportBuilderIcon /> },
   { name: "Issue Board", path: "/issues", icon: <IssueBoardIcon /> },
   { name: "Manage Users", path: "/users", icon: <ManageIcon />, adminOnly: true },
 ];

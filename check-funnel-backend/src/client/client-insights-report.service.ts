@@ -22,11 +22,12 @@ export class ClientInsightsReportService {
     private readonly tiktokService: TiktokService,
   ) {}
 
-  async buildReport(clientId: number, platform?: string) {
+  async buildReport(clientId: number, platform?: string, customRanges?: DateRange[]) {
     const client = await this.clientService.findOne(clientId);
     const ranges = {
       weeks10: this.generateLast10Weeks(),
       months6: this.generateLast6Months(),
+      custom: customRanges,
     };
     const includedPlatforms = this.getIncludedPlatforms(platform);
     const platforms: Record<PlatformKey, any> = {} as Record<PlatformKey, any>;
@@ -61,20 +62,21 @@ export class ClientInsightsReportService {
     return ['facebook', 'instagram', 'tiktok'];
   }
 
-  private buildPlatformReport(platform: PlatformKey, client: any, ranges: { weeks10: DateRange[]; months6: DateRange[] }) {
+  private buildPlatformReport(platform: PlatformKey, client: any, ranges: { weeks10: DateRange[]; months6: DateRange[]; custom?: DateRange[] }) {
     if (platform === 'instagram') return this.buildInstagramReport(client, ranges);
     if (platform === 'tiktok') return this.buildTiktokReport(client, ranges);
     return this.buildFacebookReport(client, ranges);
   }
 
-  private async buildFacebookReport(client: any, ranges: { weeks10: DateRange[]; months6: DateRange[] }) {
+  private async buildFacebookReport(client: any, ranges: { weeks10: DateRange[]; months6: DateRange[]; custom?: DateRange[] }) {
     if (!client.facebookPageId || !client.facebookApiKey) {
       return this.unavailablePlatform('Facebook', 'Facebook Page ID or API key is missing.');
     }
 
-    const [weekly, monthly] = await Promise.all([
+    const [weekly, monthly, custom] = await Promise.all([
       this.fetchFacebookRows(client, ranges.weeks10),
       this.fetchFacebookRows(client, ranges.months6),
+      ranges.custom ? this.fetchFacebookRows(client, ranges.custom) : Promise.resolve(null),
     ]);
 
     return {
@@ -82,6 +84,7 @@ export class ClientInsightsReportService {
       available: true,
       weekly,
       monthly,
+      comparisonRows: custom ? [custom[1], custom[0]] : undefined,
     };
   }
 
@@ -106,12 +109,12 @@ export class ClientInsightsReportService {
     );
   }
 
-  private async buildInstagramReport(client: any, ranges: { weeks10: DateRange[]; months6: DateRange[] }) {
+  private async buildInstagramReport(client: any, ranges: { weeks10: DateRange[]; months6: DateRange[]; custom?: DateRange[] }) {
     if (!client.instagramAccountId || !client.instagramApiKey) {
       return this.unavailablePlatform('Instagram', 'Instagram Account ID or API key is missing.');
     }
 
-    const [weekly, monthly] = await Promise.all([
+    const [weekly, monthly, custom] = await Promise.all([
       this.instagramService
         .getRangeInsights({
           pageId: client.instagramAccountId,
@@ -128,6 +131,9 @@ export class ClientInsightsReportService {
         })
         .then((result) => result.weeks || [])
         .catch((error) => ranges.months6.map((range) => this.errorRow(range, error))),
+      ranges.custom
+        ? this.instagramService.getRangeInsights({ pageId: client.instagramAccountId, accessToken: client.instagramApiKey, ranges: ranges.custom }).then((result) => result.weeks || []).catch((error) => ranges.custom!.map((range) => this.errorRow(range, error)))
+        : Promise.resolve(null),
     ]);
 
     return {
@@ -135,10 +141,11 @@ export class ClientInsightsReportService {
       available: true,
       weekly,
       monthly,
+      comparisonRows: custom ? [custom[1], custom[0]] : undefined,
     };
   }
 
-  private async buildTiktokReport(client: any, ranges: { weeks10: DateRange[]; months6: DateRange[] }) {
+  private async buildTiktokReport(client: any, ranges: { weeks10: DateRange[]; months6: DateRange[]; custom?: DateRange[] }) {
     if (!client.tiktokApiKey || !client.tiktokClientKey || !client.tiktokClientSecret) {
       return this.unavailablePlatform('TikTok', 'TikTok credentials are missing or incomplete.');
     }
@@ -156,8 +163,10 @@ export class ClientInsightsReportService {
         label: 'TikTok',
         available: true,
         user: insights.user || null,
+        videos,
         weekly: this.buildTiktokVideoRows(videos, 10),
         monthly: this.buildTiktokBuckets(videos, ranges.months6),
+        comparisonRows: ranges.custom ? this.buildTiktokBuckets(videos, [ranges.custom[1], ranges.custom[0]]) : undefined,
       };
     } catch (error) {
       return this.unavailablePlatform('TikTok', this.safeErrorMessage(error));
@@ -187,7 +196,13 @@ export class ClientInsightsReportService {
       const since = new Date(`${range.since}T00:00:00`).getTime() / 1000;
       const until = new Date(`${range.until}T23:59:59`).getTime() / 1000;
       const bucketVideos = videos.filter((video) => {
-        const createdAt = Number(video?.create_time) || 0;
+        const rawCreatedAt = video?.create_time;
+        const numericCreatedAt = Number(rawCreatedAt);
+        const createdAt = Number.isFinite(numericCreatedAt) && numericCreatedAt > 0
+          ? numericCreatedAt > 1e12
+            ? numericCreatedAt / 1000
+            : numericCreatedAt
+          : new Date(rawCreatedAt).getTime() / 1000;
         return createdAt >= since && createdAt <= until;
       });
 
