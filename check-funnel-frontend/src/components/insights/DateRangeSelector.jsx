@@ -54,7 +54,7 @@ export default function DateRangeSelector({ selectedRange, onRangeChange, extraR
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 sm:right-0 top-full z-50 mt-2 w-48 max-h-64 overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200 no-scrollbar">
+        <div className="absolute left-0 top-full z-[70] mt-2 max-h-64 w-48 overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white shadow-xl animate-in fade-in slide-in-from-top-1 duration-200 no-scrollbar sm:left-auto sm:right-0">
           {ranges.map((range) => (
             <button
               key={range.value}

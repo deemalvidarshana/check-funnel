@@ -25,7 +25,7 @@ export default function MetricTabs({ activeTab, setActiveTab, platform = 'facebo
 
 
   return (
-    <div className="flex overflow-x-auto no-scrollbar whitespace-nowrap gap-2 rounded-full bg-[#f3f4f5] p-1.5 w-full sm:w-auto">
+    <div className="flex w-full min-w-0 gap-2 overflow-x-auto whitespace-nowrap rounded-full bg-[#f3f4f5] p-1.5 no-scrollbar 2xl:w-auto">
       {tabs.map((tab) => (
         <button
           key={tab}

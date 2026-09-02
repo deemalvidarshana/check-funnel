@@ -48,7 +48,7 @@ const icons = {
 
 export default function MetricCards({ data, showProgress = true }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {data.map((card, index) => {
         const hasToggle = card.onPrev && card.onNext;
 

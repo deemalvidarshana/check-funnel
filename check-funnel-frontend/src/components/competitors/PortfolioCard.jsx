@@ -133,9 +133,9 @@ export default function PortfolioCard({
 
       <button
         onClick={() => navigate(`/competitors/${id}`)}
-        className="mt-6 inline-flex items-center justify-center gap-2 rounded-full border border-[#c2c6d3] px-5 py-3 text-sm font-bold text-[#003870] transition hover:bg-[#e7e8e9]"
+        className="mt-6 inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-full border border-[#c2c6d3] px-3 py-3 text-xs font-bold text-[#003870] transition hover:bg-[#e7e8e9] sm:px-5 sm:text-sm"
       >
-        <span>Open Competitor Dashboard</span>
+        <span className="truncate whitespace-nowrap">Open Competitor Dashboard</span>
       </button>
     </article>
   );

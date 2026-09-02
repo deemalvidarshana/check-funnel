@@ -83,7 +83,7 @@ export default function CompetitorPortfolio() {
 
       {/* Header Section */}
       <header className="mb-10">
-        <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl mb-4">
+        <h1 className="mb-4 text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
           <span className="font-extrabold">Competitor Analysis </span>
           <span className="font-medium">Portfolio</span>
         </h1>

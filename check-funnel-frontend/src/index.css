@@ -1,6 +1,28 @@
 @import "tailwindcss";
 
 @font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: block;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Manrope Variable';
+  font-style: normal;
+  font-display: block;
+  font-weight: 200 800;
+  src: url('@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@theme {
+  --font-weight-bold: 650;
+  --font-weight-extrabold: 740;
+  --font-weight-black: 800;
+}
+
+@font-face {
   font-family: 'Material Symbols Outlined';
   font-style: normal;
   font-weight: 100 700;
@@ -19,15 +41,23 @@ body,
   min-height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  font-synthesis: none;
+  font-optical-sizing: auto;
   background: #f8f9fa;
   color: #191c1d;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6, .headline {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Manrope Variable', 'Manrope', 'Inter Variable', system-ui, sans-serif;
 }
 
 .glass-panel {

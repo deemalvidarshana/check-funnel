@@ -99,6 +99,11 @@ export default function CampaignRankingTable({ campaigns, totals, currency }) {
     objectives: [...new Set(campaigns.map((campaign) => campaign.objective).filter(Boolean))].sort(),
     resultTypes: [...new Set(campaigns.map((campaign) => campaign.resultType).filter(Boolean))].sort(),
   }), [campaigns]);
+  const currentSpend = totals.spend.current;
+  const currentReach = totals.reach.current;
+  const currentImpressions = totals.impressions.current;
+  const currentClicks = totals.clicks.current;
+  const currentConversions = totals.conversions.current;
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return campaigns
@@ -127,11 +132,11 @@ export default function CampaignRankingTable({ campaigns, totals, currency }) {
     summableKeys.forEach((key) => {
       row[key] = campaigns.reduce((sum, campaign) => sum + Number(campaign[key] || 0), 0);
     });
-    row.spend = Number(totals.spend.current || row.spend || 0);
-    row.reach = Number(totals.reach.current || row.reach || 0);
-    row.impressions = Number(totals.impressions.current || row.impressions || 0);
-    row.clicks = Number(totals.clicks.current || row.clicks || 0);
-    row.conversions = Number(totals.conversions.current || row.conversions || 0);
+    row.spend = Number(currentSpend || row.spend || 0);
+    row.reach = Number(currentReach || row.reach || 0);
+    row.impressions = Number(currentImpressions || row.impressions || 0);
+    row.clicks = Number(currentClicks || row.clicks || 0);
+    row.conversions = Number(currentConversions || row.conversions || 0);
     row.frequency = rate(row.impressions, row.reach);
     row.cpm = rate(row.spend, row.impressions, 1000);
     row.cpp = rate(row.spend, row.reach, 1000);
@@ -145,7 +150,7 @@ export default function CampaignRankingTable({ campaigns, totals, currency }) {
     row.purchaseRoas = rate(row.purchaseValue, row.spend);
     row.cpa = rate(row.spend, row.conversions);
     return row;
-  }, [campaigns, totals]);
+  }, [campaigns, currentClicks, currentConversions, currentImpressions, currentReach, currentSpend]);
 
   const display = (row, column) => {
     const value = row[column.key];
@@ -164,20 +169,20 @@ export default function CampaignRankingTable({ campaigns, totals, currency }) {
 
   return (
     <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <div>
           <h2 className="text-lg font-extrabold text-[#191c1d]">Campaign Ranking</h2>
           <p className="mt-1 text-[11px] font-semibold text-[#727782]">Meta campaign delivery, costs and objective-specific results</p>
         </div>
-        <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
-          <label className="flex h-10 min-w-0 w-full items-center gap-2 rounded-full border border-[#c2c6d3]/30 px-4 shadow-sm sm:w-64 sm:flex-none">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.35fr)_minmax(140px,0.8fr)_minmax(160px,1fr)_minmax(160px,1fr)_auto] 2xl:max-w-[980px]">
+          <label className="flex h-10 w-full min-w-0 items-center gap-2 rounded-full border border-[#c2c6d3]/30 px-4 shadow-sm">
             <span className="text-[#727782]">⌕</span>
             <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs outline-none" placeholder="Search campaigns..." />
           </label>
-          <RankingFilterDropdown value={deliveryFilter} onChange={setDeliveryFilter} allLabel="All Delivery" className="w-full sm:w-40" options={filterOptions.deliveries.map((status) => ({ value: status, label: status.replaceAll('_', ' ') }))} />
-          <RankingFilterDropdown value={objectiveFilter} onChange={setObjectiveFilter} allLabel="All Objectives" className="w-full sm:w-48" options={filterOptions.objectives.map((objective) => ({ value: objective, label: objective.replaceAll('_', ' ') }))} />
-          <RankingFilterDropdown value={resultTypeFilter} onChange={setResultTypeFilter} allLabel="All Result Types" className="w-full sm:w-48" options={filterOptions.resultTypes.map((resultType) => ({ value: resultType, label: resultType }))} />
-          <button onClick={() => setShowAll((value) => !value)} className="h-10 w-full rounded-full border border-[#c2c6d3]/30 px-5 text-xs font-bold text-[#003870] shadow-sm sm:w-auto">
+          <RankingFilterDropdown value={deliveryFilter} onChange={setDeliveryFilter} allLabel="All Delivery" className="w-full min-w-0" options={filterOptions.deliveries.map((status) => ({ value: status, label: status.replaceAll('_', ' ') }))} />
+          <RankingFilterDropdown value={objectiveFilter} onChange={setObjectiveFilter} allLabel="All Objectives" className="w-full min-w-0" options={filterOptions.objectives.map((objective) => ({ value: objective, label: objective.replaceAll('_', ' ') }))} />
+          <RankingFilterDropdown value={resultTypeFilter} onChange={setResultTypeFilter} allLabel="All Result Types" className="w-full min-w-0" options={filterOptions.resultTypes.map((resultType) => ({ value: resultType, label: resultType }))} />
+          <button onClick={() => setShowAll((value) => !value)} className="h-10 w-full whitespace-nowrap rounded-full border border-[#c2c6d3]/30 px-5 text-xs font-bold text-[#003870] shadow-sm">
             {showAll ? 'Show Top 5' : 'View All'}
           </button>
         </div>

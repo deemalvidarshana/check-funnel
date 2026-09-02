@@ -260,9 +260,9 @@ export default function IssueBoard() {
         />
       )}
 
-      <header className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+      <header className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="min-w-0 flex-1 space-y-2">
-          <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+          <h1 className="text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
             <span className="font-extrabold">Issue </span>
             <span className="font-medium">Board</span>
           </h1>
@@ -271,7 +271,7 @@ export default function IssueBoard() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:flex-nowrap xl:justify-end">
           <IssueClientFilter
             value={clientFilter}
             clients={clientOptions}

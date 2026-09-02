@@ -888,8 +888,8 @@ export default function ClientInsights() {
     <>
     <section className="w-full max-w-full overflow-hidden">
       {/* Header */}
-      <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-        <div className="flex items-start gap-1.5 sm:gap-2">
+      <div className="mb-8 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+        <div className="flex min-w-0 items-start gap-1.5 sm:gap-2">
           <Link
             to="/clients"
             className="mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[#003870] transition-all hover:bg-[#003870]/8 active:scale-90 sm:mt-3"
@@ -900,8 +900,8 @@ export default function ClientInsights() {
               <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </Link>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-extrabold tracking-tight text-[#191c1d]">
+          <div className="min-w-0 space-y-2">
+            <h1 className="break-words text-3xl font-extrabold tracking-tight text-[#191c1d] min-[420px]:text-4xl 2xl:text-5xl">
               {client.name}: {platformLabel} Insights
             </h1>
 
@@ -911,7 +911,7 @@ export default function ClientInsights() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-3 xl:w-auto xl:max-w-[430px] xl:justify-end">
           {canManageClients && <button
             onClick={handleShare}
             disabled={shareLoading}
@@ -957,22 +957,26 @@ export default function ClientInsights() {
       </div>
 
       {/* Tabs + platform */}
-      <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-        <MetricTabs 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          platform={activePlatform}
-        />
-        <PlatformSelector
-          activePlatform={activePlatform}
-          setActivePlatform={setActivePlatform}
-          activeChannels={client?.activeChannels}
-        />
+      <div className="mb-10 flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center">
+        <div className="min-w-0 flex-1">
+          <MetricTabs
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            platform={activePlatform}
+          />
+        </div>
+        <div className="shrink-0">
+          <PlatformSelector
+            activePlatform={activePlatform}
+            setActivePlatform={setActivePlatform}
+            activeChannels={client?.activeChannels}
+          />
+        </div>
       </div>
 
       {/* Main area */}
-       <div className="grid grid-cols-12 gap-8 w-full">
-        <div className="col-span-12 space-y-8 lg:col-span-9 min-w-0">
+       <div className="grid w-full grid-cols-12 gap-8">
+        <div className="col-span-12 min-w-0 space-y-8 xl:col-span-9">
 
           <ContentVelocityChart
             title={displayChartConfig.title}
@@ -1021,7 +1025,7 @@ export default function ClientInsights() {
           )}
         </div>
 
-        <div className="col-span-12 space-y-8 lg:col-span-3 min-w-0">
+        <div className="col-span-12 min-w-0 space-y-8 xl:col-span-3">
 
           <OverviewMetricsCard 
             platform={activePlatform} 

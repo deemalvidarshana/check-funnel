@@ -55,7 +55,7 @@ const UserManagement = () => {
       await updateUserStatus(userToApprove.id, 'approved');
       setUserToApprove(null);
       fetchData();
-    } catch (error) {
+    } catch {
       alert("Failed to approve user");
     }
   };
@@ -70,7 +70,7 @@ const UserManagement = () => {
       await updateUserStatus(userToReject.id, 'rejected');
       setUserToReject(null);
       fetchData();
-    } catch (error) {
+    } catch {
       alert("Failed to reject user");
     }
   };
@@ -91,7 +91,7 @@ const UserManagement = () => {
       setIsDeleteModalOpen(false);
       setUserToDelete(null);
       fetchData();
-    } catch (error) {
+    } catch {
       alert("Failed to delete user");
     }
   };
@@ -105,7 +105,7 @@ const UserManagement = () => {
     try {
       await updateUser(id, data);
       fetchData();
-    } catch (error) {
+    } catch {
       alert("Failed to update user");
     }
   };
@@ -181,9 +181,9 @@ const UserManagement = () => {
   return (
     <div className="animate-in fade-in duration-700">
       {/* Page Header */}
-      <header className="mb-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-        <div className="max-w-3xl">
-          <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+      <header className="mb-10 grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+        <div className="min-w-0 max-w-3xl">
+          <h1 className="text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
             <span className="font-extrabold">User </span>
             <span className="font-medium">Management</span>
           </h1>
@@ -194,10 +194,10 @@ const UserManagement = () => {
           </p>
         </div>
         
-        <div className="flex flex-col gap-3 sm:flex-row xl:self-start">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-nowrap xl:justify-end">
           <button
             onClick={() => setIsCreateModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-[#003870] shadow-lg ring-1 ring-slate-200 transition hover:bg-blue-50 active:scale-95"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-white px-5 text-sm font-bold text-[#003870] shadow-lg ring-1 ring-slate-200 transition hover:bg-blue-50 active:scale-95"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -207,7 +207,7 @@ const UserManagement = () => {
           <button
             onClick={handleExport}
             disabled={registeredUsers.length === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 py-3 text-sm font-bold text-[#ffffff] shadow-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-5 text-sm font-bold text-[#ffffff] shadow-lg transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M16 9l-4 4m0 0l-4-4m4 4V3" />

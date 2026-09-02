@@ -22,7 +22,7 @@ export default function DashboardHeader() {
   return (
     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
       <div>
-        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
           Precision <span className="italic font-light">Intelligence</span>
         </h1>
         <p className="text-slate-500 font-medium text-lg mt-2">

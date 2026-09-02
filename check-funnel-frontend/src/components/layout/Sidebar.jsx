@@ -252,7 +252,7 @@ export default function Sidebar() {
 
       <aside 
         className={`fixed left-0 top-0 h-screen bg-slate-50 border-r border-slate-200 z-[60] py-8 transition-all duration-300 ease-in-out flex flex-col ${
-          isCollapsed ? "lg:w-20" : "lg:w-72"
+          isCollapsed ? "lg:w-20" : "lg:w-20 2xl:w-64"
         } ${
           isMobileOpen ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0"
         }`}
@@ -260,14 +260,16 @@ export default function Sidebar() {
         {/* Toggle Button (Desktop Only) */}
         <button
           onClick={toggleSidebar}
-          className="absolute -right-3 top-10 hidden lg:flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-blue-700 hover:border-blue-200 z-50"
+          className="absolute -right-3 top-10 hidden 2xl:flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:text-blue-700 hover:border-blue-200 z-50"
         >
           <ChevronIcon direction={isCollapsed ? "right" : "left"} />
         </button>
 
         {/* Brand */}
         <div className={`px-6 mb-10 transition-all duration-300 overflow-hidden whitespace-nowrap opacity-100 visible ${
-          isCollapsed ? "lg:opacity-0 lg:invisible lg:h-0 lg:mb-0" : ""
+          isCollapsed
+            ? "lg:opacity-0 lg:invisible lg:h-0 lg:mb-0"
+            : "lg:opacity-0 lg:invisible lg:h-0 lg:mb-0 2xl:opacity-100 2xl:visible 2xl:h-auto 2xl:mb-10"
         }`}>
           <h2 className="font-extrabold text-2xl tracking-tight text-blue-900">
             Check Funnel
@@ -287,16 +289,16 @@ export default function Sidebar() {
                 key={`${item.name}-${item.path}`}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-4 px-3.5 ${isCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : "lg:justify-start lg:gap-4 lg:px-3.5"} py-3 text-sm font-semibold rounded-xl transition-all ${
+                  `flex items-center gap-4 px-3.5 ${isCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : "lg:justify-center lg:gap-0 lg:px-0 2xl:justify-start 2xl:gap-4 2xl:px-3.5"} py-3 text-sm font-semibold rounded-xl transition-all ${
                     isActive
                       ? "bg-white text-blue-700 shadow-md ring-1 ring-slate-200"
                       : "text-slate-500 hover:bg-blue-50/50 hover:text-blue-900"
                   }`
                 }
-                title={isCollapsed ? item.name : ""}
+                title={item.name}
               >
                 <span className="shrink-0">{item.icon}</span>
-                <span className={`w-auto opacity-100 visible transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "lg:w-0 lg:opacity-0 lg:invisible" : ""}`}>
+                <span className={`w-auto opacity-100 visible transition-all duration-300 overflow-hidden whitespace-nowrap ${isCollapsed ? "lg:w-0 lg:opacity-0 lg:invisible" : "lg:w-0 lg:opacity-0 lg:invisible 2xl:w-auto 2xl:opacity-100 2xl:visible"}`}>
                   {item.name}
                 </span>
               </NavLink>
@@ -307,7 +309,7 @@ export default function Sidebar() {
         <div className="mt-auto px-3 relative" ref={profileRef}>
           {/* Profile Popover Menu */}
           {isProfileOpen && (
-            <div className={`absolute bottom-full left-0 right-0 mb-3 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300 ${isCollapsed ? "lg:right-auto lg:w-48" : ""}`}>
+            <div className={`absolute bottom-full left-0 right-0 mb-3 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300 ${isCollapsed ? "lg:right-auto lg:w-48" : "lg:right-auto lg:w-48 2xl:right-0 2xl:w-auto"}`}>
                <div className="px-3 py-2 border-b border-slate-50 mb-1">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Session</p>
                   <div className="mt-2 flex items-center gap-3">
@@ -349,7 +351,7 @@ export default function Sidebar() {
           )}
 
           <div 
-            className={`bg-white rounded-xl border border-slate-200 p-2 shadow-sm flex items-center gap-2 overflow-hidden transition-all duration-300 group ${isCollapsed ? "lg:justify-center lg:gap-0" : ""}`}
+            className={`bg-white rounded-xl border border-slate-200 p-2 shadow-sm flex items-center gap-2 overflow-hidden transition-all duration-300 group ${isCollapsed ? "lg:justify-center lg:gap-0" : "lg:justify-center lg:gap-0 2xl:justify-start 2xl:gap-2"}`}
           >
             {/* Avatar - Clickable for upload */}
             <div 
@@ -375,7 +377,7 @@ export default function Sidebar() {
             {/* User Info - Clickable for menu */}
             <div 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className={`min-w-0 flex-1 w-auto opacity-100 visible transition-all duration-300 cursor-pointer ${isCollapsed ? "lg:w-0 lg:opacity-0 lg:invisible" : ""}`}
+              className={`min-w-0 flex-1 w-auto opacity-100 visible transition-all duration-300 cursor-pointer ${isCollapsed ? "lg:w-0 lg:opacity-0 lg:invisible" : "lg:w-0 lg:opacity-0 lg:invisible 2xl:w-auto 2xl:opacity-100 2xl:visible"}`}
             >
               <p className="text-sm font-bold text-slate-900 truncate group-hover:text-blue-900">
                 {user?.fullName || "Guest User"}

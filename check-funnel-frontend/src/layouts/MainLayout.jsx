@@ -39,11 +39,11 @@ function MainLayoutContent() {
 
       {/* content starts exactly after sidebar */}
       <main 
-        className={`min-h-screen transition-all duration-300 ease-in-out pt-16 lg:pt-0 ${
-          isCollapsed ? "lg:pl-20" : "lg:pl-72"
+        className={`min-h-screen min-w-0 transition-all duration-300 ease-in-out pt-16 lg:pt-0 ${
+          isCollapsed ? "lg:pl-20" : "lg:pl-20 2xl:pl-64"
         }`}
       >
-        <div className="p-4 sm:p-8 lg:p-10">
+        <div className="min-w-0 p-4 sm:p-6 lg:p-6 xl:p-8 2xl:p-10">
           <Outlet />
         </div>
       </main>

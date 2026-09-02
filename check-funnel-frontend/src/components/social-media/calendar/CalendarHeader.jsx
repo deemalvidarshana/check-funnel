@@ -17,9 +17,9 @@ const CalendarHeader = ({
   const navigate = useNavigate();
 
   return (
-    <section className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+    <section className="flex min-w-0 flex-col justify-between gap-5 xl:flex-row xl:items-start">
       <div className="min-w-0 flex-1 space-y-2">
-        <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+        <h1 className="text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
           <span className="font-extrabold">Content </span>
           <span className="font-medium">Calendar</span>
         </h1>
@@ -27,7 +27,7 @@ const CalendarHeader = ({
           Plan, schedule, and manage your cross-platform strategy.
         </p>
       </div>
-      <div className="flex w-full flex-col items-stretch gap-3 lg:w-auto lg:shrink-0 lg:items-end">
+      <div className="flex w-full min-w-0 flex-col items-stretch gap-3 xl:w-auto xl:shrink-0 xl:items-end">
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
             {canManage && (

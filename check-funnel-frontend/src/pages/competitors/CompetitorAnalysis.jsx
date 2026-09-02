@@ -803,7 +803,7 @@ export default function CompetitorAnalysis() {
       {/* Header Section */}
       <div className="flex flex-col mb-8 md:mb-10">
         {/* Row 1: Title & Desktop Actions */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-2 gap-4">
+        <div className="mb-4 flex min-w-0 flex-col gap-4 xl:mb-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
               to="/competitors"
@@ -815,32 +815,32 @@ export default function CompetitorAnalysis() {
                 <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
-            <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+            <h1 className="text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
               <span className="font-extrabold">Competitor </span>
               <span className="font-medium">Analysis</span>
             </h1>
           </div>
 
           {/* Actions - DESKTOP ONLY */}
-          <div className="hidden md:flex items-center gap-3 flex-wrap justify-end">
+          <div className="hidden flex-wrap items-center justify-end gap-3 xl:flex">
             <CompetitorActions />
           </div>
         </div>
 
         {/* Row 2: Sub-header, Mobile Actions & Platform Tabs */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 md:gap-6">
+        <div className="flex min-w-0 flex-col gap-8 md:gap-6 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col md:gap-5">
             <p className="text-base leading-7 text-[#424751] sm:text-lg max-w-2xl">
               {clientName ? `Dashboard for ${clientName} — ` : ""}Track and analyze your competitors' performance across platforms.
             </p>
 
             {/* Actions - MOBILE ONLY (shown below text) */}
-            <div className="flex md:hidden items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2 xl:hidden">
               <CompetitorActions />
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:gap-4 xl:w-auto">
             {canManageCompetitors && <button
               onClick={handleShare}
               disabled={shareLoading}
@@ -932,7 +932,7 @@ export default function CompetitorAnalysis() {
           <MetricCards data={metricCardsData} />
 
           {/* Main Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
             <AverageViewsChart
               data={multiMetricData}
               activeTab={activeTab}
@@ -948,7 +948,7 @@ export default function CompetitorAnalysis() {
           </div>
 
           {/* Secondary Tables/Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
             <CompetitiveBenchmarkTable
               data={competitiveBenchmarkData}
               activeTab={activeTab}

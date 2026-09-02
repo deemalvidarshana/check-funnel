@@ -1153,25 +1153,21 @@ export default function TargetPlanner() {
     }
   };
 
-  const tableSubtitle = isCompetitorTargetView
-    ? `${PLATFORM_LABELS[activePlatform]} ${selectedTargetMonthLabel} Target Based on the competitor data`
-    : `${PLATFORM_LABELS[activePlatform]} ${selectedTargetMonthLabel} Target Based on the platform data`;
-
   return (
     <section className="w-full max-w-full">
-      <header className="relative z-20 mb-8 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-        <div className="max-w-5xl">
-          <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+      <header className="relative z-20 mb-0 grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+        <div className="min-w-0 max-w-5xl">
+          <h1 className="text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
             <span className="font-extrabold">Performance </span>
             <span className="font-medium">Targets</span>
           </h1>
           <p className="mt-3 text-base font-medium leading-7 text-[#424751] sm:text-lg">
-            Targets are planned from platform and competitor data to guide monthly growth, priorities, and performance goals.
+            {PLATFORM_LABELS[activePlatform]} {selectedTargetMonthLabel} growth targets based on {isCompetitorTargetView ? "competitor" : "platform"} data. {isCompetitorTargetView ? `Manual competitor targets for ${selectedTargetMonthLabel}.` : `Create now applies to ${nextTargetMonthLabel}.`}
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 sm:items-end">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <div className="flex min-w-0 flex-col gap-4 sm:items-end xl:max-w-[680px]">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <MonthPicker value={selectedTargetMonth} onChange={setSelectedTargetMonth} />
             <TargetViewDropdown value={targetView} onChange={setTargetView} />
             {scopedClientId && (
@@ -1196,28 +1192,20 @@ export default function TargetPlanner() {
           </div>
 
           <PlatformTabs activePlatform={activePlatform} onChange={setActivePlatform} />
-          <p className="text-xs font-bold uppercase tracking-widest text-[#727782]">
-            {isCompetitorTargetView
-              ? `Manual competitor targets for ${selectedTargetMonthLabel}`
-              : `Create now applies to ${nextTargetMonthLabel}`}
-          </p>
         </div>
       </header>
 
       <div className="relative z-0 min-w-0">
-        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="text-2xl font-extrabold text-[#191c1d]">
-              {tableSubtitle}
-            </h2>
+        <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          {(statusMessage || clientLoadError) && <div>
             {statusMessage && (
               <p className="mt-1 text-sm font-bold text-[#003870]">{statusMessage}</p>
             )}
             {clientLoadError && (
               <p className="mt-1 text-sm font-bold text-[#93000a]">{clientLoadError}</p>
             )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+          </div>}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             {canEditCompetitorTarget && (
               isEditingCompetitorValues ? (
                 <>
@@ -1376,7 +1364,7 @@ export default function TargetPlanner() {
                         </th>
                       </Fragment>
                     ))}
-                    <th className="px-6 py-4 border-l border-[#c2c6d3]/20">
+                    <th className="min-w-[220px] border-l border-[#c2c6d3]/20 px-5 py-4">
                       <div>Basis</div>
                       <div className="mt-1 text-[9px] font-bold uppercase tracking-widest text-[#003870]">
                         {selectedTargetMonthLabel}
@@ -1456,12 +1444,12 @@ export default function TargetPlanner() {
                                 </td>
                               </Fragment>
                             ))}
-                            <td className="px-6 py-5 align-top border-l border-[#c2c6d3]/10">
+                            <td className="min-w-[220px] border-l border-[#c2c6d3]/10 px-5 py-5 align-top">
                               <div className="space-y-2">
                                 {row.metricTargets.map((metric) => (
-                                  <div key={`${row.clientId}-${metric.key}-progress`} className="flex items-center justify-between gap-4">
+                                  <div key={`${row.clientId}-${metric.key}-progress`} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
                                     <span className="text-xs font-bold text-[#727782]">{metric.shortLabel}</span>
-                                    <span className="text-xs font-extrabold text-[#191c1d]">
+                                    <span className="justify-self-end whitespace-nowrap text-right text-xs font-extrabold tabular-nums text-[#191c1d]">
                                       {isViewingSavedTarget
                                         ? metric.basisValue === null || metric.basisValue === undefined
                                           ? "Pending"

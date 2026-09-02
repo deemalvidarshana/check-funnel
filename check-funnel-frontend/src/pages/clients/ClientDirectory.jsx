@@ -264,9 +264,9 @@ export default function ClientDirectory() {
         />
       )}
       <section className="w-full bg-[#f8f9fa]">
-        <header className="mb-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+        <header className="mb-10 grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+          <div className="min-w-0 max-w-3xl">
+            <h1 className="text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
               <span className="font-extrabold">Client </span>
               <span className="font-medium">Directory</span>
             </h1>
@@ -282,7 +282,7 @@ export default function ClientDirectory() {
             {canManageClients && (
               <button
                 onClick={() => setIsAddClientOpen(true)}
-                className="inline-flex items-center justify-center gap-2 self-start rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-6 py-3 text-sm font-bold text-[#ffffff] shadow-lg transition hover:scale-[1.02] active:scale-95 xl:-translate-y-2 xl:self-end"
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#003870_0%,#014f99_100%)] px-5 text-sm font-bold text-[#ffffff] shadow-lg transition hover:scale-[1.02] active:scale-95 xl:self-end"
               >
                 <PlusIcon />
                 <span>Add New Client</span>

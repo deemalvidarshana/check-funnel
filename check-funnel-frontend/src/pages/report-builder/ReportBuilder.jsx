@@ -248,9 +248,9 @@ export default function ReportBuilder() {
       className={`min-h-full bg-[#f8f9fa] ${resizing ? "cursor-col-resize select-none" : ""}`}
     >
       <div className="mx-auto max-w-[1900px]">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-4xl tracking-tight text-[#191c1d] sm:text-5xl">
+        <div className="mb-6 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <div className="min-w-0">
+            <h1 className="text-3xl tracking-tight text-[#191c1d] min-[420px]:text-4xl xl:text-[40px] 2xl:text-5xl">
               <span className="font-extrabold">Report </span>
               <span className="font-medium">Builder</span>
             </h1>
@@ -271,7 +271,7 @@ export default function ReportBuilder() {
           </div>
         )}
         <div
-          className="grid gap-y-6 lg:grid-cols-[var(--report-editor-width)_14px_minmax(0,1fr)] lg:gap-y-0"
+          className="grid gap-y-6 xl:grid-cols-[var(--report-editor-width)_14px_minmax(0,1fr)] xl:gap-y-0"
           style={{ "--report-editor-width": `${editorWidth}px` }}
         >
           <ReportControls
@@ -313,7 +313,7 @@ export default function ReportBuilder() {
               if (event.key === "ArrowRight")
                 setEditorWidth((width) => Math.min(720, width + 20));
             }}
-            className={`group relative hidden cursor-col-resize touch-none items-center justify-center outline-none lg:flex ${resizing ? "bg-[#003870]/5" : ""}`}
+            className={`group relative hidden cursor-col-resize touch-none items-center justify-center outline-none xl:flex ${resizing ? "bg-[#003870]/5" : ""}`}
             title="Drag to resize · Double-click to reset"
           >
             <span
@@ -323,7 +323,7 @@ export default function ReportBuilder() {
               ⋮
             </span>
           </div>
-          <section className="min-w-0 rounded-3xl border border-slate-200 bg-slate-200/60 p-3 shadow-inner sm:p-6 lg:flex lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:overflow-hidden">
+          <section className="min-w-0 rounded-3xl border border-slate-200 bg-slate-200/60 p-3 shadow-inner sm:p-6 xl:flex xl:max-h-[calc(100vh-2rem)] xl:flex-col xl:overflow-hidden">
             <div className="mb-4 flex shrink-0 items-center justify-between">
               <div>
                 <h2 className="text-sm font-extrabold text-slate-800">
@@ -339,7 +339,7 @@ export default function ReportBuilder() {
             </div>
             <div
               ref={previewRef}
-              className="mx-auto w-full max-w-[1000px] lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-2"
+              className="mx-auto w-full max-w-[1000px] xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-2"
             >
               <ReportPreview
                 client={client}
