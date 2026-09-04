@@ -35,13 +35,23 @@ export class SystemSettingsController {
   }
 
   private restrictForManager(settings: any, req: any) {
-    if (req.user?.role === 'admin') return settings;
+    if (req.user?.role === 'admin') return this.safeSettings(settings);
     if (req.user?.featureAccess?.includes('competitors')) {
       const { apifyApiKey, competitorAnalyzeMethod, lastModifiedBy, updatedAt } = settings;
       return { apifyApiKey, competitorAnalyzeMethod, lastModifiedBy, updatedAt };
     }
     const { openRouterApiKey, openRouterModel, lastModifiedBy, updatedAt } = settings;
     return { openRouterApiKey, openRouterModel, lastModifiedBy, updatedAt };
+  }
+
+  private safeSettings(settings: any) {
+    const safe = { ...settings };
+    safe.googleAnalyticsClientSecret = '';
+    delete safe.googleAnalyticsAccessToken;
+    delete safe.googleAnalyticsRefreshToken;
+    safe.googleAnalyticsClientSecretConfigured = Boolean(settings.googleAnalyticsClientSecret);
+    safe.googleAnalyticsConnected = Boolean(settings.googleAnalyticsRefreshToken || settings.googleAnalyticsAccessToken);
+    return safe;
   }
 
   @Get()
@@ -62,6 +72,11 @@ export class SystemSettingsController {
       openRouterModel?: string;
       competitorAnalyzeMethod?: string;
       apifyDefaultResultsLimit?: number;
+      googleAnalyticsProjectId?: string;
+      googleAnalyticsClientId?: string;
+      googleAnalyticsClientSecret?: string;
+      googleAnalyticsLocalRedirectUri?: string;
+      googleAnalyticsProductionRedirectUri?: string;
     },
     @Request() req,
   ) {

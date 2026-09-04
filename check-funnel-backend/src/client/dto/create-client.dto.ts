@@ -97,4 +97,20 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   tiktokRefreshToken?: string;
+
+  @IsOptional()
+  @IsString()
+  googleAnalyticsAccountId?: string;
+
+  @IsOptional()
+  @IsString()
+  googleAnalyticsAccountName?: string;
+
+  @IsOptional()
+  @IsString()
+  googleAnalyticsPropertyId?: string;
+
+  @IsOptional()
+  @IsString()
+  googleAnalyticsPropertyName?: string;
 }

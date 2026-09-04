@@ -98,6 +98,10 @@ export class ClientService {
         'tiktokClientKey',
         'tiktokClientSecret',
         'tiktokRefreshToken',
+        'googleAnalyticsAccountId',
+        'googleAnalyticsAccountName',
+        'googleAnalyticsPropertyId',
+        'googleAnalyticsPropertyName',
       ],
     });
   }

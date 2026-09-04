@@ -1,4 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { encryptedColumnTransformer } from '../../common/encrypted-column.transformer';
 
 @Entity()
 export class SystemSettings {
@@ -19,6 +20,33 @@ export class SystemSettings {
 
   @Column({ type: 'int', default: 100 })
   apifyDefaultResultsLimit: number;
+
+  @Column({ type: 'varchar', nullable: true })
+  googleAnalyticsProjectId: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  googleAnalyticsClientId: string | null;
+
+  @Column({ type: 'text', nullable: true, transformer: encryptedColumnTransformer })
+  googleAnalyticsClientSecret: string | null;
+
+  @Column({ type: 'text', nullable: true, transformer: encryptedColumnTransformer })
+  googleAnalyticsRefreshToken: string | null;
+
+  @Column({ type: 'text', nullable: true, transformer: encryptedColumnTransformer })
+  googleAnalyticsAccessToken: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  googleAnalyticsTokenExpiresAt: Date | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  googleAnalyticsConnectedEmail: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  googleAnalyticsLocalRedirectUri: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  googleAnalyticsProductionRedirectUri: string | null;
 
   @Column({ length: 150 })
   lastModifiedBy: string;

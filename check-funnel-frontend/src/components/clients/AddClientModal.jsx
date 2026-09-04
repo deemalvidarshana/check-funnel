@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import ClientFormField from "./ClientFormField";
 import ChannelCheckbox from "./ChannelCheckbox";
+import GoogleAnalyticsClientSection from "./GoogleAnalyticsClientSection";
 import api from "../../api";
 
 // ---------------- Toast Component ----------------
@@ -176,6 +177,10 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
     tiktokClientKey: "",
     tiktokClientSecret: "",
     tiktokRefreshToken: "",
+    googleAnalyticsAccountId: "",
+    googleAnalyticsAccountName: "",
+    googleAnalyticsPropertyId: "",
+    googleAnalyticsPropertyName: "",
     logo: null,
   });
 
@@ -224,6 +229,10 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
         tiktokClientKey: initialData.tiktokClientKey || "",
         tiktokClientSecret: initialData.tiktokClientSecret || "",
         tiktokRefreshToken: initialData.tiktokRefreshToken || "",
+        googleAnalyticsAccountId: initialData.googleAnalyticsAccountId || "",
+        googleAnalyticsAccountName: initialData.googleAnalyticsAccountName || "",
+        googleAnalyticsPropertyId: initialData.googleAnalyticsPropertyId || "",
+        googleAnalyticsPropertyName: initialData.googleAnalyticsPropertyName || "",
         logo: null,
       });
 
@@ -253,6 +262,10 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
         tiktokClientKey: "",
         tiktokClientSecret: "",
         tiktokRefreshToken: "",
+        googleAnalyticsAccountId: "",
+        googleAnalyticsAccountName: "",
+        googleAnalyticsPropertyId: "",
+        googleAnalyticsPropertyName: "",
         logo: null,
       });
       setLogoPreview(null);
@@ -434,6 +447,7 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
               <div className="md:col-span-2">
                 <ClientFormField label="Short Description" textarea rows={3} placeholder="Briefly describe the brand's niche and tone..." value={form.description} onChange={(e) => updateField("description", e.target.value)} />
               </div>
+
             </div>
           </section>
 
@@ -571,6 +585,25 @@ export default function AddClientModal({ open, onClose, onCreate, initialData, u
                   )}
                 </div>
               </div>
+
+              <GoogleAnalyticsClientSection
+                value={{
+                  accountId: form.googleAnalyticsAccountId,
+                  accountName: form.googleAnalyticsAccountName,
+                  propertyId: form.googleAnalyticsPropertyId,
+                  propertyName: form.googleAnalyticsPropertyName,
+                }}
+                onChange={(googleAnalytics) =>
+                  setForm((current) => ({
+                    ...current,
+                    googleAnalyticsAccountId: googleAnalytics.accountId,
+                    googleAnalyticsAccountName: googleAnalytics.accountName,
+                    googleAnalyticsPropertyId: googleAnalytics.propertyId,
+                    googleAnalyticsPropertyName: googleAnalytics.propertyName,
+                  }))
+                }
+                clientId={initialData?.id}
+              />
             </div>
           </section>
 

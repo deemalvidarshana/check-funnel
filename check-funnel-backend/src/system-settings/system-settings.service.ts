@@ -37,7 +37,12 @@ export class SystemSettingsService implements OnModuleInit {
       openRouterApiKey?: string;
       openRouterModel?: string;
       competitorAnalyzeMethod?: string; 
-      apifyDefaultResultsLimit?: number 
+      apifyDefaultResultsLimit?: number;
+      googleAnalyticsProjectId?: string;
+      googleAnalyticsClientId?: string;
+      googleAnalyticsClientSecret?: string;
+      googleAnalyticsLocalRedirectUri?: string;
+      googleAnalyticsProductionRedirectUri?: string;
     },
     adminEmail: string,
   ): Promise<SystemSettings> {
@@ -57,7 +62,21 @@ export class SystemSettingsService implements OnModuleInit {
     if (updateData.apifyDefaultResultsLimit !== undefined) {
       settings.apifyDefaultResultsLimit = updateData.apifyDefaultResultsLimit;
     }
+    if (updateData.googleAnalyticsProjectId !== undefined) settings.googleAnalyticsProjectId = updateData.googleAnalyticsProjectId || null;
+    if (updateData.googleAnalyticsClientId !== undefined) settings.googleAnalyticsClientId = updateData.googleAnalyticsClientId || null;
+    if (updateData.googleAnalyticsClientSecret) settings.googleAnalyticsClientSecret = updateData.googleAnalyticsClientSecret;
+    if (updateData.googleAnalyticsLocalRedirectUri !== undefined) settings.googleAnalyticsLocalRedirectUri = updateData.googleAnalyticsLocalRedirectUri || null;
+    if (updateData.googleAnalyticsProductionRedirectUri !== undefined) settings.googleAnalyticsProductionRedirectUri = updateData.googleAnalyticsProductionRedirectUri || null;
     settings.lastModifiedBy = adminEmail;
+    return this.systemSettingsRepository.save(settings);
+  }
+
+  async saveGoogleTokens(data: { accessToken: string; refreshToken?: string; expiresAt: Date; connectedEmail?: string }) {
+    const settings = await this.getSettings();
+    settings.googleAnalyticsAccessToken = data.accessToken;
+    if (data.refreshToken) settings.googleAnalyticsRefreshToken = data.refreshToken;
+    settings.googleAnalyticsTokenExpiresAt = data.expiresAt;
+    settings.googleAnalyticsConnectedEmail = data.connectedEmail || null;
     return this.systemSettingsRepository.save(settings);
   }
 }

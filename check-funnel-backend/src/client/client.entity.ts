@@ -80,6 +80,18 @@ export class Client {
   @Column({ nullable: true })
   tiktokRefreshToken: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  googleAnalyticsAccountId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  googleAnalyticsAccountName: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  googleAnalyticsPropertyId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  googleAnalyticsPropertyName: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

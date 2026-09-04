@@ -28,6 +28,7 @@ import { TargetSnapshot } from './targets/entities/target-snapshot.entity';
 import { IssuesModule } from './issues/issues.module';
 import { IssueCard } from './issues/entities/issue-card.entity';
 import { PaidAdsModule } from './paid-ads/paid-ads.module';
+import { GoogleAnalyticsModule } from './google-analytics/google-analytics.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { PaidAdsModule } from './paid-ads/paid-ads.module';
     TargetsModule,
     IssuesModule,
     PaidAdsModule,
+    GoogleAnalyticsModule,
   ],
 })
 export class AppModule {}

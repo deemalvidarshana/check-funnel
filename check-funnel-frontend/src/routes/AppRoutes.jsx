@@ -24,6 +24,7 @@ import TargetPlanner from "../pages/targets/TargetPlanner";
 import IssueBoard from "../pages/issues/IssueBoard";
 import IssueDetail from "../pages/issues/IssueDetail";
 import PaidAdsAnalysis from "../pages/paid-ads/PaidAdsAnalysis";
+import GoogleAnalyticsAnalysis from "../pages/google-analytics/GoogleAnalyticsAnalysis";
 import ReportBuilder from "../pages/report-builder/ReportBuilder";
 
 /**
@@ -79,6 +80,7 @@ export default function AppRoutes() {
           <Route path="/issues" element={<IssueBoard />} />
           <Route path="/issues/:issueId" element={<IssueDetail />} />
           <Route path="/paid-ads-analysis" element={<PaidAdsAnalysis />} />
+          <Route path="/google-analytics" element={<GoogleAnalyticsAnalysis />} />
           <Route path="/report-builder" element={<ReportBuilder />} />
           <Route path="/reports" element={<Reports />} />
           

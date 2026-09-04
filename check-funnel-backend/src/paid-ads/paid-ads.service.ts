@@ -215,12 +215,13 @@ export class PaidAdsService {
         || null,
       creativeId: ad?.creative?.id || null,
       ...normalizeMetrics(row),
+      ...normalizeCampaignResults(row),
     };
   }
 
   private normalizeBreakdown(rows: Array<MetaInsightRow & Record<string, unknown>>, dimension: string) {
     return rows
-      .map((row) => ({ key: String(row[dimension] || 'unknown'), ...normalizeMetrics(row) }))
+      .map((row) => ({ key: String(row[dimension] || 'unknown'), ...normalizeMetrics(row), ...normalizeCampaignResults(row) }))
       .sort((a, b) => b.conversions - a.conversions);
   }
 
@@ -341,7 +342,7 @@ export class PaidAdsService {
 
   private fetchBreakdown(accountId: string, token: string, period: PaidAdsPeriod, breakdown: 'age' | 'gender' | 'country' | 'impression_device') {
     return this.graphGetAll(`/${accountId}/insights`, token, {
-      fields: 'spend,reach,impressions,clicks,actions',
+      fields: 'spend,reach,impressions,clicks,actions,action_values,purchase_roas,website_purchase_roas',
       level: 'account',
       breakdowns: breakdown,
       time_range: JSON.stringify({ since: period.since, until: period.until }),

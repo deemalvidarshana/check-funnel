@@ -42,3 +42,34 @@ export function ClientDropdown({ clients, value, onChange, loading }) {
   const label=loading?'Loading clients...':options.find(option=>option.value===value)?.label||'All Clients';
   return <div className="relative w-full sm:w-64 xl:w-56 2xl:w-64" ref={ref}><button disabled={loading} onClick={()=>setOpen(v=>!v)} className="flex h-11 w-full min-w-0 items-center gap-2 rounded-full border border-[#c2c6d3]/20 bg-[#f3f4f5]/50 px-4 text-sm font-bold text-[#003870] hover:bg-[#f3f4f5] disabled:opacity-60 sm:gap-3 sm:px-5"><span className="min-w-0 flex-1 truncate text-left">{label}</span><DropdownChevron open={open} /></button>{open&&!loading&&<div className="absolute left-auto right-0 top-full z-50 mt-2 max-h-[min(18rem,55vh)] w-[calc(100vw-2rem)] max-w-64 overflow-x-hidden overflow-y-auto rounded-2xl border border-[#c2c6d3]/20 bg-white py-1 shadow-xl">{options.map(option=><button key={option.value} onClick={()=>{onChange(option.value);setOpen(false);}} className={`flex w-full min-w-0 overflow-hidden px-4 py-3 text-left text-sm font-bold hover:bg-[#f3f4f5] ${value===option.value?'bg-[#003870]/5 text-[#003870]':'text-[#727782]'}`}><span className="min-w-0 flex-1 truncate" title={option.label}>{option.label}</span></button>)}</div>}</div>;
 }
+
+const analysisTypes = [
+  { value: 'all', label: 'All Metrics', description: 'Complete paid media overview', color: '#2563eb' },
+  { value: 'ecommerce', label: 'Ecommerce', description: 'Revenue and purchase journey', color: '#10b981' },
+  { value: 'brand-enquiry', label: 'Brand & Enquiry', description: 'Awareness, engagement and enquiries', color: '#f59e0b' },
+];
+
+export function AnalysisTypeDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const close = event => ref.current && !ref.current.contains(event.target) && setOpen(false);
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
+  const selected = analysisTypes.find(option => option.value === value) || analysisTypes[0];
+
+  return <div className="relative w-full sm:w-56" ref={ref}>
+    <button type="button" onClick={() => setOpen(current => !current)} className="flex h-11 w-full min-w-0 items-center gap-3 rounded-full border border-[#c2c6d3]/20 bg-white px-5 text-sm font-bold text-[#003870] shadow-sm transition hover:bg-[#f8f9fa]" aria-expanded={open}>
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: selected.color }} />
+      <span className="min-w-0 flex-1 truncate text-left">{selected.label}</span>
+      <DropdownChevron open={open} />
+    </button>
+    {open && <div className="absolute right-0 top-full z-50 mt-2 w-[min(92vw,300px)] overflow-hidden rounded-2xl border border-[#c2c6d3]/20 bg-white p-1.5 shadow-xl">
+      {analysisTypes.map(option => <button key={option.value} type="button" onClick={() => { onChange(option.value); setOpen(false); }} className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-[#f3f4f5] ${value === option.value ? 'bg-[#003870]/5' : ''}`}>
+        <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: option.color }} />
+        <span className="min-w-0"><span className="block text-sm font-extrabold text-[#003870]">{option.label}</span><span className="mt-0.5 block text-[10px] font-semibold text-[#8a9099]">{option.description}</span></span>
+      </button>)}
+    </div>}
+  </div>;
+}

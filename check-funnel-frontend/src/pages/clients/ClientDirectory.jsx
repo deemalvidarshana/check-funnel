@@ -204,6 +204,10 @@ export default function ClientDirectory() {
         tiktokClientKey: formData.tiktokClientKey || "",
         tiktokClientSecret: formData.tiktokClientSecret || "",
         tiktokRefreshToken: formData.tiktokRefreshToken || "",
+        googleAnalyticsAccountId: formData.googleAnalyticsAccountId || "",
+        googleAnalyticsAccountName: formData.googleAnalyticsAccountName || "",
+        googleAnalyticsPropertyId: formData.googleAnalyticsPropertyId || "",
+        googleAnalyticsPropertyName: formData.googleAnalyticsPropertyName || "",
       };
 
 

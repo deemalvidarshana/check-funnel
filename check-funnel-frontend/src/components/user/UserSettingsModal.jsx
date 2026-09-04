@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { getSystemSettings, updateSystemSettings } from "../../api/systemSettings";
+import GoogleAnalyticsSettingsSection from "../system-settings/GoogleAnalyticsSettingsSection";
+import { getGoogleAnalyticsAuthUrl } from "../../api/googleAnalytics";
 
 function EyeIcon() {
   return (
@@ -43,14 +45,23 @@ export default function UserSettingsModal({ open, onClose, mode = "full" }) {
   const [apifyDefaultResultsLimit, setApifyDefaultResultsLimit] = useState(100);
   const [openRouterApiKey, setOpenRouterApiKey] = useState("");
   const [openRouterModel, setOpenRouterModel] = useState("google/gemini-2.0-flash-001");
-  const [lastModifiedBy, setLastModifiedBy] = useState("");
-  const [updatedAt, setUpdatedAt] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [showOpenRouterKey, setShowOpenRouterKey] = useState(false);
   const [isMethodDropdownOpen, setIsMethodDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [toast, setToast] = useState(null);
+  const [googleAnalyticsSettings, setGoogleAnalyticsSettings] = useState({
+    projectId: "",
+    clientId: "",
+    clientSecret: "",
+    localRedirectUri: "http://localhost:3000/google-analytics/callback",
+    productionRedirectUri: "https://reports.checkfunnels.com/api/google-analytics/callback",
+    credentialFileName: "",
+    connected: false,
+    connectedEmail: "",
+    clientSecretConfigured: false,
+  });
   const isFullSettings = mode === "full";
   const isCompetitorSettings = mode === "competitors" || mode === "manager";
   const isAiSettings = mode === "ai";
@@ -80,8 +91,17 @@ export default function UserSettingsModal({ open, onClose, mode = "full" }) {
       setOpenRouterModel(data.openRouterModel || "google/gemini-2.0-flash-001");
       setCompetitorAnalyzeMethod(data.competitorAnalyzeMethod || "upload");
       setApifyDefaultResultsLimit(data.apifyDefaultResultsLimit || 100);
-      setLastModifiedBy(data.lastModifiedBy || "");
-      setUpdatedAt(data.updatedAt);
+      setGoogleAnalyticsSettings((current) => ({
+        ...current,
+        projectId: data.googleAnalyticsProjectId || "",
+        clientId: data.googleAnalyticsClientId || "",
+        clientSecret: "",
+        localRedirectUri: data.googleAnalyticsLocalRedirectUri || "http://localhost:3000/google-analytics/callback",
+        productionRedirectUri: data.googleAnalyticsProductionRedirectUri || "https://reports.checkfunnels.com/api/google-analytics/callback",
+        connected: Boolean(data.googleAnalyticsConnected),
+        connectedEmail: data.googleAnalyticsConnectedEmail || "",
+        clientSecretConfigured: Boolean(data.googleAnalyticsClientSecretConfigured),
+      }));
     } catch (err) {
       console.error("Failed to fetch settings", err);
       setToast({ message: "Failed to load settings.", type: "error" });
@@ -109,6 +129,11 @@ export default function UserSettingsModal({ open, onClose, mode = "full" }) {
             openRouterModel,
             competitorAnalyzeMethod,
             apifyDefaultResultsLimit: Number(apifyDefaultResultsLimit),
+            googleAnalyticsProjectId: googleAnalyticsSettings.projectId,
+            googleAnalyticsClientId: googleAnalyticsSettings.clientId,
+            googleAnalyticsClientSecret: googleAnalyticsSettings.clientSecret,
+            googleAnalyticsLocalRedirectUri: googleAnalyticsSettings.localRedirectUri,
+            googleAnalyticsProductionRedirectUri: googleAnalyticsSettings.productionRedirectUri,
           };
 
       await updateSystemSettings(payload);
@@ -124,6 +149,24 @@ export default function UserSettingsModal({ open, onClose, mode = "full" }) {
     }
   };
 
+  const handleGoogleConnect = async () => {
+    setLoading(true);
+    try {
+      await updateSystemSettings({
+        googleAnalyticsProjectId: googleAnalyticsSettings.projectId,
+        googleAnalyticsClientId: googleAnalyticsSettings.clientId,
+        googleAnalyticsClientSecret: googleAnalyticsSettings.clientSecret,
+        googleAnalyticsLocalRedirectUri: googleAnalyticsSettings.localRedirectUri,
+        googleAnalyticsProductionRedirectUri: googleAnalyticsSettings.productionRedirectUri,
+      });
+      const { authUrl } = await getGoogleAnalyticsAuthUrl();
+      window.location.assign(authUrl);
+    } catch (err) {
+      setToast({ message: err.response?.data?.message || "Could not start Google authorization.", type: "error" });
+      setLoading(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -135,7 +178,7 @@ export default function UserSettingsModal({ open, onClose, mode = "full" }) {
       />
       
       {/* Modal Content */}
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[32px] bg-white p-8 shadow-[0_30px_60px_-5px_rgba(0,0,0,0.1)] transition-all animate-in zoom-in-95 duration-200">
+      <div className={`relative z-10 w-full overflow-hidden rounded-[32px] bg-white p-6 shadow-[0_30px_60px_-5px_rgba(0,0,0,0.1)] transition-all animate-in zoom-in-95 duration-200 sm:p-8 ${isFullSettings ? "max-w-3xl" : "max-w-md"}`}>
         <div className="flex flex-col">
           <div className="text-center mb-8">
             <h2 className="text-2xl font-extrabold text-[#003870] mb-2">
@@ -151,7 +194,17 @@ export default function UserSettingsModal({ open, onClose, mode = "full" }) {
               <div className="w-8 h-8 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="max-h-[72vh] space-y-6 overflow-y-auto px-1 pb-1 pr-2">
+              {isFullSettings && (
+                <GoogleAnalyticsSettingsSection
+                  value={googleAnalyticsSettings}
+                  onChange={setGoogleAnalyticsSettings}
+                  onConnect={handleGoogleConnect}
+                  connecting={loading}
+                />
+              )}
+
+              {isFullSettings && <div className="border-t border-slate-100" />}
               {(isFullSettings || isCompetitorSettings) && (
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">
