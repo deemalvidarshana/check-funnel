@@ -28,12 +28,26 @@ interface MetaAd {
 
 interface MetaCreative {
   id: string;
+  name?: string;
   thumbnail_url?: string;
   image_url?: string;
   effective_object_story_id?: string;
   object_story_spec?: {
-    link_data?: { picture?: string };
-    video_data?: { image_url?: string };
+    link_data?: {
+      picture?: string;
+      message?: string;
+      name?: string;
+      description?: string;
+      link?: string;
+      call_to_action?: { type?: string; value?: { link?: string } };
+    };
+    video_data?: {
+      image_url?: string;
+      message?: string;
+      title?: string;
+      link_description?: string;
+      call_to_action?: { type?: string; value?: { link?: string } };
+    };
   };
 }
 
@@ -56,6 +70,41 @@ export class PaidAdsService {
   ) {
     const version = configService.get<string>('META_GRAPH_API_VERSION') || 'v25.0';
     this.graphBaseUrl = `https://graph.facebook.com/${version}`;
+  }
+
+  async getMonthlyComparison(clientId: number, monthsValue: string) {
+    const months = [...new Set(String(monthsValue || '').split(',').map((month) => month.trim()).filter(Boolean))];
+    if (months.length === 0) {
+      throw new BadRequestException('Select at least one month');
+    }
+    months.forEach((month) => monthPeriod(month));
+
+    const client = await this.clientService.findOne(clientId);
+    if (!client.metaAdsAccessToken) {
+      throw new BadRequestException('This client does not have a Meta Ads access token');
+    }
+
+    const accountId = await this.resolveAdAccountId(client.metaAdAccountId, client.metaAdsAccessToken);
+    const rows: Array<{ month: string; label: string; metrics: Record<string, number> }> = [];
+    for (let index = 0; index < months.length; index += 4) {
+      const chunk = months.slice(index, index + 4);
+      const chunkRows = await Promise.all(chunk.map(async (month) => {
+        const period = monthPeriod(month);
+        const [insightRows, campaignRows] = await Promise.all([
+          this.fetchInsights(accountId, client.metaAdsAccessToken!, period, 'account'),
+          this.fetchInsights(accountId, client.metaAdsAccessToken!, period, 'campaign'),
+        ]);
+        const campaigns = campaignRows.map((row) => this.normalizeCampaign(row));
+        return {
+          month,
+          label: period.label,
+          metrics: this.reconcileJourneyTotals(this.normalizeFullMetrics(insightRows[0] || {}), campaigns),
+        };
+      }));
+      rows.push(...chunkRows);
+    }
+
+    return { months: rows };
   }
 
   async getInsights(clientId: number, month: string, range: PaidAdsRangeOptions = {}) {
@@ -87,13 +136,14 @@ export class PaidAdsService {
         ? precedingPeriod(currentPeriod)
         : previousMonthPeriod(month);
 
-    const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, deviceRows, campaignDailyRows] = await Promise.all([
+    const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, previousCampaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, deviceRows, campaignDailyRows] = await Promise.all([
       this.graphGet(`/${accountId}`, accessToken, { fields: 'id,name,currency,timezone_name' }),
       this.fetchInsights(accountId, accessToken, currentPeriod, 'account'),
       this.fetchInsights(accountId, accessToken, previousPeriod, 'account'),
       this.fetchInsights(accountId, accessToken, currentPeriod, 'account', 1),
       this.fetchInsights(accountId, accessToken, previousPeriod, 'account', 1),
       this.fetchInsights(accountId, accessToken, currentPeriod, 'campaign'),
+      this.fetchInsights(accountId, accessToken, previousPeriod, 'campaign'),
       this.fetchCampaigns(accountId, accessToken),
       this.fetchInsights(accountId, accessToken, currentPeriod, 'ad'),
       this.fetchAds(accountId, accessToken),
@@ -119,11 +169,13 @@ export class PaidAdsService {
       [client.facebookApiKey, accessToken].filter((token): token is string => Boolean(token)),
     );
 
-    const current = this.normalizeFullMetrics(currentTotalRows[0] || {});
-    const previous = this.normalizeFullMetrics(previousTotalRows[0] || {});
     const campaignsById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
     const adsById = new Map(ads.map((ad) => [ad.id, ad]));
     const adCreativesById = new Map(adCreatives.map((creative) => [creative.id, creative]));
+    const normalizedCampaigns = campaignRows.map((row) => this.normalizeCampaign(row, campaignsById.get(row.campaign_id || '')));
+    const normalizedPreviousCampaigns = previousCampaignRows.map((row) => this.normalizeCampaign(row, campaignsById.get(row.campaign_id || '')));
+    const current = this.reconcileJourneyTotals(this.normalizeFullMetrics(currentTotalRows[0] || {}), normalizedCampaigns);
+    const previous = this.reconcileJourneyTotals(this.normalizeFullMetrics(previousTotalRows[0] || {}), normalizedPreviousCampaigns);
 
     return {
       source: 'meta-marketing-api',
@@ -135,7 +187,7 @@ export class PaidAdsService {
       totals: this.withComparison(current, previous),
       daily: dailyRows.map((row) => this.normalizeDaily(row)),
       previousDaily: previousDailyRows.map((row) => this.normalizeDaily(row)),
-      campaigns: campaignRows.map((row) => this.normalizeCampaign(row, campaignsById.get(row.campaign_id || ''))),
+      campaigns: normalizedCampaigns,
       selectedCampaign: range.campaignId
         ? this.normalizeCampaign(
           campaignRows.find((row) => row.campaign_id === range.campaignId) || {},
@@ -175,6 +227,33 @@ export class PaidAdsService {
     return { ...normalizeMetrics(row), ...resultMetrics };
   }
 
+  private reconcileJourneyTotals(
+    accountMetrics: Record<string, number>,
+    campaigns: Array<Record<string, unknown>>,
+  ): Record<string, number> {
+    const sum = (key: string) => campaigns.reduce((total, campaign) => total + Number(campaign[key] || 0), 0);
+    const leads = sum('leads');
+    const metaFormLeads = sum('metaFormLeads');
+    const websiteLeads = sum('websiteLeads');
+    const registrations = sum('registrations');
+    const messagingConversations = sum('messagingConversations');
+    const messagingConnections = sum('messagingConnections');
+    const messagingFirstReplies = sum('messagingFirstReplies');
+
+    return {
+      ...accountMetrics,
+      leads,
+      metaFormLeads,
+      websiteLeads,
+      registrations,
+      messagingConversations,
+      messagingConnections,
+      messagingFirstReplies,
+      costPerLead: leads > 0 ? accountMetrics.spend / leads : 0,
+      costPerMessagingConversation: messagingConversations > 0 ? accountMetrics.spend / messagingConversations : 0,
+    };
+  }
+
   private normalizeDaily(row: MetaInsightRow) {
     return {
       date: row.date_start,
@@ -199,6 +278,9 @@ export class PaidAdsService {
   }
 
   private normalizeCreative(row: MetaInsightRow, ad?: MetaAd, creative?: MetaCreative, storyThumbnail?: string) {
+    const linkData = creative?.object_story_spec?.link_data;
+    const videoData = creative?.object_story_spec?.video_data;
+    const callToAction = videoData?.call_to_action || linkData?.call_to_action;
     return {
       id: row.ad_id || ad?.id,
       name: row.ad_name || ad?.name || 'Unnamed ad',
@@ -214,6 +296,13 @@ export class PaidAdsService {
         || ad?.creative?.image_url
         || null,
       creativeId: ad?.creative?.id || null,
+      creativeName: creative?.name || ad?.creative?.name || null,
+      mediaType: videoData ? 'Video' : linkData ? 'Image / link' : 'Ad creative',
+      body: videoData?.message || linkData?.message || null,
+      headline: videoData?.title || linkData?.name || null,
+      description: videoData?.link_description || linkData?.description || null,
+      callToAction: callToAction?.type?.replaceAll('_', ' ') || null,
+      destinationUrl: callToAction?.value?.link || linkData?.link || null,
       ...normalizeMetrics(row),
       ...normalizeCampaignResults(row),
     };
@@ -243,6 +332,7 @@ export class PaidAdsService {
     const metricFields = [
       'date_start', 'date_stop', 'spend', 'reach', 'impressions', 'clicks',
       'frequency', 'unique_clicks', 'inline_link_clicks', 'inline_link_click_ctr',
+      'outbound_clicks', 'unique_outbound_clicks', 'outbound_clicks_ctr', 'cost_per_outbound_click',
       'ctr', 'cpc', 'cpm', 'cpp', 'cost_per_inline_link_click',
       'actions', 'action_values', 'cost_per_action_type',
       'purchase_roas', 'website_purchase_roas',
@@ -288,7 +378,7 @@ export class PaidAdsService {
 
     const responses = await Promise.all(chunks.map((ids) => this.graphGet('/', token, {
       ids: ids.join(','),
-      fields: 'id,thumbnail_url,image_url,effective_object_story_id,object_story_spec',
+      fields: 'id,name,thumbnail_url,image_url,effective_object_story_id,object_story_spec',
       thumbnail_width: 1200,
       thumbnail_height: 675,
     })));

@@ -19,6 +19,10 @@ export interface MetaInsightRow {
   unique_clicks?: string;
   inline_link_clicks?: string;
   inline_link_click_ctr?: string;
+  outbound_clicks?: MetaActionValue[];
+  unique_outbound_clicks?: MetaActionValue[];
+  outbound_clicks_ctr?: MetaActionValue[];
+  cost_per_outbound_click?: MetaActionValue[];
   ctr?: string;
   cpc?: string;
   cpm?: string;
@@ -36,6 +40,10 @@ export interface CampaignResultMetrics {
   uniqueClicks: number;
   linkClicks: number;
   linkCtr: number;
+  outboundClicks: number;
+  uniqueOutboundClicks: number;
+  outboundCtr: number;
+  costPerOutboundClick: number;
   cpm: number;
   cpp: number;
   costPerLinkClick: number;
@@ -48,8 +56,12 @@ export interface CampaignResultMetrics {
   purchaseValue: number;
   purchaseRoas: number;
   leads: number;
+  metaFormLeads: number;
+  websiteLeads: number;
   costPerLead: number;
   messagingConversations: number;
+  messagingConnections: number;
+  messagingFirstReplies: number;
   costPerMessagingConversation: number;
   postEngagements: number;
   pageEngagements: number;

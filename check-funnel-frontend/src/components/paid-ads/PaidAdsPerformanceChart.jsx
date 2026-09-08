@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatPaidAdsChange, formatPaidAdsMoney, formatPaidAdsNumber } from '../../utils/paidAdsFormatters';
+import { defaultComparisonMonths } from '../../utils/paidAdsMonthComparison';
+import PaidAdsBrandEnquiryMonthlyComparison, { PaidAdsMonthSelector } from './PaidAdsBrandEnquiryMonthlyComparison';
 
 const seriesConfig = [
   { key: 'spend', label: 'Spend', color: '#2563eb' },
@@ -9,7 +11,7 @@ const seriesConfig = [
   { key: 'conversions', label: 'Conversions', color: '#ff536b' },
 ];
 
-function PerformanceDropdown({ value, onChange, options, placeholder, disabled = false, className = '' }) {
+export function PerformanceDropdown({ value, onChange, options, placeholder, disabled = false, className = '' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -92,7 +94,7 @@ function compactPeriodLabel(period) {
   return period.label;
 }
 
-function RangeSelector({ period, comparisonPeriod, loading, onApplyRange }) {
+export function RangeSelector({ period, comparisonPeriod, loading, onApplyRange }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState('custom');
   const [draft, setDraft] = useState({ since: period.since, until: period.until, compareSince: comparisonPeriod.since, compareUntil: comparisonPeriod.until });
@@ -246,12 +248,13 @@ function MonthlyComparisonBars({ totals, account, period, comparisonPeriod }) {
   );
 }
 
-export default function PaidAdsPerformanceChart({ data, onApplyRange, loading = false }) {
+export default function PaidAdsPerformanceChart({ data, clientId, selectedMonth, onApplyRange, loading = false }) {
   const [analysisMode, setAnalysisMode] = useState('comparison');
   const [visibleMetrics, setVisibleMetrics] = useState(() => new Set(seriesConfig.map(series => series.key)));
   const [visiblePeriods, setVisiblePeriods] = useState(() => new Set(['current', 'previous']));
   const [hover, setHover] = useState(null);
   const [chartView, setChartView] = useState(0);
+  const [monthlyMonths, setMonthlyMonths] = useState(() => defaultComparisonMonths(selectedMonth));
   const { daily = [], previousDaily = [], totals, account, period, comparisonPeriod } = data;
   const chartDaily = analysisMode === 'campaign' && data.selectedCampaign ? (data.campaignDaily || []) : daily;
   const chartPreviousDaily = analysisMode === 'campaign' ? [] : previousDaily;
@@ -283,19 +286,19 @@ export default function PaidAdsPerformanceChart({ data, onApplyRange, loading = 
     <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div><h2 className="text-lg font-extrabold text-[#191c1d]">Campaign Performance</h2><p className="mt-1 text-xs font-semibold text-[#727782]">Meta account: {account.name}</p></div>
-        <div className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end"><PerformanceDropdown value={analysisMode} onChange={value => { setAnalysisMode(value); setChartView(0); setHover(null); }} className="w-44" options={[{ value: 'comparison', label: 'Comparison' }, { value: 'campaign', label: 'Campaign Wise' }]} />{analysisMode === 'comparison' ? <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto sm:gap-2"><div className="min-w-0 flex-1 sm:flex-none"><RangeSelector period={period} comparisonPeriod={comparisonPeriod} loading={loading} onApplyRange={onApplyRange}/></div><button type="button" onClick={() => setChartView(view => view === 0 ? 1 : 0)} className="shrink-0 rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]" aria-label="Previous chart view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg></button><button type="button" onClick={() => setChartView(view => view === 0 ? 1 : 0)} className="shrink-0 rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870]" aria-label="Next chart view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg></button></div> : <CampaignWiseSelector data={data} loading={loading} onApplyRange={onApplyRange}/>}</div>
+        <div className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">{!(analysisMode === 'comparison' && chartView === 2) && <PerformanceDropdown value={analysisMode} onChange={value => { setAnalysisMode(value); setChartView(value === 'comparison' ? 0 : 1); setHover(null); }} className="w-44" options={[{ value: 'comparison', label: 'Comparison' }, { value: 'campaign', label: 'Campaign Wise' }]} />}{analysisMode === 'comparison' ? <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto sm:gap-2"><div className="min-w-0 flex-1 sm:flex-none">{chartView === 2 ? <PaidAdsMonthSelector anchor={selectedMonth} selected={monthlyMonths} onApply={setMonthlyMonths} /> : <RangeSelector period={period} comparisonPeriod={comparisonPeriod} loading={loading} onApplyRange={onApplyRange}/>}</div><button type="button" onClick={() => { setChartView(current => Math.max(0, current - 1)); setHover(null); }} disabled={chartView === 0} className="shrink-0 rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870] disabled:cursor-not-allowed disabled:opacity-30" aria-label="Previous performance view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6" /></svg></button><button type="button" onClick={() => { setChartView(current => Math.min(2, current + 1)); setHover(null); }} disabled={chartView === 2} className="shrink-0 rounded-full p-2 text-[#727782] transition hover:bg-[#f3f4f5] hover:text-[#003870] disabled:cursor-not-allowed disabled:opacity-30" aria-label="Next performance view"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg></button></div> : <CampaignWiseSelector data={data} loading={loading} onApplyRange={onApplyRange}/>}</div>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      {!(analysisMode === 'comparison' && chartView === 2) && <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {seriesConfig.map((series) => {
           const metric = totals[series.key];
           const campaignValue = data.selectedCampaign?.[series.key] ?? metric.current;
           const value = analysisMode === 'campaign' ? campaignValue : metric.current;
           return <div key={series.key} className="rounded-2xl border border-[#c2c6d3]/25 px-5 py-3.5"><div className="flex justify-between gap-3"><p className="text-[11px] font-bold text-[#727782]">{series.label}</p>{analysisMode === 'comparison' && <span className={`text-[10px] font-extrabold ${(metric.change || 0) >= 0 ? 'text-green-600' : 'text-red-500'}`}>{formatPaidAdsChange(metric.change)}</span>}</div><p className="mt-0.5 text-lg font-black" style={{ color: series.color }}>{value == null ? '—' : series.key === 'spend' ? formatPaidAdsMoney(value, account.currency) : formatPaidAdsNumber(value)}</p><p className="mt-0.5 text-[9px] font-semibold text-[#8a9099]">{analysisMode === 'comparison' ? <>Previous: {series.key === 'spend' ? formatPaidAdsMoney(metric.previous, account.currency) : formatPaidAdsNumber(metric.previous)}</> : (data.selectedCampaign ? period.label : `All Campaigns · ${period.label}`)}</p></div>;
         })}
-      </div>
+      </div>}
 
-      {chartView === 0 ? ((chartDaily.length || chartPreviousDaily.length) ? <div className="mt-5">
+      {analysisMode === 'comparison' && chartView === 2 ? <PaidAdsBrandEnquiryMonthlyComparison clientId={clientId} selectedMonth={selectedMonth} currency={account.currency} mode="all" embedded months={monthlyMonths} onMonthsChange={setMonthlyMonths} /> : analysisMode === 'comparison' && chartView === 0 ? <MonthlyComparisonBars totals={totals} account={account} period={period} comparisonPeriod={comparisonPeriod} /> : ((chartDaily.length || chartPreviousDaily.length) ? <div className="mt-5">
         <div className="overflow-x-auto"><div className="relative min-w-[1120px]"><svg className="h-[330px] w-full" viewBox="0 0 1200 330" preserveAspectRatio="none" role="img" aria-label="Meta Ads daily performance chart">
           <rect x="1018" y="25" width="177" height="260" rx="10" fill="#fafbfc" />
           {[52, 108, 165, 221, 278].map((y) => <line key={y} x1="58" y1={y} x2="1010" y2={y} stroke="#e7e9ed" strokeDasharray="3 4" />)}
@@ -315,7 +318,7 @@ export default function PaidAdsPerformanceChart({ data, onApplyRange, loading = 
           <button type="button" aria-pressed={visiblePeriods.has('current')} onClick={() => togglePeriod('current')} className={`flex items-center gap-2 text-xs font-semibold transition ${visiblePeriods.has('current') ? 'text-[#59606b]' : 'text-[#a8adb5] line-through'}`}><span className={`h-0.5 w-7 ${visiblePeriods.has('current') ? 'bg-[#727782]' : 'bg-[#c9cdd3]'}`} />Current</button>
           {analysisMode === 'comparison' && <button type="button" aria-pressed={visiblePeriods.has('previous')} onClick={() => togglePeriod('previous')} className={`flex items-center gap-2 text-xs font-semibold transition ${visiblePeriods.has('previous') ? 'text-[#59606b]' : 'text-[#a8adb5] line-through'}`}><span className={`w-7 border-t-2 border-dashed ${visiblePeriods.has('previous') ? 'border-[#9ca3af]' : 'border-[#c9cdd3]'}`} />Previous</button>}
         </div>
-      </div> : <div className="mt-6 rounded-2xl bg-[#f8f9fa] p-12 text-center text-sm font-bold text-[#727782]">No daily Meta Ads data for this range.</div>) : <MonthlyComparisonBars totals={totals} account={account} period={period} comparisonPeriod={comparisonPeriod} />}
+      </div> : <div className="mt-6 rounded-2xl bg-[#f8f9fa] p-12 text-center text-sm font-bold text-[#727782]">No daily Meta Ads data for this range.</div>)}
     </section>
   );
 }

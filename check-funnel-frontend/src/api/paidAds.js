@@ -7,3 +7,11 @@ export async function getPaidAdsInsights(clientId, month, range = {}) {
   });
   return response.data;
 }
+
+export async function getPaidAdsMonthlyComparison(clientId, months) {
+  const response = await api.get(`/paid-ads/${clientId}/monthly-comparison`, {
+    params: { months: months.join(',') },
+    timeout: 90000,
+  });
+  return response.data;
+}

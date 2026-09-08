@@ -33,6 +33,10 @@ function firstAction(actions: Record<string, number>, priorities: string[]): num
   return 0;
 }
 
+function maxAction(actions: Record<string, number>, aliases: string[]): number {
+  return Math.max(0, ...aliases.map((actionType) => actions[actionType] ?? 0));
+}
+
 function cost(spend: number, result: number): number {
   return result > 0 ? spend / result : 0;
 }
@@ -43,14 +47,28 @@ export function normalizeCampaignResults(row: MetaInsightRow, objective = ''): C
   const actions = valuesByAction(row.actions);
   const actionValues = valuesByAction(row.action_values);
   const linkClicks = numeric(row.inline_link_clicks) || firstAction(actions, ['link_click']);
+  const outboundClicks = maxAction(valuesByAction(row.outbound_clicks), ['outbound_click']);
+  const uniqueOutboundClicks = maxAction(valuesByAction(row.unique_outbound_clicks), ['outbound_click']);
+  const outboundCtr = maxAction(valuesByAction(row.outbound_clicks_ctr), ['outbound_click'])
+    || (impressions > 0 ? (outboundClicks / impressions) * 100 : 0);
+  const costPerOutboundClick = maxAction(valuesByAction(row.cost_per_outbound_click), ['outbound_click'])
+    || cost(spend, outboundClicks);
   const landingPageViews = firstAction(actions, ['landing_page_view', 'omni_landing_page_view']);
   const contentViews = firstAction(actions, ['omni_view_content', 'view_content', 'offsite_conversion.fb_pixel_view_content', 'onsite_web_view_content', 'onsite_web_app_view_content']);
   const addToCart = firstAction(actions, ['omni_add_to_cart', 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart', 'onsite_web_add_to_cart', 'onsite_web_app_add_to_cart']);
   const initiateCheckout = firstAction(actions, ['omni_initiated_checkout', 'initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout', 'onsite_web_initiate_checkout']);
   const purchases = firstAction(actions, ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase', 'onsite_web_purchase', 'onsite_web_app_purchase', 'web_in_store_purchase', 'web_app_in_store_purchase']);
   const purchaseValue = firstAction(actionValues, ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase', 'onsite_web_purchase', 'onsite_web_app_purchase', 'web_in_store_purchase', 'web_app_in_store_purchase']);
-  const leads = firstAction(actions, ['onsite_conversion.lead_grouped', 'lead', 'onsite_conversion.lead', 'onsite_web_lead', 'offsite_complete_registration_add_meta_leads']);
+  const metaFormLeads = maxAction(actions, ['onsite_conversion.lead_grouped', 'onsite_conversion.lead']);
+  const pixelWebsiteLeads = firstAction(actions, ['offsite_conversion.fb_pixel_lead']);
+  const combinedWebLeads = firstAction(actions, ['onsite_web_lead']);
+  const websiteLeads = pixelWebsiteLeads || Math.max(0, combinedWebLeads - metaFormLeads);
+  // `lead` is Meta's overall result. Destination-specific action aliases can
+  // overlap with it, so use the largest value rather than adding aliases.
+  const leads = Math.max(firstAction(actions, ['lead']), metaFormLeads + websiteLeads);
   const messagingConversations = firstAction(actions, ['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.total_messaging_connection', 'onsite_conversion.messaging_first_reply']);
+  const messagingConnections = firstAction(actions, ['onsite_conversion.total_messaging_connection']);
+  const messagingFirstReplies = firstAction(actions, ['onsite_conversion.messaging_first_reply']);
   const postEngagements = firstAction(actions, ['post_engagement', 'post_interaction_net', 'post_interaction_gross']);
   const pageEngagements = firstAction(actions, ['page_engagement']);
   const videoViews = firstAction(actions, ['video_view']);
@@ -59,7 +77,7 @@ export function normalizeCampaignResults(row: MetaInsightRow, objective = ''): C
   const saves = firstAction(actions, ['onsite_conversion.post_save', 'onsite_conversion.post_net_save']);
   const searches = firstAction(actions, ['omni_search', 'search', 'offsite_conversion.fb_pixel_search']);
   const addPaymentInfo = firstAction(actions, ['add_payment_info', 'offsite_conversion.fb_pixel_add_payment_info']);
-  const registrations = firstAction(actions, ['complete_registration', 'offsite_conversion.fb_pixel_complete_registration', 'offsite_complete_registration_add_meta_leads']);
+  const registrations = maxAction(actions, ['complete_registration', 'offsite_conversion.fb_pixel_complete_registration']);
   const purchaseRoas = firstAction(valuesByAction(row.website_purchase_roas), ['omni_purchase', 'purchase'])
     || firstAction(valuesByAction(row.purchase_roas), ['omni_purchase', 'purchase'])
     || (spend > 0 ? purchaseValue / spend : 0);
@@ -108,6 +126,10 @@ export function normalizeCampaignResults(row: MetaInsightRow, objective = ''): C
     uniqueClicks: numeric(row.unique_clicks),
     linkClicks,
     linkCtr: numeric(row.inline_link_click_ctr) || (impressions > 0 ? (linkClicks / impressions) * 100 : 0),
+    outboundClicks,
+    uniqueOutboundClicks,
+    outboundCtr,
+    costPerOutboundClick,
     cpm: numeric(row.cpm) || (impressions > 0 ? (spend / impressions) * 1000 : 0),
     cpp: numeric(row.cpp),
     costPerLinkClick: numeric(row.cost_per_inline_link_click) || cost(spend, linkClicks),
@@ -120,8 +142,12 @@ export function normalizeCampaignResults(row: MetaInsightRow, objective = ''): C
     purchaseValue,
     purchaseRoas,
     leads,
+    metaFormLeads,
+    websiteLeads,
     costPerLead: cost(spend, leads),
     messagingConversations,
+    messagingConnections,
+    messagingFirstReplies,
     costPerMessagingConversation: cost(spend, messagingConversations),
     postEngagements,
     pageEngagements,

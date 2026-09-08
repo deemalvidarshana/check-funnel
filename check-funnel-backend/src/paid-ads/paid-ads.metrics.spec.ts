@@ -48,6 +48,10 @@ describe('paid ads metric normalization', () => {
       clicks: '100',
       inline_link_clicks: '80',
       unique_clicks: '70',
+      outbound_clicks: [{ action_type: 'outbound_click', value: '65' }],
+      unique_outbound_clicks: [{ action_type: 'outbound_click', value: '55' }],
+      outbound_clicks_ctr: [{ action_type: 'outbound_click', value: '3.25' }],
+      cost_per_outbound_click: [{ action_type: 'outbound_click', value: '3.076923' }],
       actions: [
         { action_type: 'omni_purchase', value: '5' },
         { action_type: 'purchase', value: '5' },
@@ -72,6 +76,10 @@ describe('paid ads metric normalization', () => {
       addToCart: 12,
       linkClicks: 80,
       uniqueClicks: 70,
+      outboundClicks: 65,
+      uniqueOutboundClicks: 55,
+      outboundCtr: 3.25,
+      costPerOutboundClick: 3.076923,
     });
   });
 
@@ -87,6 +95,44 @@ describe('paid ads metric normalization', () => {
       results: 20,
       resultType: 'Landing page views',
       costPerResult: 4.5,
+    });
+  });
+
+  it('uses the largest overlapping lead alias without adding duplicate actions', () => {
+    const result = normalizeCampaignResults({
+      spend: '130',
+      actions: [
+        { action_type: 'onsite_conversion.lead_grouped', value: '1' },
+        { action_type: 'lead', value: '13' },
+        { action_type: 'offsite_conversion.fb_pixel_lead', value: '12' },
+        { action_type: 'offsite_complete_registration_add_meta_leads', value: '1' },
+      ],
+    }, 'OUTCOME_LEADS');
+
+    expect(result).toMatchObject({
+      leads: 13,
+      metaFormLeads: 1,
+      websiteLeads: 12,
+      registrations: 0,
+      results: 13,
+      costPerLead: 10,
+    });
+  });
+
+  it('keeps messaging connections, started conversations, and first replies as separate funnel steps', () => {
+    const result = normalizeCampaignResults({
+      spend: '1840',
+      actions: [
+        { action_type: 'onsite_conversion.total_messaging_connection', value: '184' },
+        { action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '176' },
+        { action_type: 'onsite_conversion.messaging_first_reply', value: '170' },
+      ],
+    }, 'OUTCOME_LEADS');
+
+    expect(result).toMatchObject({
+      messagingConnections: 184,
+      messagingConversations: 176,
+      messagingFirstReplies: 170,
     });
   });
 });

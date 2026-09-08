@@ -10,6 +10,14 @@ import { PaidAdsService } from './paid-ads.service';
 export class PaidAdsController {
   constructor(private readonly paidAdsService: PaidAdsService) {}
 
+  @Get(':clientId/monthly-comparison')
+  getMonthlyComparison(
+    @Param('clientId', ParseIntPipe) clientId: number,
+    @Query('months') months: string,
+  ) {
+    return this.paidAdsService.getMonthlyComparison(clientId, months);
+  }
+
   @Get(':clientId/insights')
   getInsights(
     @Param('clientId', ParseIntPipe) clientId: number,

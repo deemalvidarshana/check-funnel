@@ -1,10 +1,9 @@
 import { formatPaidAdsMoney, formatPaidAdsNumber } from '../../utils/paidAdsFormatters';
 
-const groups = [
-  { key: 'awareness', label: 'Awareness', color: '#06b6d4' },
+const objectiveGroups = [
+  { key: 'awareness', label: 'Awareness', color: '#10b8ce' },
   { key: 'engagement', label: 'Engagement', color: '#8b5cf6' },
   { key: 'enquiry', label: 'Lead & enquiry', color: '#10b981' },
-  { key: 'other', label: 'Other', color: '#64748b' },
 ];
 
 function groupKey(campaign) {
@@ -16,40 +15,121 @@ function groupKey(campaign) {
   return 'other';
 }
 
-function ratio(numerator, denominator, multiplier = 100) {
-  return Number(denominator || 0) > 0 ? (Number(numerator || 0) / Number(denominator)) * multiplier : 0;
+function sumRows(rows, key) {
+  return rows.reduce((sum, row) => sum + Number(row[key] || 0), 0);
 }
 
-export default function PaidAdsBrandEnquiryJourney({ campaigns = [], totals, currency }) {
-  const allocation = groups.map(group => {
-    const rows = campaigns.filter(campaign => groupKey(campaign) === group.key);
-    return { ...group, campaigns: rows.length, spend: rows.reduce((sum,row) => sum + Number(row.spend || 0),0), results: [...new Set(rows.map(row => row.resultType).filter(Boolean))] };
-  }).filter(group => group.campaigns || group.key !== 'other');
-  const totalSpend = Math.max(1,allocation.reduce((sum,group) => sum + group.spend,0));
+function percentage(value, total) {
+  return total > 0 ? (value / total) * 100 : 0;
+}
+
+function resultLabel(rows) {
+  const labels = [...new Set(rows.map(row => row.resultType).filter(Boolean))];
+  return labels.length === 1 ? labels[0] : labels.length > 1 ? 'Mixed results' : 'No primary result';
+}
+
+function ObjectiveRow({ label, rows, totalSpend, currency, color }) {
+  const spend = sumRows(rows, 'spend');
+  const share = percentage(spend, totalSpend);
+  return <div>
+    <div className="flex items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h4 className="text-xs font-extrabold text-[#334155]">{label}</h4>
+        <p className="mt-0.5 truncate text-[9px] font-bold text-[#9299a4]">{rows.length} campaign{rows.length === 1 ? '' : 's'} · {resultLabel(rows)}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-xs font-black tabular-nums text-[#334155]">{formatPaidAdsMoney(spend, currency)}</p>
+        <p className="mt-0.5 text-[9px] font-bold tabular-nums text-[#9299a4]">{share.toFixed(1)}%</p>
+      </div>
+    </div>
+    <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-[#e9edf1]">
+      <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${share}%`, backgroundColor: color }} />
+    </div>
+  </div>;
+}
+
+function JourneyStep({ number, label, value, rate, color }) {
+  return <div className="min-w-0 rounded-2xl bg-[#f6f7f8] px-4 py-4">
+    <div className="flex items-center justify-between gap-2">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-white" style={{ backgroundColor: color }}>{number}</span>
+      {rate != null && <span className="text-[9px] font-extrabold tabular-nums text-[#8b929d]">{rate}</span>}
+    </div>
+    <p className="mt-4 text-[10px] font-bold leading-4 text-[#7b8491]">{label}</p>
+    <p className="mt-2 whitespace-nowrap text-xl font-black leading-none tracking-[-0.03em] tabular-nums text-[#191c1d]">{formatPaidAdsNumber(value)}</p>
+  </div>;
+}
+
+function RateCard({ label, value, accent = false }) {
+  return <div className="rounded-2xl border border-[#e4e8ec] bg-white px-4 py-4">
+    <p className="text-[10px] font-bold leading-4 text-[#8b929d]">{label}</p>
+    <p className={`mt-2 text-lg font-black tracking-[-0.02em] tabular-nums ${accent ? 'text-emerald-600' : 'text-[#273548]'}`}>{value}</p>
+  </div>;
+}
+
+function SummaryMetric({ label, value }) {
+  return <div className="min-w-0">
+    <p className="text-[9px] font-extrabold uppercase tracking-[0.04em] text-amber-700">{label}</p>
+    <p className="mt-2 text-lg font-black leading-none tabular-nums text-[#3b1c09]">{value}</p>
+  </div>;
+}
+
+export default function PaidAdsBrandEnquiryJourney({ campaigns = [], totals = {}, currency }) {
   const metric = key => Number(totals[key]?.current || 0);
-  const funnel = [
-    { label:'Impressions',value:metric('impressions'),color:'#2563eb' },
-    { label:'Link clicks',value:metric('linkClicks'),color:'#06b6d4' },
-    { label:'Landing-page views',value:metric('landingPageViews'),color:'#0ea5e9' },
-    { label:'Leads',value:metric('leads'),color:'#10b981' },
-  ];
+  const grouped = Object.fromEntries(objectiveGroups.map(group => [group.key, campaigns.filter(campaign => groupKey(campaign) === group.key)]));
+  const totalSpend = metric('spend');
+  const linkClicks = metric('linkClicks');
+  const landingViews = metric('landingPageViews');
+  const websiteLeads = metric('websiteLeads');
   const leads = metric('leads');
+  const metaFormLeads = metric('metaFormLeads');
   const messages = metric('messagingConversations');
-  const registrations = metric('registrations');
-  const metaFormLeads = Math.min(leads, registrations);
-  const websiteOrOtherLeads = Math.max(0, leads - metaFormLeads);
-  const spend = metric('spend');
-  funnel[funnel.length - 1] = { ...funnel.at(-1), label: 'Website / other leads', value: websiteOrOtherLeads };
+  const clickToLandingRate = percentage(landingViews, linkClicks);
+  const landingToLeadRate = percentage(websiteLeads, landingViews);
+  const costPerConversation = messages > 0 ? totalSpend / messages : 0;
 
-  return <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-lg font-extrabold text-[#191c1d]">Brand demand and enquiry journey</h2><p className="mt-1 text-xs font-semibold text-[#727782]">Campaign investment separated by objective, followed by the website enquiry path.</p></div><span className="w-fit rounded-full bg-amber-50 px-4 py-2 text-[10px] font-extrabold text-amber-700">BRAND + ENQUIRY</span></div>
-
-    <div className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.6fr]">
-      <div className="rounded-2xl border border-[#c2c6d3]/25 p-5"><h3 className="text-sm font-extrabold text-[#273548]">Spend by campaign objective</h3><p className="mt-1 text-[10px] font-semibold text-[#8a9099]">Keeps brand results separate from lead results.</p><div className="mt-5 space-y-4">{allocation.map(group => <div key={group.key}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-[#354052]">{group.label}</p><p className="mt-0.5 text-[9px] font-semibold text-[#9aa0a9]">{group.campaigns} campaign{group.campaigns === 1 ? '' : 's'} · {group.results.join(', ') || 'No primary result'}</p></div><div className="text-right"><p className="text-xs font-extrabold text-[#273548]">{formatPaidAdsMoney(group.spend,currency)}</p><p className="text-[9px] font-bold text-[#8a9099]">{ratio(group.spend,totalSpend).toFixed(1)}%</p></div></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#edf0f4]"><div className="h-full rounded-full" style={{width:`${Math.max(group.spend ? 4 : 0,ratio(group.spend,totalSpend))}%`,backgroundColor:group.color}}/></div></div>)}</div></div>
-
-      <div className="rounded-2xl border border-[#c2c6d3]/25 p-5"><h3 className="text-sm font-extrabold text-[#273548]">Website traffic path</h3><p className="mt-1 text-[10px] font-semibold text-[#8a9099]">Meta instant-form registrations and messaging are excluded from this sequential website funnel.</p><div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{funnel.map((stage,index) => { const prior=index ? funnel[index-1].value : 0; return <div key={stage.label} className="rounded-2xl bg-[#f8f9fa] p-4"><div className="flex items-center justify-between"><span className="flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-black text-white" style={{backgroundColor:stage.color}}>{index+1}</span>{index > 0 && <span className="text-[9px] font-extrabold text-[#8a9099]">{prior ? `${ratio(stage.value,prior).toFixed(1)}%` : '—'}</span>}</div><p className="mt-3 text-[10px] font-bold text-[#727782]">{stage.label}</p><p className="mt-1 text-xl font-black text-[#191c1d]">{formatPaidAdsNumber(stage.value)}</p></div>; })}</div><div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl border border-[#edf0f2] p-4"><p className="text-[10px] font-bold text-[#8a9099]">Click → landing rate</p><p className="mt-1 text-lg font-black text-[#273548]">{ratio(metric('landingPageViews'),metric('linkClicks')).toFixed(1)}%</p></div><div className="rounded-2xl border border-[#edf0f2] p-4"><p className="text-[10px] font-bold text-[#8a9099]">Landing → website/other lead</p><p className="mt-1 text-lg font-black text-emerald-600">{ratio(websiteOrOtherLeads,metric('landingPageViews')).toFixed(2)}%</p></div><div className="rounded-2xl border border-[#edf0f2] p-4"><p className="text-[10px] font-bold text-[#8a9099]">Cost per conversation</p><p className="mt-1 text-lg font-black text-[#273548]">{formatPaidAdsMoney(messages ? spend/messages : 0,currency)}</p></div></div></div>
+  return <section className="mt-6 rounded-3xl border border-[#dfe3e7] bg-white p-5 shadow-sm sm:p-6">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h2 className="text-lg font-extrabold text-[#191c1d]">Brand demand and enquiry journey</h2>
+        <p className="mt-1 text-xs font-semibold text-[#727782]">Campaign investment separated by objective, followed by the website enquiry path.</p>
+      </div>
+      <span className="w-fit shrink-0 rounded-full bg-amber-50 px-4 py-2 text-[10px] font-extrabold text-amber-700">BRAND + ENQUIRY</span>
     </div>
 
-    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="grid gap-3 sm:grid-cols-4"><div><p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">All leads</p><p className="mt-1 text-lg font-black text-amber-950">{formatPaidAdsNumber(leads)}</p></div><div><p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Meta-form registrations</p><p className="mt-1 text-lg font-black text-amber-950">{formatPaidAdsNumber(metaFormLeads)}</p></div><div><p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Website / other leads</p><p className="mt-1 text-lg font-black text-amber-950">{formatPaidAdsNumber(websiteOrOtherLeads)}</p></div><div><p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Messaging conversations</p><p className="mt-1 text-lg font-black text-amber-950">{formatPaidAdsNumber(messages)}</p></div></div><p className="mt-3 text-[10px] font-semibold leading-5 text-amber-800">Meta-form leads are inferred where lead and registration actions overlap. These outcomes are intentionally not added together because the same person can appear in more than one action.</p></div>
+    <div className="mt-5 grid min-w-0 gap-4 xl:grid-cols-[minmax(300px,0.72fr)_minmax(0,1.28fr)]">
+      <article className="rounded-2xl border border-[#e3e7eb] bg-white p-5">
+        <h3 className="text-sm font-extrabold text-[#273548]">Spend by campaign objective</h3>
+        <p className="mt-1 text-[10px] font-semibold text-[#8b929d]">Keeps brand results separate from lead results.</p>
+        <div className="mt-6 space-y-5">
+          {objectiveGroups.map(group => <ObjectiveRow key={group.key} label={group.label} rows={grouped[group.key]} totalSpend={totalSpend} currency={currency} color={group.color} />)}
+        </div>
+      </article>
+
+      <article className="min-w-0 rounded-2xl border border-[#e3e7eb] bg-white p-5">
+        <h3 className="text-sm font-extrabold text-[#273548]">Website traffic path</h3>
+        <p className="mt-1 text-[10px] font-semibold text-[#8b929d]">Meta instant-form leads and messaging are excluded from this sequential website funnel.</p>
+        <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <JourneyStep number="1" label="Impressions" value={metric('impressions')} color="#2563eb" />
+          <JourneyStep number="2" label="Link clicks" value={linkClicks} rate={`${percentage(linkClicks, metric('impressions')).toFixed(1)}%`} color="#06b6d4" />
+          <JourneyStep number="3" label="Landing-page views" value={landingViews} rate={`${clickToLandingRate.toFixed(1)}%`} color="#0ea5e9" />
+          <JourneyStep number="4" label="Website leads" value={websiteLeads} rate={`${landingToLeadRate.toFixed(1)}%`} color="#10b981" />
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <RateCard label="Click → landing rate" value={`${clickToLandingRate.toFixed(1)}%`} />
+          <RateCard label="Landing → website lead" value={`${landingToLeadRate.toFixed(2)}%`} accent />
+          <RateCard label="Cost per conversation" value={formatPaidAdsMoney(costPerConversation, currency)} />
+        </div>
+      </article>
+    </div>
+
+    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 px-5 py-5">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetric label="All leads" value={formatPaidAdsNumber(leads)} />
+        <SummaryMetric label="Meta-form leads" value={formatPaidAdsNumber(metaFormLeads)} />
+        <SummaryMetric label="Website leads" value={formatPaidAdsNumber(websiteLeads)} />
+        <SummaryMetric label="Messaging conversations" value={formatPaidAdsNumber(messages)} />
+      </div>
+      <p className="mt-5 text-[9px] font-semibold leading-4 text-amber-800">All leads use Meta's overall lead result. Meta-form and website leads are destination-specific classifications and are not added again; messaging is a separate enquiry channel and may overlap with leads.</p>
+    </div>
   </section>;
 }
