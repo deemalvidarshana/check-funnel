@@ -17,10 +17,9 @@ function Card({title,rows,currency}) {
 }
 
 export default function PaidAdsBrandEnquiryAudience({audience={},currency}) {
-  let regions;try{regions=new Intl.DisplayNames(['en'],{type:'region'});}catch{regions=null;}
   const age=merge(audience.age||[],key=>['55-64','65+'].includes(key)?'55+':key);
   const gender=merge(audience.gender||[],key=>key==='female'?'Female':key==='male'?'Male':'Other');
-  const countries=merge(audience.countries||[],key=>key==='unknown'?'Unknown':regions?.of(String(key).toUpperCase())||key);
+  const regions=merge(audience.regions||[],key=>String(key).toLowerCase()==='unknown'?'Unknown':key);
   const devices=merge(audience.devices||[],key=>key.includes('tablet')||key==='ipad'?'Tablet':key.includes('smartphone')||['iphone','ipod'].includes(key)?'Mobile':key==='desktop'?'Desktop':'Other');
-  return <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6"><div><h2 className="text-lg font-extrabold text-[#191c1d]">Enquiry audience quality</h2><p className="mt-1 text-xs font-semibold text-[#727782]">Find the audiences producing leads and messaging conversations—not generic conversions.</p></div><div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Card title="Age group" rows={age} currency={currency}/><Card title="Gender" rows={gender} currency={currency}/><Card title="Top locations" rows={countries} currency={currency}/><Card title="Device" rows={devices} currency={currency}/></div></section>;
+  return <section className="mt-6 rounded-3xl border border-[#c2c6d3]/30 bg-white p-5 shadow-sm sm:p-6"><div><h2 className="text-lg font-extrabold text-[#191c1d]">Enquiry audience quality</h2><p className="mt-1 text-xs font-semibold text-[#727782]">Find the audiences producing leads and messaging conversations—not generic conversions.</p></div><div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Card title="Age group" rows={age} currency={currency}/><Card title="Gender" rows={gender} currency={currency}/><Card title="Province / Region" rows={regions} currency={currency}/><Card title="Device" rows={devices} currency={currency}/></div></section>;
 }

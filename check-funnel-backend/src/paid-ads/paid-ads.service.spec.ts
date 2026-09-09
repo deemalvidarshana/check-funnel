@@ -59,6 +59,8 @@ describe('PaidAdsService', () => {
     expect(result.campaigns[0]).toMatchObject({ id: 'c1', status: 'ACTIVE', budget: 500, spend: 100, conversions: 5, cpa: 20 });
     expect(result.creatives[0]).toMatchObject({ id: 'a1', name: 'Creative Ad', thumbnailUrl: 'https://example.com/story.jpg', spend: 60, conversions: 3 });
     expect(result.audience.age[0]).toMatchObject({ key: 'sample', conversions: 2 });
+    expect(result.audience.countries[0]).toMatchObject({ key: 'sample', conversions: 2 });
+    expect(result.audience.regions[0]).toMatchObject({ key: 'sample', conversions: 2 });
     expect(result.audience.devices[0]).toMatchObject({ key: 'sample', reach: 200 });
     expect(accountAttempts).toBe(2);
   });

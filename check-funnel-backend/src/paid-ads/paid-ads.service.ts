@@ -144,7 +144,7 @@ export class PaidAdsService {
         ? precedingPeriod(currentPeriod)
         : previousMonthPeriod(month);
 
-    const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, previousCampaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, deviceRows, campaignDailyRows] = await Promise.all([
+    const [account, currentTotalRows, previousTotalRows, dailyRows, previousDailyRows, campaignRows, previousCampaignRows, campaigns, adRows, ads, ageRows, genderRows, countryRows, regionRows, deviceRows, campaignDailyRows] = await Promise.all([
       this.graphGet(`/${accountId}`, accessToken, { fields: 'id,name,currency,timezone_name' }),
       this.fetchInsights(accountId, accessToken, currentPeriod, 'account'),
       this.fetchInsights(accountId, accessToken, previousPeriod, 'account'),
@@ -158,6 +158,7 @@ export class PaidAdsService {
       this.fetchBreakdown(accountId, accessToken, currentPeriod, 'age'),
       this.fetchBreakdown(accountId, accessToken, currentPeriod, 'gender'),
       this.fetchBreakdown(accountId, accessToken, currentPeriod, 'country'),
+      this.fetchBreakdown(accountId, accessToken, currentPeriod, 'region'),
       this.fetchBreakdown(accountId, accessToken, currentPeriod, 'impression_device'),
       range.campaignId
         ? this.fetchInsights(accountId, accessToken, currentPeriod, 'campaign', 1, range.campaignId)
@@ -214,6 +215,7 @@ export class PaidAdsService {
         age: this.normalizeBreakdown(ageRows, 'age'),
         gender: this.normalizeBreakdown(genderRows, 'gender'),
         countries: this.normalizeBreakdown(countryRows, 'country'),
+        regions: this.reconcileEnquiryBreakdown(this.normalizeBreakdown(regionRows, 'region'), current),
         devices: this.normalizeBreakdown(deviceRows, 'impression_device'),
       },
     };
@@ -268,6 +270,34 @@ export class PaidAdsService {
       primaryCostPerLead: primaryResultCost('Leads'),
       primaryCostPerMessagingConversation: primaryResultCost('Messaging conversations'),
     };
+  }
+
+  private reconcileEnquiryBreakdown(
+    rows: Array<Record<string, any>>,
+    totals: Record<string, number>,
+  ): Array<Record<string, any>> {
+    const attributedLeads = rows.reduce((sum, row) => sum + Number(row.leads || 0), 0);
+    const attributedMessages = rows.reduce((sum, row) => sum + Number(row.messagingConversations || 0), 0);
+    const missingLeads = Math.max(0, Number(totals.leads || 0) - attributedLeads);
+    const missingMessages = Math.max(0, Number(totals.messagingConversations || 0) - attributedMessages);
+    if (missingLeads === 0 && missingMessages === 0) return rows;
+
+    const unknownIndex = rows.findIndex((row) => String(row.key || '').toLowerCase() === 'unknown');
+    if (unknownIndex >= 0) {
+      return rows.map((row, index) => index === unknownIndex ? {
+        ...row,
+        leads: Number(row.leads || 0) + missingLeads,
+        messagingConversations: Number(row.messagingConversations || 0) + missingMessages,
+      } : row);
+    }
+
+    return [...rows, {
+      key: 'Unknown',
+      leads: missingLeads,
+      messagingConversations: missingMessages,
+      reach: 0,
+      spend: 0,
+    }];
   }
 
   private normalizeDaily(row: MetaInsightRow) {
@@ -466,7 +496,7 @@ export class PaidAdsService {
     return thumbnails;
   }
 
-  private fetchBreakdown(accountId: string, token: string, period: PaidAdsPeriod, breakdown: 'age' | 'gender' | 'country' | 'impression_device') {
+  private fetchBreakdown(accountId: string, token: string, period: PaidAdsPeriod, breakdown: 'age' | 'gender' | 'country' | 'region' | 'impression_device') {
     return this.graphGetAll(`/${accountId}/insights`, token, {
       fields: 'spend,reach,impressions,clicks,actions,action_values,purchase_roas,website_purchase_roas',
       level: 'account',

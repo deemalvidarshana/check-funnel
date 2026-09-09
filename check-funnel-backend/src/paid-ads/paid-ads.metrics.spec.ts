@@ -139,6 +139,24 @@ describe('paid ads metric normalization', () => {
     });
   });
 
+  it('uses first replies as the conversation fallback before total messaging connections', () => {
+    const result = normalizeCampaignResults({
+      spend: '1600',
+      actions: [
+        { action_type: 'onsite_conversion.total_messaging_connection', value: '17' },
+        { action_type: 'onsite_conversion.messaging_first_reply', value: '16' },
+      ],
+    }, 'OUTCOME_LEADS');
+
+    expect(result).toMatchObject({
+      messagingConnections: 17,
+      messagingFirstReplies: 16,
+      messagingConversations: 16,
+      results: 16,
+      resultType: 'Messaging conversations',
+    });
+  });
+
   it('does not let a generic lead action override messaging campaign results', () => {
     const result = normalizeCampaignResults({
       spend: '8529.60',

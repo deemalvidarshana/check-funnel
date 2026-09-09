@@ -70,7 +70,7 @@ export function normalizeCampaignResults(
   // `lead` is Meta's overall result. Destination-specific action aliases can
   // overlap with it, so use the largest value rather than adding aliases.
   const leads = Math.max(firstAction(actions, ['lead']), metaFormLeads + websiteLeads);
-  const messagingConversations = firstAction(actions, ['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.total_messaging_connection', 'onsite_conversion.messaging_first_reply']);
+  const messagingConversations = firstAction(actions, ['onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.messaging_first_reply', 'onsite_conversion.total_messaging_connection']);
   const messagingConnections = firstAction(actions, ['onsite_conversion.total_messaging_connection']);
   const messagingFirstReplies = firstAction(actions, ['onsite_conversion.messaging_first_reply']);
   const postEngagements = firstAction(actions, ['post_engagement', 'post_interaction_net', 'post_interaction_gross']);
