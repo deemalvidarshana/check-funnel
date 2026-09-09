@@ -30,7 +30,7 @@ describe('PaidAdsService', () => {
         }
         return { data: { id: 'act_123', name: 'Test Ads', currency: 'USD', timezone_name: 'UTC' } };
       }
-      if (url.endsWith('/act_123/campaigns')) return { data: { data: [{ id: 'c1', name: 'Campaign One', objective: 'OUTCOME_SALES', effective_status: 'ACTIVE', lifetime_budget: '50000' }] } };
+      if (url.endsWith('/act_123/campaigns')) return { data: { data: [{ id: 'c1', name: 'Campaign One', objective: 'OUTCOME_SALES', effective_status: 'ACTIVE', lifetime_budget: '50000', adsets: { data: [] } }] } };
       if (url.endsWith('/act_123/ads')) return { data: { data: [{ id: 'a1', name: 'Creative Ad', effective_status: 'ACTIVE', creative: { id: 'cr1', thumbnail_url: 'https://example.com/creative.jpg' } }] } };
       if (url.endsWith('/v25.0/')) {
         if (config.params.ids === 'story1') {

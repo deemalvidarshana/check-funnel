@@ -12,6 +12,14 @@ interface MetaCampaign {
   effective_status?: string;
   daily_budget?: string;
   lifetime_budget?: string;
+  adsets?: { data?: MetaAdSet[] };
+}
+
+interface MetaAdSet {
+  id: string;
+  effective_status?: string;
+  optimization_goal?: string;
+  destination_type?: string;
 }
 
 interface MetaAd {
@@ -232,6 +240,12 @@ export class PaidAdsService {
     campaigns: Array<Record<string, unknown>>,
   ): Record<string, number> {
     const sum = (key: string) => campaigns.reduce((total, campaign) => total + Number(campaign[key] || 0), 0);
+    const primaryResultCost = (resultType: string) => {
+      const matchingCampaigns = campaigns.filter((campaign) => campaign.resultType === resultType);
+      const spend = matchingCampaigns.reduce((total, campaign) => total + Number(campaign.spend || 0), 0);
+      const results = matchingCampaigns.reduce((total, campaign) => total + Number(campaign.results || 0), 0);
+      return results > 0 ? spend / results : 0;
+    };
     const leads = sum('leads');
     const metaFormLeads = sum('metaFormLeads');
     const websiteLeads = sum('websiteLeads');
@@ -251,6 +265,8 @@ export class PaidAdsService {
       messagingFirstReplies,
       costPerLead: leads > 0 ? accountMetrics.spend / leads : 0,
       costPerMessagingConversation: messagingConversations > 0 ? accountMetrics.spend / messagingConversations : 0,
+      primaryCostPerLead: primaryResultCost('Leads'),
+      primaryCostPerMessagingConversation: primaryResultCost('Messaging conversations'),
     };
   }
 
@@ -273,8 +289,28 @@ export class PaidAdsService {
       budget: rawBudget ? Number(rawBudget) / 100 : null,
       budgetType: campaign?.lifetime_budget ? 'lifetime' : campaign?.daily_budget ? 'daily' : null,
       ...metrics,
-      ...normalizeCampaignResults(row, objective),
+      ...normalizeCampaignResults(row, objective, this.primaryResultHint(campaign)),
     };
+  }
+
+  private primaryResultHint(campaign?: MetaCampaign): 'leads' | 'messaging' | undefined {
+    const adSets = campaign?.adsets?.data || [];
+    const activeAdSets = adSets.filter((adSet) => adSet.effective_status === 'ACTIVE');
+    const relevantAdSets = activeAdSets.length > 0 ? activeAdSets : adSets;
+    if (relevantAdSets.length === 0) return undefined;
+
+    const isMessaging = (adSet: MetaAdSet) => {
+      const optimizationGoal = String(adSet.optimization_goal || '').toUpperCase();
+      const destinationType = String(adSet.destination_type || '').toUpperCase();
+      return optimizationGoal.includes('CONVERSATION')
+        || optimizationGoal.includes('MESSAGE')
+        || ['WHATSAPP', 'MESSENGER', 'INSTAGRAM_DIRECT'].includes(destinationType)
+        || destinationType.includes('MESSAG');
+    };
+
+    if (relevantAdSets.every(isMessaging)) return 'messaging';
+    if (relevantAdSets.every((adSet) => !isMessaging(adSet))) return 'leads';
+    return undefined;
   }
 
   private normalizeCreative(row: MetaInsightRow, ad?: MetaAd, creative?: MetaCreative, storyThumbnail?: string) {
@@ -356,7 +392,7 @@ export class PaidAdsService {
 
   private fetchCampaigns(accountId: string, token: string): Promise<MetaCampaign[]> {
     return this.graphGetAll(`/${accountId}/campaigns`, token, {
-      fields: 'id,name,objective,effective_status,daily_budget,lifetime_budget',
+      fields: 'id,name,objective,effective_status,daily_budget,lifetime_budget,adsets.limit(100){id,effective_status,optimization_goal,destination_type}',
       limit: 500,
     });
   }

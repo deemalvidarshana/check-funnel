@@ -41,7 +41,11 @@ function cost(spend: number, result: number): number {
   return result > 0 ? spend / result : 0;
 }
 
-export function normalizeCampaignResults(row: MetaInsightRow, objective = ''): CampaignResultMetrics {
+export function normalizeCampaignResults(
+  row: MetaInsightRow,
+  objective = '',
+  primaryResultHint?: 'leads' | 'messaging',
+): CampaignResultMetrics {
   const spend = numeric(row.spend);
   const impressions = numeric(row.impressions);
   const actions = valuesByAction(row.actions);
@@ -99,8 +103,14 @@ export function normalizeCampaignResults(row: MetaInsightRow, objective = ''): C
   const isVideo = normalizedObjective.includes('VIDEO');
 
   if (isLead) {
-    results = leads || messagingConversations;
-    resultType = leads > 0 ? 'Leads' : 'Messaging conversations';
+    // Meta's generic `lead` action may be emitted alongside a messaging
+    // conversation even when the campaign's real result is messaging. Only
+    // let destination-specific form/website leads take priority over messages.
+    const destinationSpecificLeads = metaFormLeads + websiteLeads;
+    const shouldUseMessaging = primaryResultHint === 'messaging'
+      || (primaryResultHint !== 'leads' && messagingConversations > 0 && destinationSpecificLeads === 0);
+    results = shouldUseMessaging ? messagingConversations : leads;
+    resultType = shouldUseMessaging ? 'Messaging conversations' : 'Leads';
   } else if (isSales) {
     results = purchases || conversionCount(row.actions);
     resultType = purchases > 0 ? 'Purchases' : 'Conversions';

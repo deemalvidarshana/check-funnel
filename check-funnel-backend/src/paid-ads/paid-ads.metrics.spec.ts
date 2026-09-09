@@ -133,6 +133,72 @@ describe('paid ads metric normalization', () => {
       messagingConnections: 184,
       messagingConversations: 176,
       messagingFirstReplies: 170,
+      results: 176,
+      resultType: 'Messaging conversations',
+      costPerResult: 10.454545454545455,
+    });
+  });
+
+  it('does not let a generic lead action override messaging campaign results', () => {
+    const result = normalizeCampaignResults({
+      spend: '8529.60',
+      actions: [
+        { action_type: 'lead', value: '1' },
+        { action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '16' },
+      ],
+    }, 'OUTCOME_LEADS');
+
+    expect(result).toMatchObject({
+      leads: 1,
+      metaFormLeads: 0,
+      websiteLeads: 0,
+      messagingConversations: 16,
+      results: 16,
+      resultType: 'Messaging conversations',
+      costPerResult: 533.1,
+    });
+  });
+
+  it('keeps destination-specific form and website leads as the primary lead result', () => {
+    const result = normalizeCampaignResults({
+      spend: '1000',
+      actions: [
+        { action_type: 'onsite_conversion.lead_grouped', value: '4' },
+        { action_type: 'offsite_conversion.fb_pixel_lead', value: '6' },
+        { action_type: 'lead', value: '10' },
+        { action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '3' },
+      ],
+    }, 'OUTCOME_LEADS');
+
+    expect(result).toMatchObject({
+      metaFormLeads: 4,
+      websiteLeads: 6,
+      leads: 10,
+      messagingConversations: 3,
+      results: 10,
+      resultType: 'Leads',
+      costPerResult: 100,
+    });
+  });
+
+  it('uses the ad-set result destination when website leads and conversations both exist', () => {
+    const result = normalizeCampaignResults({
+      spend: '8529.60',
+      actions: [
+        { action_type: 'onsite_web_lead', value: '1' },
+        { action_type: 'offsite_conversion.fb_pixel_lead', value: '1' },
+        { action_type: 'lead', value: '1' },
+        { action_type: 'onsite_conversion.messaging_conversation_started_7d', value: '16' },
+      ],
+    }, 'OUTCOME_LEADS', 'messaging');
+
+    expect(result).toMatchObject({
+      websiteLeads: 1,
+      leads: 1,
+      messagingConversations: 16,
+      results: 16,
+      resultType: 'Messaging conversations',
+      costPerResult: 533.1,
     });
   });
 });
