@@ -53,7 +53,7 @@ export default function PublicCompetitorReport() {
   const { shareToken } = useParams();
   const location = useLocation();
   const queryMethod = new URLSearchParams(location.search).get('method');
-  const [activeTab, setActiveTab] = useState('TikTok');
+  const [activeTab, setActiveTab] = useState('Facebook');
   const [client, setClient] = useState(null);
   const [posts, setPosts] = useState([]);
   const [summary, setSummary] = useState([]);
