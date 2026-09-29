@@ -4,7 +4,11 @@ import {
   PlatformTableSlide,
 } from "./PlatformSlideVisuals";
 
-export function InstagramTableSlide({ socialData, settings, sourceError }) {
+export function InstagramTableSlide({
+  socialData,
+  settings,
+  sourceError,
+}) {
   return (
     <PlatformTableSlide
       platform="Instagram"
@@ -14,10 +18,16 @@ export function InstagramTableSlide({ socialData, settings, sourceError }) {
       selected={settings.instagramTableMetrics || []}
       sourceError={sourceError}
       periodLabel="Week period"
+      tableMode={settings.instagramTableMode || "weekly"}
     />
   );
 }
-export function InstagramComparisonSlide({ socialData, settings }) {
+export function InstagramComparisonSlide({
+  socialData,
+  settings,
+  monthWise = false,
+  rangeComparison = false,
+}) {
   return (
     <PlatformComparisonSlide
       platform="Instagram"
@@ -25,6 +35,8 @@ export function InstagramComparisonSlide({ socialData, settings }) {
       data={socialData?.platforms?.instagram}
       options={instagramMetricOptions}
       selected={settings.instagramGraphMetrics || []}
+      monthWise={monthWise}
+      rangeComparison={rangeComparison}
     />
   );
 }

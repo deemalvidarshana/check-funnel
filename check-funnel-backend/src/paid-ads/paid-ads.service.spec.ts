@@ -64,4 +64,35 @@ describe('PaidAdsService', () => {
     expect(result.audience.devices[0]).toMatchObject({ key: 'sample', reach: 200 });
     expect(accountAttempts).toBe(2);
   });
+
+  it('fetches exact calendar-month buckets for both custom ranges', async () => {
+    const clientService = {
+      findOne: jest.fn().mockResolvedValue({ id: 19, metaAdsAccessToken: 'test-token', metaAdAccountId: 'act_123' }),
+    };
+    const configService = { get: jest.fn().mockReturnValue('v25.0') };
+    const requested: string[] = [];
+    jest.spyOn(axios, 'get').mockImplementation(async (_url: string, config: any) => {
+      const range = JSON.parse(config.params.time_range);
+      requested.push(`${config.params.level}:${range.since}:${range.until}`);
+      const month = Number(range.since.slice(5, 7));
+      return { data: { data: config.params.level === 'campaign'
+        ? [{ campaign_id: `c${month}`, actions: [{ action_type: 'lead', value: '1' }] }]
+        : [{ spend: String(month * 10), reach: String(month * 100), impressions: String(month * 200) }],
+      } };
+    });
+
+    const service = new PaidAdsService(clientService as any, configService as any);
+    const result = await service.getRangeMonthlyComparison(
+      19, '2026-07-10', '2026-08-20', '2026-05-10', '2026-06-25',
+    );
+
+    expect(result.comparisonSeries[0].rows.map((row) => row?.week)).toEqual(['Jul 2026', 'Aug 2026']);
+    expect(result.comparisonSeries[1].rows.map((row) => row?.week)).toEqual(['May 2026', 'Jun 2026']);
+    expect(result.comparisonSeries[0].rows.map((row) => row?.reach)).toEqual([700, 800]);
+    expect(requested).toContain('account:2026-07-10:2026-07-31');
+    expect(requested).toContain('account:2026-08-01:2026-08-20');
+    expect(requested).toContain('account:2026-05-10:2026-05-31');
+    expect(requested).toContain('account:2026-06-01:2026-06-25');
+    expect(requested).toHaveLength(8);
+  });
 });

@@ -40,6 +40,17 @@ export const tiktokMetricOptions = [
   { key: "share_count", label: "Shares" },
 ];
 
+export const organicTableModeOptions = [
+  { value: "weekly", label: "Last weekly performance" },
+  { value: "monthly", label: "Last monthly performance" },
+  { value: "range", label: "Total range comparison" },
+];
+
+export const organicGraphModeOptions = [
+  { value: "auto", label: "Follow report comparison" },
+  { value: "range", label: "Selected range vs Compare with" },
+];
+
 export const defaultReportSettings = {
   title: "Marketing Performance Report",
   subtitle: "Social media and paid advertising performance overview",
@@ -53,20 +64,38 @@ export const defaultReportSettings = {
     instagramGraph: true,
     tiktokTable: true,
     tiktokGraph: true,
+    organicHighlights: true,
     paidOverview: true,
     paidDailyTrend: true,
+    paidMonthlyComparison: true,
     paidCampaignTable: true,
     paidConversionFunnel: true,
   },
   paidMetrics: paidMetricOptions.map((metric) => metric.key),
   facebookTableMetrics: facebookMetricOptions.map((metric) => metric.key),
+  facebookTableMode: "weekly",
   facebookGraphMetrics: facebookMetricOptions.map((metric) => metric.key),
+  facebookGraphMode: "auto",
   instagramTableMetrics: instagramMetricOptions.map((metric) => metric.key),
+  instagramTableMode: "weekly",
   instagramGraphMetrics: instagramMetricOptions.map((metric) => metric.key),
+  instagramGraphMode: "auto",
   tiktokTableMetrics: tiktokMetricOptions.map((metric) => metric.key),
+  tiktokTableMode: "weekly",
   tiktokGraphMetrics: tiktokMetricOptions.map((metric) => metric.key),
+  tiktokGraphMode: "auto",
+  organicHighlightsInstruction: "Highlight the strongest verified results in a clear, positive tone.",
   paidOverviewMetrics: paidMetricOptions.map((metric) => metric.key),
   paidTrendMetrics: paidMetricOptions.map((metric) => metric.key),
+  paidMonthlyMetrics: [
+    "spend",
+    "reach",
+    "postEngagements",
+    "videoViews",
+    "landingPageViews",
+    "leads",
+  ],
+  paidMonthlyGraphMode: "auto",
   paidCampaignFields: [
     "name",
     "status",
@@ -76,6 +105,9 @@ export const defaultReportSettings = {
     "reach",
     "impressions",
   ],
+  paidCampaignObjectiveFields: {},
+  paidCampaignObjectiveTotals: true,
+  paidCampaignObjectiveTotalsOnly: false,
   paidFunnelMetrics: [
     "landingPageViews",
     "addToCart",
@@ -86,6 +118,25 @@ export const defaultReportSettings = {
 
 export function valueAtPath(object, path) {
   return path.split(".").reduce((value, key) => value?.[key], object);
+}
+
+export function organicRangeLabel(row) {
+  const parseDate = (value) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+    return match
+      ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
+      : null;
+  };
+  const since = parseDate(row?.since);
+  const until = parseDate(row?.until);
+  if (!since || !until) return row?.week || "Range";
+  const months = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  return since.year === until.year && since.month === until.month
+    ? `${months[since.month - 1]} ${since.day} - ${until.day}`
+    : `${months[since.month - 1]} ${since.day} - ${months[until.month - 1]} ${until.day}`;
 }
 
 export function compactNumber(value) {

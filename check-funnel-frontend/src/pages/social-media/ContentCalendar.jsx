@@ -11,6 +11,11 @@ import { createCalendarPost, getCalendars, saveCalendar, updatePost, deletePost 
 import { getClients, toggleShare } from '../../api/client';
 import { ALL_CONTENT_TYPES, contentTypeMatchesFilter } from '../../utils/contentTypes';
 import { canManageFeature } from '../../utils/permissions';
+import {
+  exportContentCalendar,
+  getContentCalendarExportPosts,
+  getContentCalendarPeriodLabel,
+} from '../../utils/contentCalendarExport';
 
 const getPostPlatforms = (platforms) => {
   if (Array.isArray(platforms)) {
@@ -68,6 +73,7 @@ const ContentCalendar = () => {
   const [toast, setToast] = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState('');
   const [isAddingRow, setIsAddingRow] = useState(false);
   const canManageContentCalendar = canManageFeature('contentCalendar');
   
@@ -167,6 +173,14 @@ const ContentCalendar = () => {
       return false;
     });
   }, [posts, currentDate, filters]);
+
+  const selectedClient = useMemo(() => clients.find((client) => (
+    client.displayName === filters.client || client.name === filters.client
+  )), [clients, filters.client]);
+
+  const exportPosts = useMemo(() => (
+    getContentCalendarExportPosts(filteredPosts, view, currentDate)
+  ), [currentDate, filteredPosts, view]);
 
   const handleUpdateRow = async (index, updatedFields) => {
     const viewerEditableFields = ['isChecked'];
@@ -276,7 +290,6 @@ const ContentCalendar = () => {
 
   const handleShareCalendar = async () => {
     if (!canManageContentCalendar) return;
-    const selectedClient = clients.find(c => c.displayName === filters.client || c.name === filters.client);
 
     if (!selectedClient || filters.client === 'All Clients') {
       setToast({ message: "Please select a client before sharing.", type: "error" });
@@ -289,7 +302,7 @@ const ContentCalendar = () => {
       const shareParams = new URLSearchParams({
         viewType: filters.viewType === 'Calendar View' ? 'calendar' : 'row',
         view,
-        date: currentDate.toISOString().split('T')[0],
+        date: `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`,
       });
       if (filters.contentType && filters.contentType !== ALL_CONTENT_TYPES) {
         shareParams.set('contentType', filters.contentType);
@@ -304,6 +317,43 @@ const ContentCalendar = () => {
       setToast({ message: "Failed to create share link.", type: "error" });
     } finally {
       setShareLoading(false);
+    }
+  };
+
+  const handleDownloadCalendar = async (format) => {
+    if (!selectedClient || filters.client === 'All Clients') {
+      setToast({ message: "Please select a client before downloading.", type: "error" });
+      return;
+    }
+    if (!exportPosts.length) {
+      setToast({ message: "No calendar posts match the selected period and filters.", type: "error" });
+      return;
+    }
+
+    setDownloadLoading(format);
+    try {
+      await exportContentCalendar({
+        format,
+        posts: exportPosts,
+        clientName: selectedClient.displayName || selectedClient.name,
+        periodLabel: getContentCalendarPeriodLabel(view, currentDate),
+        view,
+        filters: {
+          platform: filters.platform,
+          contentType: filters.contentType,
+          status: filters.status,
+          viewType: filters.viewType,
+        },
+      });
+      setToast({
+        message: format === 'print' ? "Print view opened." : `Calendar downloaded as ${format.toUpperCase()}.`,
+        type: "success",
+      });
+    } catch (error) {
+      console.error("Failed to download content calendar", error);
+      setToast({ message: error.message || "Failed to download calendar.", type: "error" });
+    } finally {
+      setDownloadLoading('');
     }
   };
 
@@ -489,6 +539,9 @@ const ContentCalendar = () => {
         onShare={handleShareCalendar}
         shareLoading={shareLoading}
         shareCopied={shareCopied}
+        onDownload={handleDownloadCalendar}
+        downloadLoading={downloadLoading}
+        downloadDisabled={isLoading}
         canManage={canManageContentCalendar}
       />
       <FilterBar 

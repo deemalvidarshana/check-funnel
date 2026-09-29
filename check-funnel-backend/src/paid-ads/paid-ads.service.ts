@@ -115,6 +115,72 @@ export class PaidAdsService {
     return { months: rows };
   }
 
+  async getRangeMonthlyComparison(
+    clientId: number,
+    since: string,
+    until: string,
+    compareSince: string,
+    compareUntil: string,
+  ) {
+    const ranges = [
+      customPeriod(since, until),
+      customPeriod(compareSince, compareUntil),
+    ];
+    const client = await this.clientService.findOne(clientId);
+    if (!client.metaAdsAccessToken) {
+      throw new BadRequestException('This client does not have a Meta Ads access token');
+    }
+
+    const accountId = await this.resolveAdAccountId(client.metaAdAccountId, client.metaAdsAccessToken);
+    const bucketsByRange = ranges.map((range) => this.monthlyBucketsForPeriod(range));
+    const uniqueBuckets = new Map<string, PaidAdsPeriod>();
+    bucketsByRange.flat().forEach((bucket) =>
+      uniqueBuckets.set(`${bucket.since}:${bucket.until}`, bucket),
+    );
+    const rowsByRange = new Map<string, Record<string, unknown>>();
+    const buckets = [...uniqueBuckets.values()];
+
+    for (let index = 0; index < buckets.length; index += 4) {
+      const chunkRows = await Promise.all(buckets.slice(index, index + 4).map(async (bucket) => {
+        const [insightRows, campaignRows] = await Promise.all([
+          this.fetchInsights(accountId, client.metaAdsAccessToken!, bucket, 'account'),
+          this.fetchInsights(accountId, client.metaAdsAccessToken!, bucket, 'campaign'),
+        ]);
+        const campaigns = campaignRows.map((row) => this.normalizeCampaign(row));
+        return {
+          ...bucket,
+          week: bucket.label,
+          ...this.reconcileJourneyTotals(this.normalizeFullMetrics(insightRows[0] || {}), campaigns),
+        };
+      }));
+      chunkRows.forEach((row) => rowsByRange.set(`${row.since}:${row.until}`, row));
+    }
+
+    return {
+      comparisonSeries: ranges.map((range, index) => ({
+        range,
+        rows: bucketsByRange[index].map((bucket) => rowsByRange.get(`${bucket.since}:${bucket.until}`)),
+      })),
+    };
+  }
+
+  private monthlyBucketsForPeriod(period: PaidAdsPeriod): PaidAdsPeriod[] {
+    const end = new Date(`${period.until}T00:00:00.000Z`);
+    let cursor = new Date(`${period.since}T00:00:00.000Z`);
+    const buckets: PaidAdsPeriod[] = [];
+    while (cursor <= end) {
+      const monthEnd = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0));
+      const bucketEnd = monthEnd < end ? monthEnd : end;
+      buckets.push({
+        since: cursor.toISOString().slice(0, 10),
+        until: bucketEnd.toISOString().slice(0, 10),
+        label: cursor.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+      });
+      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+    }
+    return buckets;
+  }
+
   async getInsights(clientId: number, month: string, range: PaidAdsRangeOptions = {}) {
     const client = await this.clientService.findOne(clientId);
     if (!client.metaAdsAccessToken) {

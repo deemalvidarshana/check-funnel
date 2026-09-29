@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+[data-report-editable-canvas] .preview-auto-editable {
+  cursor: text;
+  border-radius: 3px;
+  outline: 1px solid transparent;
+  outline-offset: 2px;
+  transition: background-color 120ms ease, outline-color 120ms ease;
+}
+
+[data-report-editable-canvas] .preview-auto-editable:hover {
+  background: rgba(219, 234, 254, 0.55);
+  outline-color: rgba(96, 165, 250, 0.38);
+}
+
+[data-report-editable-canvas] .preview-auto-editable:focus {
+  background: #fff;
+  outline: 2px solid rgba(59, 130, 246, 0.72);
+}
+
 @font-face {
   font-family: 'Inter Variable';
   font-style: normal;

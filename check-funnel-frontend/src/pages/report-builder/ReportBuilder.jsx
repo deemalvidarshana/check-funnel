@@ -4,11 +4,18 @@ import {
   getClientInsightsReportData,
   getClients,
 } from "../../api/client";
-import { getPaidAdsInsights } from "../../api/paidAds";
-import { getTiktokInsights } from "../../api/tiktok";
+import {
+  getPaidAdsInsights,
+  getPaidAdsMonthlyComparison,
+  getPaidAdsRangeMonthlyComparison,
+} from "../../api/paidAds";
+import { generateOrganicReportHighlights } from "../../api/ai";
 import ReportControls from "../../components/report-builder/ReportControls";
 import ReportPreview from "../../components/report-builder/ReportPreview";
 import { defaultReportSettings } from "../../components/report-builder/reportData";
+import { defaultComparisonMonths } from "../../utils/paidAdsMonthComparison";
+import { buildCampaignObjectivePages } from "../../components/report-builder/paid-slides/campaignFields";
+import { buildOrganicHighlightsInput } from "../../components/report-builder/organicHighlightsData";
 import {
   downloadReportPdf,
   downloadReportPptx,
@@ -38,11 +45,24 @@ export default function ReportBuilder() {
   const [month, setMonth] = useState(currentMonth);
   const [client, setClient] = useState(null);
   const [paidData, setPaidData] = useState(null);
+  const [paidMonthlyData, setPaidMonthlyData] = useState(null);
+  const [paidRangeMonthlyData, setPaidRangeMonthlyData] = useState(null);
+  const [paidRangeMonthlyLoading, setPaidRangeMonthlyLoading] = useState(false);
+  const [paidRangeMonthlyError, setPaidRangeMonthlyError] = useState("");
   const [socialData, setSocialData] = useState(null);
+  const [organicHighlights, setOrganicHighlights] = useState(null);
+  const [organicHighlightsLoading, setOrganicHighlightsLoading] = useState(false);
+  const [organicHighlightsError, setOrganicHighlightsError] = useState("");
   const [settings, setSettings] = useState(defaultReportSettings);
   const [sourceErrors, setSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [previewEdits, setPreviewEdits] = useState({
+    text: {},
+    columnWidths: {},
+  });
   const [pageError, setPageError] = useState("");
   const [editorWidth, setEditorWidth] = useState(340);
   const [resizing, setResizing] = useState(false);
@@ -50,8 +70,15 @@ export default function ReportBuilder() {
     defaultComparisonRanges(currentMonth()),
   );
   const [appliedComparison, setAppliedComparison] = useState(null);
+  const [comparisonMode, setComparisonMode] = useState("previous");
+  const [selectedMonths, setSelectedMonths] = useState(() =>
+    defaultComparisonMonths(currentMonth()),
+  );
   const previewRef = useRef(null);
   const resizeRef = useRef(null);
+  const sourceRequestRef = useRef(0);
+  const monthlyRequestRef = useRef(0);
+  const paidRangeRequestRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -74,87 +101,249 @@ export default function ReportBuilder() {
     };
   }, []);
 
-  const loadSources = useCallback(async () => {
+  const loadSources = useCallback(async (refresh = false) => {
     if (!clientId) return;
+    const requestId = ++sourceRequestRef.current;
     const effectiveComparison =
-      appliedComparison || defaultComparisonRanges(month);
+      comparisonMode === "months"
+        ? { months: selectedMonths.join(",") }
+        : appliedComparison || defaultComparisonRanges(month);
     setLoading(true);
+    setSourceLoading(true);
     setPageError("");
-    setSourceErrors({});
-    const [clientResult, paidResult, socialResult, tiktokResult] =
-      await Promise.allSettled([
-        getClientById(clientId),
-        getPaidAdsInsights(
-          clientId,
-          month,
-          appliedComparison
-            ? {
-                since: appliedComparison.currentSince,
-                until: appliedComparison.currentUntil,
-                compareSince: appliedComparison.compareSince,
-                compareUntil: appliedComparison.compareUntil,
-              }
-            : {},
-        ),
-        getClientInsightsReportData(clientId, undefined, effectiveComparison),
-        getTiktokInsights(clientId),
-      ]);
-    if (clientResult.status === "fulfilled") setClient(clientResult.value);
-    else
-      setPageError(
-        clientResult.reason?.response?.data?.message ||
-          "Unable to load this client.",
-      );
-    if (paidResult.status === "fulfilled") setPaidData(paidResult.value);
-    else setPaidData(null);
-    if (socialResult.status === "fulfilled") {
-      const report = socialResult.value;
-      const dedicatedVideos =
-        tiktokResult.status === "fulfilled"
-          ? tiktokResult.value?.videos || []
-          : [];
-      setSocialData({
-        ...report,
-        platforms: {
-          ...report.platforms,
-          tiktok: {
-            ...report.platforms?.tiktok,
-            ...(dedicatedVideos.length ? { videos: dedicatedVideos } : {}),
-          },
-        },
-      });
-    } else setSocialData(null);
-    setSourceErrors({
-      ...(paidResult.status === "rejected"
-        ? {
-            paid:
-              paidResult.reason?.response?.data?.message ||
-              paidResult.reason?.message ||
-              "Paid Ads source failed",
-          }
-        : {}),
-      ...(socialResult.status === "rejected"
-        ? {
-            social:
-              socialResult.reason?.response?.data?.message ||
-              socialResult.reason?.message ||
-              "Social source failed",
-          }
-        : {}),
-    });
-    setLoading(false);
-  }, [clientId, month, appliedComparison]);
+    setSourceErrors((current) =>
+      current.paidMonthly ? { paidMonthly: current.paidMonthly } : {},
+    );
+    setPaidData(null);
+    setSocialData(null);
 
-  useEffect(() => {
-    setComparisonDraft(defaultComparisonRanges(month));
-    setAppliedComparison(null);
-  }, [month]);
+    const clientRequest = getClientById(clientId)
+      .then((value) => {
+        if (requestId === sourceRequestRef.current) setClient(value);
+      })
+      .catch((error) => {
+        if (requestId !== sourceRequestRef.current) return;
+        setClient(null);
+        setPageError(
+          error?.response?.data?.message || "Unable to load this client.",
+        );
+      });
+
+    const paidRequest = getPaidAdsInsights(
+        clientId,
+        month,
+        appliedComparison
+          ? {
+              since: appliedComparison.currentSince,
+              until: appliedComparison.currentUntil,
+              compareSince: appliedComparison.compareSince,
+              compareUntil: appliedComparison.compareUntil,
+            }
+          : {},
+      )
+      .then((value) => {
+        if (requestId === sourceRequestRef.current) setPaidData(value);
+      })
+      .catch((error) => {
+        if (requestId !== sourceRequestRef.current) return;
+        setSourceErrors((current) => ({
+          ...current,
+          paid:
+            error?.response?.data?.message ||
+            error?.message ||
+            "Paid Ads source failed",
+        }));
+      });
+
+    const socialRequests = ["facebook", "instagram", "tiktok"].map(
+      (platform) =>
+        getClientInsightsReportData(
+          clientId,
+          platform,
+          effectiveComparison,
+          refresh,
+        )
+          .then((report) => {
+            if (requestId !== sourceRequestRef.current) return;
+            setSocialData((current) => ({
+              ...(current || report),
+              ...report,
+              includedPlatforms: [
+                ...new Set([
+                  ...(current?.includedPlatforms || []),
+                  ...(report.includedPlatforms || []),
+                ]),
+              ],
+              platforms: {
+                ...(current?.platforms || {}),
+                ...(report.platforms || {}),
+              },
+            }));
+          })
+          .catch((error) => {
+            if (requestId !== sourceRequestRef.current) return;
+            setSourceErrors((current) => ({
+              ...current,
+              [platform]:
+                error?.response?.data?.message ||
+                error?.message ||
+                `${platform} source failed`,
+            }));
+          }),
+    );
+
+    await Promise.allSettled([clientRequest, paidRequest, ...socialRequests]);
+    if (requestId === sourceRequestRef.current) {
+      setLoading(false);
+      setSourceLoading(false);
+    }
+  }, [clientId, month, appliedComparison, comparisonMode, selectedMonths]);
+
+  const loadMonthlyComparison = useCallback(async () => {
+    if (
+      comparisonMode !== "months" ||
+      !clientId ||
+      !selectedMonths.length
+    ) {
+      setMonthlyLoading(false);
+      return;
+    }
+    const requestId = ++monthlyRequestRef.current;
+    setMonthlyLoading(true);
+    setSourceErrors((current) => {
+      const next = { ...current };
+      delete next.paidMonthly;
+      return next;
+    });
+    try {
+      const result = await getPaidAdsMonthlyComparison(clientId, selectedMonths);
+      if (requestId !== monthlyRequestRef.current) return;
+      setPaidMonthlyData(result);
+    } catch (error) {
+      if (requestId !== monthlyRequestRef.current) return;
+      setPaidMonthlyData(null);
+      setSourceErrors((current) => ({
+        ...current,
+        paidMonthly:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Paid Ads monthly comparison failed",
+      }));
+    } finally {
+      if (requestId === monthlyRequestRef.current) setMonthlyLoading(false);
+    }
+  }, [clientId, comparisonMode, selectedMonths]);
+
+  const paidRangeEnabled = settings.sections.paidMonthlyComparison &&
+    settings.paidMonthlyGraphMode === "range" && comparisonMode !== "months";
+  const loadPaidRangeComparison = useCallback(async () => {
+    const requestId = ++paidRangeRequestRef.current;
+    if (!paidRangeEnabled || !clientId) {
+      setPaidRangeMonthlyData(null);
+      setPaidRangeMonthlyError("");
+      setPaidRangeMonthlyLoading(false);
+      return;
+    }
+    setPaidRangeMonthlyData(null);
+    setPaidRangeMonthlyError("");
+    setPaidRangeMonthlyLoading(true);
+    const range = appliedComparison || defaultComparisonRanges(month);
+    try {
+      const result = await getPaidAdsRangeMonthlyComparison(clientId, {
+        since: range.currentSince,
+        until: range.currentUntil,
+        compareSince: range.compareSince,
+        compareUntil: range.compareUntil,
+      });
+      if (requestId === paidRangeRequestRef.current) setPaidRangeMonthlyData(result);
+    } catch (error) {
+      if (requestId !== paidRangeRequestRef.current) return;
+      setPaidRangeMonthlyError(
+        error?.response?.data?.message || error?.message || "Paid range comparison failed",
+      );
+    } finally {
+      if (requestId === paidRangeRequestRef.current) setPaidRangeMonthlyLoading(false);
+    }
+  }, [clientId, month, appliedComparison, paidRangeEnabled]);
 
   useEffect(() => {
     loadSources();
   }, [loadSources]);
 
+  useEffect(() => {
+    loadMonthlyComparison();
+  }, [loadMonthlyComparison]);
+
+  useEffect(() => {
+    loadPaidRangeComparison();
+  }, [loadPaidRangeComparison]);
+
+  useEffect(() => {
+    setPreviewEdits({ text: {}, columnWidths: {} });
+  }, [clientId, month]);
+
+  const updatePreviewText = useCallback((key, value) => {
+    setPreviewEdits((current) => ({
+      ...current,
+      text: { ...current.text, [key]: value },
+    }));
+  }, []);
+
+  const updatePreviewColumnWidths = useCallback((key, widths) => {
+    setPreviewEdits((current) => ({
+      ...current,
+      columnWidths: { ...current.columnWidths, [key]: widths },
+    }));
+  }, []);
+
+  const refreshAllSources = useCallback(
+    () =>
+      comparisonMode === "months"
+        ? Promise.all([loadSources(true), loadMonthlyComparison()])
+        : Promise.all([loadSources(true), loadPaidRangeComparison()]),
+    [comparisonMode, loadSources, loadMonthlyComparison, loadPaidRangeComparison],
+  );
+
+  const organicHighlightsInput = buildOrganicHighlightsInput({
+    client,
+    socialData,
+    comparisonMode,
+    month,
+    instruction: settings.organicHighlightsInstruction,
+  });
+  const organicHighlightsKey = JSON.stringify({ clientId, organicHighlightsInput });
+  const organicHighlightsReady = organicHighlights?.key === organicHighlightsKey;
+  const organicHighlightsAvailable = !sourceLoading && !loading &&
+    Boolean(clientId && client && organicHighlightsInput.platforms.length);
+
+  const generateOrganicHighlights = async () => {
+    if (!organicHighlightsAvailable || organicHighlightsLoading) return;
+    setOrganicHighlightsLoading(true);
+    setOrganicHighlightsError("");
+    try {
+      const result = await generateOrganicReportHighlights(organicHighlightsInput);
+      if (!Array.isArray(result?.points) || !result.points.length) {
+        throw new Error("AI returned no report highlights.");
+      }
+      setOrganicHighlights({
+        key: organicHighlightsKey,
+        points: result.points,
+        generatedByAi: result.generatedByAi !== false,
+      });
+    } catch (error) {
+      setOrganicHighlightsError(
+        error?.response?.data?.message || error?.message || "Unable to generate organic highlights.",
+      );
+    } finally {
+      setOrganicHighlightsLoading(false);
+    }
+  };
+
   const download = async (format = "pdf") => {
+    if (settings.sections.organicHighlights && !organicHighlightsReady) {
+      setPageError("Generate the organic performance highlights, or turn off that slide, before downloading.");
+      return;
+    }
     setDownloading(true);
     setPageError("");
     try {
@@ -219,19 +408,19 @@ export default function ReportBuilder() {
     ...(settings.sections.instagramGraph ? ["instagramGraph"] : []),
     ...(settings.sections.tiktokTable ? ["tiktokTable"] : []),
     ...(settings.sections.tiktokGraph ? ["tiktokGraph"] : []),
+    ...(settings.sections.organicHighlights ? ["organicHighlights"] : []),
     ...(settings.sections.paidOverview ? ["paidOverview"] : []),
     ...(settings.sections.paidDailyTrend ? ["paidDailyTrend"] : []),
+    ...(settings.sections.paidMonthlyComparison
+      ? ["paidMonthlyComparison"]
+      : []),
     ...(settings.sections.paidCampaignTable
       ? Array.from(
           {
-            length: Math.max(
-              1,
-              Math.ceil(
-                (paidData?.campaigns || []).filter(
-                  (campaign) => Number(campaign.spend || 0) > 0,
-                ).length / 6,
-              ),
-            ),
+            length: buildCampaignObjectivePages(
+              paidData?.campaigns || [],
+              settings,
+            ).length,
           },
           (_, index) =>
             index ? `paidCampaignTable-${index}` : "paidCampaignTable",
@@ -260,9 +449,11 @@ export default function ReportBuilder() {
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-500">
             <span
-              className={`mr-2 inline-block h-2 w-2 rounded-full ${loading ? "animate-pulse bg-amber-400" : "bg-emerald-500"}`}
+              className={`mr-2 inline-block h-2 w-2 rounded-full ${sourceLoading ? "animate-pulse bg-amber-400" : "bg-emerald-500"}`}
             />
-            {loading ? "Refreshing data sources" : "Live preview ready"}
+            {sourceLoading
+              ? "Live preview · updating data sources"
+              : "Live preview ready"}
           </div>
         </div>
         {pageError && (
@@ -275,27 +466,50 @@ export default function ReportBuilder() {
           style={{ "--report-editor-width": `${editorWidth}px` }}
         >
           <ReportControls
+            paidData={paidData}
             clients={clients}
             clientId={clientId}
             month={month}
             settings={settings}
             loading={loading}
             onClientChange={setClientId}
-            onMonthChange={setMonth}
+            onMonthChange={(nextMonth) => {
+              setMonth(nextMonth);
+              setComparisonDraft(defaultComparisonRanges(nextMonth));
+              setAppliedComparison(null);
+              setComparisonMode("previous");
+              setSelectedMonths(defaultComparisonMonths(nextMonth));
+            }}
             onSettingsChange={setSettings}
-            onRefresh={loadSources}
+            onRefresh={refreshAllSources}
             onDownload={download}
             downloading={downloading}
             onNavigateSlide={navigateToSlide}
             slideNumbers={slideNumbers}
             comparisonDraft={comparisonDraft}
-            comparisonCustom={Boolean(appliedComparison)}
+            comparisonMode={comparisonMode}
             onComparisonDraftChange={setComparisonDraft}
-            onApplyComparison={() =>
-              setAppliedComparison({ ...comparisonDraft })
-            }
-            onUsePreviousPeriod={() => setAppliedComparison(null)}
+            onApplyComparison={() => {
+              setAppliedComparison({ ...comparisonDraft });
+              setComparisonMode("custom");
+            }}
+            onUsePreviousPeriod={() => {
+              setAppliedComparison(null);
+              setComparisonMode("previous");
+            }}
             comparisonLoading={loading}
+            selectedMonths={selectedMonths}
+            onMonthsChange={(months) => {
+              setSelectedMonths(months);
+              setComparisonMode("months");
+            }}
+            monthlyLoading={monthlyLoading}
+            onGenerateOrganicHighlights={generateOrganicHighlights}
+            organicHighlightsAvailable={organicHighlightsAvailable}
+            organicHighlightsLoading={organicHighlightsLoading}
+            organicHighlightsReady={organicHighlightsReady}
+            organicHighlightsGeneratedByAi={organicHighlights?.generatedByAi !== false}
+            organicHighlightsError={organicHighlightsError}
           />
           <div
             role="separator"
@@ -346,8 +560,21 @@ export default function ReportBuilder() {
                 month={month}
                 settings={settings}
                 paidData={paidData}
+                paidMonthlyData={paidMonthlyData}
+                paidRangeMonthlyData={paidRangeMonthlyData}
+                paidRangeMonthlyLoading={paidRangeMonthlyLoading}
+                paidRangeMonthlyError={paidRangeMonthlyError}
                 socialData={socialData}
+                organicHighlights={organicHighlightsReady ? organicHighlights.points : []}
+                organicHighlightsPlatforms={organicHighlightsInput.platforms.map((entry) => entry.platform)}
+                organicHighlightsLoading={organicHighlightsLoading}
+                organicHighlightsError={organicHighlightsError}
                 sourceErrors={sourceErrors}
+                selectedMonths={selectedMonths}
+                comparisonMode={comparisonMode}
+                previewEdits={previewEdits}
+                onPreviewTextChange={updatePreviewText}
+                onPreviewColumnWidthsChange={updatePreviewColumnWidths}
               />
             </div>
           </section>

@@ -30,13 +30,21 @@ export class InstagramService {
       const cleanPageId = pageId ? pageId.trim() : pageId;
 
       const context = await this.resolveInstagramContext(cleanPageId, cleanToken);
+      const totalFollowers = this.fetchTotalFollowers(context.igId, cleanToken);
 
       const weeks = timeRange === '30' ? this.generateLast6Months(until) : this.generateLast7Weeks(until);
 
       const weeksData = await this.mapWithConcurrency(
         weeks,
         this.rangeConcurrency,
-        (week) => this.analyseWeek(context.igId, context.pageToken, week, cleanToken, context.pageId),
+        (week) => this.analyseWeek(
+          context.igId,
+          context.pageToken,
+          week,
+          cleanToken,
+          context.pageId,
+          totalFollowers,
+        ),
       );
 
       return {
@@ -75,11 +83,19 @@ export class InstagramService {
       const cleanPageId = pageId ? pageId.trim() : pageId;
 
       const context = await this.resolveInstagramContext(cleanPageId, cleanToken);
+      const totalFollowers = this.fetchTotalFollowers(context.igId, cleanToken);
 
       const weeksData = await this.mapWithConcurrency(
         ranges || [],
         this.rangeConcurrency,
-        (range) => this.analyseWeek(context.igId, context.pageToken, range, cleanToken, context.pageId),
+        (range) => this.analyseWeek(
+          context.igId,
+          context.pageToken,
+          range,
+          cleanToken,
+          context.pageId,
+          totalFollowers,
+        ),
       );
 
       return {
@@ -481,20 +497,19 @@ export class InstagramService {
             until: chunk.until,
             access_token: accessToken,
           };
-          return Promise.all([
-            this.apiGet(url, { ...baseParams, metric: 'total_interactions' }).catch(() => ({ data: [] })),
-            this.apiGet(url, { ...baseParams, metric: 'likes' }).catch(() => ({ data: [] })),
-            this.apiGet(url, { ...baseParams, metric: 'comments' }).catch(() => ({ data: [] })),
-            this.apiGet(url, { ...baseParams, metric: 'shares' }).catch(() => ({ data: [] })),
-          ]);
+          return this.apiGet(url, {
+            ...baseParams,
+            metric: 'total_interactions,likes,comments,shares',
+          }).catch(() => ({ data: [] }));
         })
       );
 
-      for (const [resInteractions, resLikes, resComments, resShares] of allResults) {
-        interactions += this.sumTotalValues(resInteractions.data || [], 'total_interactions');
-        likes += this.sumTotalValues(resLikes.data || [], 'likes');
-        comments += this.sumTotalValues(resComments.data || [], 'comments');
-        shares += this.sumTotalValues(resShares.data || [], 'shares');
+      for (const result of allResults) {
+        const data = result.data || [];
+        interactions += this.sumTotalValues(data, 'total_interactions');
+        likes += this.sumTotalValues(data, 'likes');
+        comments += this.sumTotalValues(data, 'comments');
+        shares += this.sumTotalValues(data, 'shares');
       }
     } catch (e) {
       console.error('Error fetching interactions:', e.message);
@@ -509,6 +524,7 @@ export class InstagramService {
     until: string,
     accessToken: string,
     pageId?: string,
+    totalFollowers?: Promise<any>,
   ) {
     let newF = 0, unf = 0, tf: any = 'N/A';
 
@@ -526,7 +542,7 @@ export class InstagramService {
 
       // Parallelize profile count and daily follower insights
       const [resUser, resInsights] = await Promise.all([
-        this.apiGet(`${this.baseUrl}/${igId}`, { fields: 'followers_count', access_token: accessToken }).catch(() => ({})),
+        totalFollowers || this.fetchTotalFollowers(igId, accessToken),
         pageInsightsRequest,
       ]);
 
@@ -541,7 +557,21 @@ export class InstagramService {
     return { newF, unf, tf };
   }
 
-  private async analyseWeek(igId: string, pageToken: string | undefined, week: any, accessToken: string, pageId?: string) {
+  private fetchTotalFollowers(igId: string, accessToken: string) {
+    return this.apiGet(`${this.baseUrl}/${igId}`, {
+      fields: 'followers_count',
+      access_token: accessToken,
+    }).catch(() => ({}));
+  }
+
+  private async analyseWeek(
+    igId: string,
+    pageToken: string | undefined,
+    week: any,
+    accessToken: string,
+    pageId?: string,
+    totalFollowers?: Promise<any>,
+  ) {
     const { since, until, label } = week;
 
     // Debug log for checking call parameters on hosted
@@ -553,7 +583,15 @@ export class InstagramService {
       this.fetchViewsBreakdown(igId, since, until, accessToken),
       this.fetchReachBreakdown(igId, since, until, accessToken),
       this.fetchInteractions(igId, since, until, accessToken),
-      this.fetchFollowerMetrics(igId, pageToken, since, until, accessToken, pageId),
+      this.fetchFollowerMetrics(
+        igId,
+        pageToken,
+        since,
+        until,
+        accessToken,
+        pageId,
+        totalFollowers,
+      ),
     ]);
 
     return {

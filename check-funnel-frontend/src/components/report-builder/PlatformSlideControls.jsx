@@ -1,3 +1,9 @@
+import {
+  organicGraphModeOptions,
+  organicTableModeOptions,
+} from "./reportData";
+import ReportDropdown from "./ReportDropdown";
+
 function MetricGroup({ title, options, selected, onToggle, onAll }) {
   return (
     <div className="mt-3">
@@ -76,7 +82,9 @@ export default function PlatformSlideControls({
 }) {
   const prefix = platform.toLowerCase();
   const tableField = `${prefix}TableMetrics`,
-    graphField = `${prefix}GraphMetrics`;
+    graphField = `${prefix}GraphMetrics`,
+    tableModeField = `${prefix}TableMode`,
+    graphModeField = `${prefix}GraphMode`;
   const tableSection = `${prefix}Table`,
     graphSection = `${prefix}Graph`;
   const table = settings[tableField] || [],
@@ -120,6 +128,14 @@ export default function PlatformSlideControls({
               : "pointer-events-none opacity-40"
           }
         >
+          <label className="mt-3 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+            Table view
+            <ReportDropdown
+              value={settings[tableModeField] || "weekly"}
+              options={organicTableModeOptions}
+              onChange={(value) => patch({ [tableModeField]: value })}
+            />
+          </label>
           <MetricGroup
             title="Table metrics"
             options={options}
@@ -148,6 +164,14 @@ export default function PlatformSlideControls({
               : "pointer-events-none opacity-40"
           }
         >
+          <label className="mt-3 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+            Graph view
+            <ReportDropdown
+              value={settings[graphModeField] || "auto"}
+              options={organicGraphModeOptions}
+              onChange={(value) => patch({ [graphModeField]: value })}
+            />
+          </label>
           <MetricGroup
             title="Graph metrics"
             options={options}

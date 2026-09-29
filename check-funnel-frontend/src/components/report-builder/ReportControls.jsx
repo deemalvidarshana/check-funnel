@@ -1,12 +1,29 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   facebookMetricOptions,
   instagramMetricOptions,
+  organicGraphModeOptions,
+  organicTableModeOptions,
   tiktokMetricOptions,
 } from "./reportData";
 import PlatformSlideControls from "./PlatformSlideControls";
 import PaidAdsSlideControls from "./paid-slides/PaidAdsSlideControls";
 import ReportDropdown from "./ReportDropdown";
+import ReportingMonthPicker from "./ReportingMonthPicker";
+
+function shiftMonth(month, offset) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + offset, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function readableMonth(month) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Date(Date.UTC(year, monthNumber - 1, 1)).toLocaleDateString(
+    "en-GB",
+    { month: "short", year: "numeric", timeZone: "UTC" },
+  );
+}
 
 function Toggle({ checked, onChange, label, description }) {
   return (
@@ -45,13 +62,48 @@ function ContinueButton({ onClick, label = "Continue to this slide →" }) {
 
 function ComparisonControls({
   draft,
-  custom,
+  mode,
   loading,
   onChange,
   onApply,
   onDefault,
+  anchorMonth,
+  selectedMonths,
+  onMonthsChange,
+  monthlyLoading,
 }) {
   const [error, setError] = useState("");
+  const [draftMonths, setDraftMonths] = useState(selectedMonths);
+  const monthOptions = useMemo(
+    () => Array.from({ length: 24 }, (_, index) => shiftMonth(anchorMonth, -index)),
+    [anchorMonth],
+  );
+  const availableDraftMonths = draftMonths.filter((value) =>
+    monthOptions.includes(value),
+  );
+
+  const toggleMonth = (value) => {
+    setError("");
+    setDraftMonths((current) => {
+      const available = current.filter((month) => monthOptions.includes(month));
+      if (available.includes(value))
+        return available.filter((month) => month !== value);
+      if (available.length >= 10) {
+        setError("You can compare up to 10 months.");
+        return available;
+      }
+      return [...available, value];
+    });
+  };
+
+  const applyMonths = () => {
+    if (!availableDraftMonths.length) {
+      setError("Select at least one month.");
+      return;
+    }
+    setError("");
+    onMonthsChange([...availableDraftMonths].sort());
+  };
   const apply = () => {
     const values = Object.values(draft || {});
     const valid = (value) => {
@@ -96,25 +148,78 @@ function ComparisonControls({
       <h2 className="text-sm font-extrabold text-slate-900">
         Comparison range
       </h2>
-      <div className="mt-4 grid grid-cols-2 gap-2 rounded-full bg-[#f3f4f5]/70 p-1">
+      <div className="mt-4 grid grid-cols-3 gap-1 rounded-full bg-[#f3f4f5]/70 p-1">
         <button
           type="button"
           onClick={() => {
             setError("");
             onDefault();
           }}
-          className={`h-10 rounded-full text-[10px] font-extrabold transition ${!custom ? "bg-[#003870] text-white shadow-sm" : "text-slate-500 hover:bg-white"}`}
+          className={`h-10 rounded-full text-[9px] font-extrabold transition ${mode === "previous" ? "bg-[#003870] text-white shadow-sm" : "text-slate-500 hover:bg-white"}`}
         >
           Previous period
         </button>
         <button
           type="button"
           onClick={apply}
-          className={`h-10 rounded-full text-[10px] font-extrabold transition ${custom ? "bg-[#003870] text-white shadow-sm" : "text-slate-500 hover:bg-white"}`}
+          className={`h-10 rounded-full text-[9px] font-extrabold transition ${mode === "custom" ? "bg-[#003870] text-white shadow-sm" : "text-slate-500 hover:bg-white"}`}
         >
           Custom ranges
         </button>
+        <button
+          type="button"
+          onClick={applyMonths}
+          className={`h-10 rounded-full text-[9px] font-extrabold transition ${mode === "months" ? "bg-[#003870] text-white shadow-sm" : "text-slate-500 hover:bg-white"}`}
+        >
+          Month wise
+        </button>
       </div>
+      {mode === "months" ? (
+        <div className="mt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-extrabold text-slate-700">Compare months</p>
+              <p className="mt-0.5 text-[9px] font-semibold text-slate-400">Choose 1–10 months</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDraftMonths(monthOptions.slice(0, 4))}
+              className="text-[9px] font-extrabold text-[#003870]"
+            >
+              Last 4
+            </button>
+          </div>
+          <div className="mt-3 grid max-h-64 grid-cols-2 gap-1 overflow-y-auto pr-1">
+            {monthOptions.map((value) => {
+              const checked = draftMonths.includes(value);
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => toggleMonth(value)}
+                  className={`flex items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[10px] font-bold transition ${checked ? "bg-[#2563eb]/10 text-[#003870]" : "text-slate-500 hover:bg-slate-50"}`}
+                >
+                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-[#2563eb] bg-[#2563eb] text-white" : "border-slate-300"}`}>
+                    {checked ? "✓" : ""}
+                  </span>
+                  {readableMonth(value)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
+            <span className="text-[9px] font-bold text-slate-400">{availableDraftMonths.length} selected</span>
+            <button
+              type="button"
+              onClick={applyMonths}
+              disabled={!availableDraftMonths.length || monthlyLoading}
+              className="rounded-full bg-[#003870] px-5 py-2 text-[10px] font-extrabold text-white disabled:opacity-50"
+            >
+              {monthlyLoading ? "Loading..." : "Apply months"}
+            </button>
+          </div>
+        </div>
+      ) : <>
       <div className="mt-4">
         <p className="mb-2 text-[10px] font-extrabold text-slate-700">
           Selected range
@@ -138,7 +243,7 @@ function ComparisonControls({
           {error}
         </p>
       )}
-      {custom && !loading && !error && (
+      {mode === "custom" && !loading && !error && (
         <p className="mt-3 text-center text-[10px] font-bold text-emerald-600">
           Custom comparison applied
         </p>
@@ -151,6 +256,7 @@ function ComparisonControls({
       >
         {loading ? "Applying comparison..." : "Apply comparison"}
       </button>
+      </>}
     </div>
   );
 }
@@ -170,11 +276,21 @@ export default function ReportControls({
   onNavigateSlide,
   slideNumbers,
   comparisonDraft,
-  comparisonCustom,
+  comparisonMode,
   onComparisonDraftChange,
   onApplyComparison,
   onUsePreviousPeriod,
   comparisonLoading,
+  selectedMonths,
+  onMonthsChange,
+  monthlyLoading,
+  paidData,
+  onGenerateOrganicHighlights,
+  organicHighlightsAvailable,
+  organicHighlightsLoading,
+  organicHighlightsReady,
+  organicHighlightsGeneratedByAi,
+  organicHighlightsError,
 }) {
   const [downloadOpen, setDownloadOpen] = useState(false);
   const facebookTableMetrics =
@@ -187,13 +303,6 @@ export default function ReportControls({
     onSettingsChange((current) => ({
       ...current,
       sections: { ...current.sections, [key]: checked },
-    }));
-  const toggleMetric = (key) =>
-    onSettingsChange((current) => ({
-      ...current,
-      paidMetrics: current.paidMetrics.includes(key)
-        ? current.paidMetrics.filter((item) => item !== key)
-        : [...current.paidMetrics, key],
     }));
   const toggleFacebookMetric = (field, key) =>
     onSettingsChange((current) => {
@@ -234,15 +343,10 @@ export default function ReportControls({
               onChange={onClientChange}
             />
           </div>
-          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+          <div className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
             Reporting month
-            <input
-              type="month"
-              value={month}
-              onChange={(event) => onMonthChange(event.target.value)}
-              className="mt-2 h-12 w-full rounded-full border border-[#c2c6d3]/30 bg-[#f3f4f5]/60 px-5 text-xs font-bold text-[#003870] outline-none transition focus:border-[#003870]/30 focus:bg-white focus:ring-2 focus:ring-[#003870]/10"
-            />
-          </label>
+            <ReportingMonthPicker value={month} onChange={onMonthChange} />
+          </div>
           <button
             type="button"
             onClick={onRefresh}
@@ -254,12 +358,17 @@ export default function ReportControls({
         </div>
       </div>
       <ComparisonControls
+        key={`${month}-${selectedMonths.join(",")}`}
         draft={comparisonDraft}
-        custom={comparisonCustom}
+        mode={comparisonMode}
         loading={comparisonLoading}
         onChange={onComparisonDraftChange}
         onApply={onApplyComparison}
         onDefault={onUsePreviousPeriod}
+        anchorMonth={month}
+        selectedMonths={selectedMonths}
+        onMonthsChange={onMonthsChange}
+        monthlyLoading={monthlyLoading}
       />
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-extrabold text-slate-900">
@@ -312,6 +421,14 @@ export default function ReportControls({
           <div
             className={`mt-3 ${settings.sections.executive ? "" : "pointer-events-none opacity-40"}`}
           >
+            <label className="mb-3 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+              Table view
+              <ReportDropdown
+                value={settings.facebookTableMode || "weekly"}
+                options={organicTableModeOptions}
+                onChange={(value) => set({ facebookTableMode: value })}
+              />
+            </label>
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
                 Table metrics
@@ -361,6 +478,14 @@ export default function ReportControls({
           <div
             className={`mt-3 ${settings.sections.paidTrend ? "" : "pointer-events-none opacity-40"}`}
           >
+            <label className="mb-3 block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+              Graph view
+              <ReportDropdown
+                value={settings.facebookGraphMode || "auto"}
+                options={organicGraphModeOptions}
+                onChange={(value) => set({ facebookGraphMode: value })}
+              />
+            </label>
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
                 Graph metrics
@@ -416,7 +541,55 @@ export default function ReportControls({
         onNavigateSlide={onNavigateSlide}
         slideNumbers={slideNumbers}
       />
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-sm font-extrabold text-slate-900">Organic performance highlights</h2>
+        <div className="mt-4">
+          <Toggle
+            checked={settings.sections.organicHighlights}
+            onChange={(value) => setSection("organicHighlights", value)}
+            label="Include AI highlights slide"
+            description="Positive points from this client's Facebook, Instagram and TikTok metrics"
+          />
+          <div className={`mt-4 ${settings.sections.organicHighlights ? "" : "pointer-events-none opacity-40"}`}>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
+              Instruction for AI
+              <textarea
+                value={settings.organicHighlightsInstruction || ""}
+                onChange={(event) => set({ organicHighlightsInstruction: event.target.value })}
+                maxLength={600}
+                rows={3}
+                placeholder="For example: Focus on organic reach and audience engagement."
+                className="mt-2 w-full resize-y rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold normal-case leading-5 text-slate-800"
+              />
+            </label>
+            <p className="mt-2 text-[10px] leading-4 text-slate-500">
+              The instruction guides wording. Highlights use only the connected report metrics.
+            </p>
+            <button
+              type="button"
+              onClick={onGenerateOrganicHighlights}
+              disabled={!organicHighlightsAvailable || organicHighlightsLoading}
+              className="mt-4 h-11 w-full rounded-full bg-[#003870] text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {organicHighlightsLoading ? "Generating highlights..." : organicHighlightsReady ? "Regenerate highlights" : "Generate highlights"}
+            </button>
+            {organicHighlightsError && <p className="mt-2 text-[10px] font-bold text-rose-600">{organicHighlightsError}</p>}
+            {!organicHighlightsError && organicHighlightsReady && (
+              <p className="mt-2 text-[10px] font-bold text-emerald-700">
+                {organicHighlightsGeneratedByAi
+                  ? "AI highlights ready for the slide and export."
+                  : "AI returned no usable points, so verified source-metric highlights are shown."}
+              </p>
+            )}
+            <ContinueButton
+              onClick={() => onNavigateSlide?.("organicHighlights")}
+              label={`Continue to slide ${slideNumbers.organicHighlights} →`}
+            />
+          </div>
+        </div>
+      </div>
       <PaidAdsSlideControls
+        paidData={paidData}
         settings={settings}
         onSettingsChange={onSettingsChange}
         onNavigateSlide={onNavigateSlide}

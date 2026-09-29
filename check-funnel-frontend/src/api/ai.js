@@ -10,6 +10,9 @@ export const generateTargetsAI = async (payload) => {
   return response.data;
 };
 
+export const generateOrganicReportHighlights = async (payload) =>
+  (await api.post('/ai/report-organic-highlights', payload, { timeout: 90000 })).data;
+
 export const generateReelScriptAI = async (payload) => {
   const response = await api.post('/ai/generate-reel-script', payload);
   return response.data;

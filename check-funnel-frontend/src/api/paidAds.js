@@ -15,3 +15,11 @@ export async function getPaidAdsMonthlyComparison(clientId, months) {
   });
   return response.data;
 }
+
+export async function getPaidAdsRangeMonthlyComparison(clientId, range) {
+  const response = await api.get(`/paid-ads/${clientId}/range-monthly-comparison`, {
+    params: range,
+    timeout: 90000,
+  });
+  return response.data;
+}

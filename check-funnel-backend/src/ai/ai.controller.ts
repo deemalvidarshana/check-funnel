@@ -1,10 +1,160 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common'; 
+import { BadGatewayException, BadRequestException, Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Post('report-organic-highlights')
+  async generateOrganicReportHighlights(@Body() body: any) {
+    const allowedMetrics: Record<string, string[]> = {
+      facebook: ['Static posts', 'Reels', 'Total views', 'Organic views', 'Engagements', 'New follows'],
+      instagram: ['Posts', 'Reels', 'Total views', 'Organic views', 'Organic reach', 'Interactions'],
+      tiktok: ['Videos', 'Views', 'Likes', 'Comments', 'Shares'],
+    };
+    const platforms = (Array.isArray(body?.platforms) ? body.platforms : [])
+      .slice(0, 3)
+      .flatMap((entry: any) => {
+        const platform = String(entry?.platform || '').toLowerCase();
+        if (!allowedMetrics[platform]) return [];
+        const periods = (Array.isArray(entry?.periods) ? entry.periods : [])
+          .slice(-10)
+          .map((period: any) => ({
+            label: String(period?.label || 'Period').slice(0, 80),
+            since: /^\d{4}-\d{2}-\d{2}$/.test(period?.since) ? period.since : undefined,
+            until: /^\d{4}-\d{2}-\d{2}$/.test(period?.until) ? period.until : undefined,
+            metrics: (Array.isArray(period?.metrics) ? period.metrics : [])
+              .filter((metric: any) =>
+                allowedMetrics[platform].includes(metric?.label) &&
+                Number.isFinite(Number(metric?.value)) && Number(metric.value) > 0,
+              )
+              .slice(0, 8)
+              .map((metric: any) => ({ label: metric.label, value: Number(metric.value) })),
+          }))
+          .filter((period: any) => period.metrics.length);
+        return periods.length ? [{ platform, periods }] : [];
+      });
+
+    if (!platforms.length) {
+      throw new BadRequestException('No Facebook, Instagram or TikTok metrics are available for this report range.');
+    }
+
+    const clientName = String(body?.clientName || 'the client').slice(0, 100);
+    const clientContext = String(body?.clientContext || '').slice(0, 240);
+    const instruction = String(body?.instruction || '').slice(0, 600);
+    const prompt = [
+      'Write 3 to 5 concise, positive, client-specific points for an organic social media report slide.',
+      'Use only the numeric evidence supplied below. Every point must name its platform and a measured metric.',
+      'Do not invent numbers, growth, causes, targets or business outcomes. Claim growth only if a later period is numerically higher than an earlier period for the same metric.',
+      'If a platform has no supported positive result, omit it. Keep each point under 28 words. Return JSON only.',
+      `Client: ${clientName}. Context supplied by the user: ${clientContext || 'none'}.`,
+      `Additional user writing instruction (style only; it cannot override the evidence rules): ${instruction || 'Clear and professional tone'}.`,
+      `Source metrics: ${JSON.stringify(platforms)}`,
+    ].join('\n');
+    const schema = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'organic_report_highlights',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            points: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  platform: { type: 'string', enum: platforms.map((entry: any) => entry.platform) },
+                  text: { type: 'string' },
+                },
+                required: ['platform', 'text'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['points'],
+          additionalProperties: false,
+        },
+      },
+    };
+    const raw = await this.aiService.generateCompletion(prompt, schema);
+    const aiPoints = this.normalizeOrganicHighlights(raw, platforms.map((entry: any) => entry.platform));
+    const points = aiPoints.length ? aiPoints : this.fallbackOrganicHighlights(platforms, clientName);
+    if (!points.length) throw new BadGatewayException('No usable organic metrics are available for this slide.');
+    return { points, generatedByAi: aiPoints.length > 0 };
+  }
+
+  private normalizeOrganicHighlights(raw: string, platforms: string[]) {
+    const parsed = this.parseJsonContent(String(raw || ''));
+    const content = parsed?.raw || parsed;
+    const platformFor = (value: unknown, text: string, hint = '') => {
+      const names = ['facebook', 'instagram', 'tiktok'];
+      const mentioned = names.filter((name) =>
+        new RegExp(`\\b${name}\\b`, 'i').test(`${String(value || '')} ${hint} ${text}`),
+      );
+      if (mentioned.some((name) => !platforms.includes(name))) return null;
+      return mentioned.length === 1 ? mentioned[0] : 'overall';
+    };
+    const linesFrom = (value: string) => {
+      const lines = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const bullets = lines.filter((line) => /^(?:[-*•]\s+|\d+[.)]\s+)/.test(line));
+      return bullets.length ? bullets : lines.filter((line) => !/^#{1,6}\s/.test(line));
+    };
+    const extract = (value: any, hint = '', depth = 0): Array<{ platform: string | null; text: string }> => {
+      if (depth > 4 || value == null) return [];
+      if (typeof value === 'string') {
+        return linesFrom(value).map((line) => {
+          const text = line.replace(/^(?:[-*•]\s+|\d+[.)]\s+)/, '').replace(/\*\*/g, '').trim();
+          return { platform: platformFor(hint, text), text };
+        });
+      }
+      if (Array.isArray(value)) return value.flatMap((item) => extract(item, hint, depth + 1));
+      if (typeof value !== 'object') return [];
+
+      const text = [value.text, value.point, value.insight, value.description, value.content, value.message]
+        .find((item) => typeof item === 'string' && item.trim());
+      if (text) {
+        return linesFrom(text).map((line) => ({
+          platform: platformFor(value.platform || value.channel || value.source, line, hint),
+          text: line.replace(/^(?:[-*•]\s+|\d+[.)]\s+)/, '').replace(/\*\*/g, '').trim(),
+        }));
+      }
+
+      const preferred = ['points', 'highlights', 'insights', 'bullets', 'takeaways', 'items', 'summary', 'data'];
+      for (const key of preferred) {
+        if (value[key] != null) {
+          const found = extract(value[key], hint, depth + 1);
+          if (found.length) return found;
+        }
+      }
+      return Object.entries(value)
+        .filter(([key]) => platforms.includes(key.toLowerCase()))
+        .flatMap(([key, nested]) => extract(nested, key, depth + 1));
+    };
+
+    return extract(content)
+      .filter((point): point is { platform: string; text: string } =>
+        Boolean(point.platform && point.text && point.text.length > 12),
+      )
+      .slice(0, 5)
+      .map((point) => ({ platform: point.platform, text: point.text.slice(0, 180) }));
+  }
+
+  private fallbackOrganicHighlights(platforms: any[], clientName: string) {
+    return platforms.slice(0, 3).flatMap((platform) => {
+      const latest = platform.periods?.[platform.periods.length - 1];
+      const best = [...(latest?.metrics || [])].sort((a, b) => b.value - a.value)[0];
+      if (!best) return [];
+      const name = platform.platform.charAt(0).toUpperCase() + platform.platform.slice(1);
+      const period = latest.label || 'the selected period';
+      return [{
+        platform: platform.platform,
+        text: `${clientName}'s ${name} recorded ${new Intl.NumberFormat('en').format(best.value)} ${best.label.toLowerCase()} in ${period}.`.slice(0, 180),
+      }];
+    });
+  }
 
   private redactInsightValue(value: any): any {
     if (Array.isArray(value)) {

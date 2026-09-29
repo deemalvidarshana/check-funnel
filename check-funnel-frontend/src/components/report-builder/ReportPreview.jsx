@@ -5,7 +5,7 @@ import {
   formatMetric,
   getSocialChart,
   monthLabel,
-  paidMetricOptions,
+  organicRangeLabel,
   totalSocialMetric,
   valueAtPath,
 } from "./reportData";
@@ -19,10 +19,18 @@ import {
 } from "./platform-slides/TikTokReportSlides";
 import {
   PaidDailyTrendSlide,
+  PaidMonthlyComparisonSlide,
   PaidOverviewSlide,
 } from "./paid-slides/PaidAdsReportSlides";
 import CampaignRankingReportSlide from "./paid-slides/CampaignRankingReportSlide";
+import { buildCampaignObjectivePages } from "./paid-slides/campaignFields";
 import PaidConversionFunnelSlide from "./paid-slides/PaidConversionFunnelSlide";
+import {
+  PlatformMultiMonthChart,
+  PlatformRangeComparisonCharts,
+} from "./platform-slides/PlatformSlideVisuals";
+import EditableChartValue from "./EditableChartValue";
+import OrganicHighlightsSlide from "./OrganicHighlightsSlide";
 
 const SLIDE_WIDTH = 1000;
 const SLIDE_HEIGHT = 562.5;
@@ -41,6 +49,56 @@ function SlideFrame({ children, pageKey }) {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const frame = frameRef.current;
+    const canvas = frame?.querySelector("[data-report-editable-canvas]");
+    if (!canvas) return undefined;
+    const selector = "h1,h2,h3,h4,h5,h6,p,span,td,th,li";
+    const prepareEditableText = () => {
+      canvas.querySelectorAll(selector).forEach((element) => {
+        if (
+          element.children.length ||
+          !element.textContent?.trim() ||
+          element.closest("[data-report-edit-disabled]") ||
+          element.getAttribute("contenteditable") === "true"
+        )
+          return;
+        element.contentEditable = "true";
+        element.spellcheck = false;
+        element.dataset.previewAutoEditable = "true";
+        element.title = "Click to edit this report text";
+        element.classList.add("preview-auto-editable");
+      });
+    };
+    const rememberValue = (event) => {
+      const element = event.target.closest?.("[data-preview-auto-editable]");
+      if (element) element.dataset.previewOriginalValue = element.textContent;
+    };
+    const handleKeys = (event) => {
+      const element = event.target.closest?.("[data-preview-auto-editable]");
+      if (!element) return;
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        element.blur();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        element.textContent = element.dataset.previewOriginalValue || "";
+        element.blur();
+      }
+    };
+    prepareEditableText();
+    const observer = new MutationObserver(prepareEditableText);
+    observer.observe(canvas, { childList: true, subtree: true });
+    canvas.addEventListener("focusin", rememberValue);
+    canvas.addEventListener("keydown", handleKeys);
+    return () => {
+      observer.disconnect();
+      canvas.removeEventListener("focusin", rememberValue);
+      canvas.removeEventListener("keydown", handleKeys);
+    };
+  }, []);
+
   return (
     <div
       ref={frameRef}
@@ -49,6 +107,7 @@ function SlideFrame({ children, pageKey }) {
       className="relative aspect-video w-full overflow-hidden scroll-mt-2"
     >
       <div
+        data-report-editable-canvas
         className="absolute left-0 top-0 origin-top-left"
         style={{
           width: SLIDE_WIDTH,
@@ -165,10 +224,36 @@ function LineChart({
   );
 }
 
-function FacebookComparisonChart({ socialData, settings }) {
+function FacebookComparisonChart({
+  socialData,
+  settings,
+  monthWise = false,
+  rangeComparison = false,
+}) {
+  const [valueEdits, setValueEdits] = useState({});
+  if (rangeComparison) {
+    return (
+      <PlatformRangeComparisonCharts
+        data={socialData?.platforms?.facebook}
+        options={facebookMetricOptions}
+        selected={settings.facebookGraphMetrics || []}
+        color={settings.accent || "#003870"}
+      />
+    );
+  }
   const monthly = socialData?.platforms?.facebook?.comparisonRows?.length
     ? socialData.platforms.facebook.comparisonRows
     : socialData?.platforms?.facebook?.monthly || [];
+  if (monthWise) {
+    return (
+      <PlatformMultiMonthChart
+        platform="Facebook"
+        rows={monthly}
+        options={facebookMetricOptions}
+        selected={settings.facebookGraphMetrics || []}
+      />
+    );
+  }
   const current = monthly.at(-1);
   const previous = monthly.at(-2);
   const rows = facebookMetricOptions
@@ -178,8 +263,12 @@ function FacebookComparisonChart({ socialData, settings }) {
     .map((metric) => ({
       ...metric,
       color: settings.accent || "#003870",
-      current: facebookMetricValue(current, metric.key),
-      previous: facebookMetricValue(previous, metric.key),
+      current:
+        valueEdits[`${metric.key}:current`] ??
+        facebookMetricValue(current, metric.key),
+      previous:
+        valueEdits[`${metric.key}:previous`] ??
+        facebookMetricValue(previous, metric.key),
     }));
   if (!current || !rows.length)
     return (
@@ -202,9 +291,17 @@ function FacebookComparisonChart({ socialData, settings }) {
             >
               <div className="flex h-[250px] items-end justify-center gap-2">
                 <div className="flex h-full w-8 flex-col justify-end">
-                  <span className="mb-2 whitespace-nowrap text-center text-[8px] font-extrabold text-slate-700">
-                    {compactNumber(metric.current)}
-                  </span>
+                  <EditableChartValue
+                    value={metric.current}
+                    format={compactNumber}
+                    onChange={(value) =>
+                      setValueEdits((edits) => ({
+                        ...edits,
+                        [`${metric.key}:current`]: value,
+                      }))
+                    }
+                    className="mb-2 whitespace-nowrap text-center text-[8px] font-extrabold text-slate-700"
+                  />
                   <div
                     className="min-h-[3px] rounded-t-lg"
                     style={{
@@ -214,9 +311,17 @@ function FacebookComparisonChart({ socialData, settings }) {
                   />
                 </div>
                 <div className="flex h-full w-8 flex-col justify-end">
-                  <span className="mb-2 whitespace-nowrap text-center text-[8px] font-extrabold text-slate-400">
-                    {compactNumber(metric.previous)}
-                  </span>
+                  <EditableChartValue
+                    value={metric.previous}
+                    format={compactNumber}
+                    onChange={(value) =>
+                      setValueEdits((edits) => ({
+                        ...edits,
+                        [`${metric.key}:previous`]: value,
+                      }))
+                    }
+                    className="mb-2 whitespace-nowrap text-center text-[8px] font-extrabold text-slate-400"
+                  />
                   <div
                     className="min-h-[3px] rounded-t-lg bg-slate-300"
                     style={{
@@ -238,11 +343,13 @@ function FacebookComparisonChart({ socialData, settings }) {
             className="h-2.5 w-2.5 rounded-sm"
             style={{ backgroundColor: settings.accent || "#003870" }}
           />
-          {current.week || "Current month"}
+          {rangeComparison ? "Selected range" : current.week || "Current month"}
         </span>
         <span className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-sm bg-slate-300" />
-          {previous?.week || "Previous month"}
+          {rangeComparison
+            ? "Compare with"
+            : previous?.week || "Previous month"}
         </span>
       </div>
     </div>
@@ -307,9 +414,34 @@ function facebookMetricValue(row, key) {
   return Number(valueAtPath(row, key) || 0);
 }
 
-function FacebookOrganicSlide({ socialData, settings, sourceError }) {
+function FacebookOrganicSlide({
+  socialData,
+  settings,
+  sourceError,
+}) {
   const facebook = socialData?.platforms?.facebook;
-  const rows = [...(facebook?.weekly || [])].reverse().slice(0, 6);
+  const tableMode = settings.facebookTableMode || "weekly";
+  const rangeRows = facebook?.comparisonRows || [];
+  const rows =
+    tableMode === "range"
+      ? [
+          rangeRows.at(-1)
+            ? { ...rangeRows.at(-1), __reportRowLabel: organicRangeLabel(rangeRows.at(-1)) }
+            : null,
+          rangeRows.at(-2)
+            ? { ...rangeRows.at(-2), __reportRowLabel: organicRangeLabel(rangeRows.at(-2)) }
+            : null,
+        ].filter(Boolean)
+      : tableMode === "monthly"
+        ? [...(facebook?.monthly || [])].reverse().slice(0, 6)
+        : [...(facebook?.weekly || [])].reverse().slice(0, 6);
+  const rowPadding = "py-3";
+  const modeLabel =
+    tableMode === "range"
+      ? "selected and comparison range totals"
+      : tableMode === "monthly"
+        ? "last monthly performance"
+        : "last weekly performance";
   const metrics = facebookMetricOptions.filter((metric) =>
     (settings.facebookTableMetrics || []).includes(metric.key),
   );
@@ -318,7 +450,9 @@ function FacebookOrganicSlide({ socialData, settings, sourceError }) {
       <>
         <SectionTitle
           title="Facebook Organic Performance"
-          subtitle="Weekly organic performance breakdown"
+          subtitle={
+            modeLabel
+          }
           accent="#1877f2"
         />
         <div className="rounded-2xl bg-amber-50 p-6 text-sm font-bold text-amber-700">
@@ -331,7 +465,7 @@ function FacebookOrganicSlide({ socialData, settings, sourceError }) {
     <>
       <SectionTitle
         title="Facebook Organic Performance"
-        subtitle={`${socialData?.client?.name || "Selected client"} · latest weekly breakdown`}
+        subtitle={`${socialData?.client?.name || "Selected client"} · ${modeLabel}`}
         accent="#1877f2"
       />
       {metrics.length ? (
@@ -342,7 +476,13 @@ function FacebookOrganicSlide({ socialData, settings, sourceError }) {
               gridTemplateColumns: `150px repeat(${metrics.length},minmax(0,1fr))`,
             }}
           >
-            <span className="px-3 py-3">Week period</span>
+            <span className="px-3 py-3">
+              {tableMode === "range"
+                ? "Range"
+                : tableMode === "monthly"
+                  ? "Month"
+                  : "Week period"}
+            </span>
             {metrics.map((metric) => (
               <span
                 key={metric.key}
@@ -360,14 +500,16 @@ function FacebookOrganicSlide({ socialData, settings, sourceError }) {
                 gridTemplateColumns: `${index === 0 ? 146 : 150}px repeat(${metrics.length},minmax(0,1fr))`,
               }}
             >
-              <span className="px-3 py-3 text-slate-800">
-                {row.week}
-                {index === 0 ? " (Current)" : ""}
+              <span className={`px-3 ${rowPadding} text-slate-800`}>
+                {row.__reportRowLabel || row.week}
+                {index === 0 && tableMode !== "range"
+                  ? ` (${tableMode === "monthly" ? "Latest" : "Current"})`
+                  : ""}
               </span>
               {metrics.map((metric) => (
                 <span
                   key={metric.key}
-                  className="border-l border-slate-100 px-1 py-3 text-center text-slate-700"
+                  className={`border-l border-slate-100 px-1 ${rowPadding} text-center text-slate-700`}
                 >
                   {facebookMetricValue(row, metric.key).toLocaleString()}
                 </span>
@@ -389,12 +531,22 @@ export default function ReportPreview({
   month,
   settings,
   paidData,
+  paidMonthlyData,
+  paidRangeMonthlyData,
+  paidRangeMonthlyLoading = false,
+  paidRangeMonthlyError = "",
+  organicHighlights = [],
+  organicHighlightsPlatforms = [],
+  organicHighlightsLoading = false,
+  organicHighlightsError = "",
   socialData,
   sourceErrors = {},
+  selectedMonths = [],
+  comparisonMode = "previous",
+  previewEdits = { text: {}, columnWidths: {} },
+  onPreviewTextChange = () => {},
+  onPreviewColumnWidthsChange = () => {},
 }) {
-  const paidMetrics = paidMetricOptions.filter((metric) =>
-    settings.paidMetrics.includes(metric.key),
-  );
   const socialChart = getSocialChart(socialData);
   const pages = [{ key: "cover" }];
   if (settings.sections.executive) pages.push({ key: "executive" });
@@ -403,38 +555,23 @@ export default function ReportPreview({
   if (settings.sections.instagramGraph) pages.push({ key: "instagramGraph" });
   if (settings.sections.tiktokTable) pages.push({ key: "tiktokTable" });
   if (settings.sections.tiktokGraph) pages.push({ key: "tiktokGraph" });
+  if (settings.sections.organicHighlights) pages.push({ key: "organicHighlights" });
   if (settings.sections.paidOverview) pages.push({ key: "paidOverview" });
   if (settings.sections.paidDailyTrend) pages.push({ key: "paidDailyTrend" });
+  if (settings.sections.paidMonthlyComparison)
+    pages.push({ key: "paidMonthlyComparison" });
   if (settings.sections.paidCampaignTable) {
-    const campaignRows = (paidData?.campaigns || []).filter(
-      (campaign) => Number(campaign.spend || 0) > 0,
+    const campaignPages = buildCampaignObjectivePages(
+      paidData?.campaigns || [],
+      settings,
     );
-    const objectiveSpend = campaignRows.reduce((totals, campaign) => {
-      const objective = String(campaign.objective || "Other");
-      totals[objective] =
-        (totals[objective] || 0) + Number(campaign.spend || 0);
-      return totals;
-    }, {});
-    const allRows = campaignRows.slice().sort((a, b) => {
-      const objectiveA = String(a.objective || "Other");
-      const objectiveB = String(b.objective || "Other");
-      return (
-        objectiveSpend[objectiveB] - objectiveSpend[objectiveA] ||
-        objectiveA.localeCompare(objectiveB) ||
-        Number(b.spend || 0) - Number(a.spend || 0)
-      );
-    });
-    const pageCount = Math.max(1, Math.ceil(allRows.length / 6));
-    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+    campaignPages.forEach((campaignPage, pageIndex) => {
       pages.push({
         key: pageIndex ? `paidCampaignTable-${pageIndex}` : "paidCampaignTable",
         type: "paidCampaignTable",
-        rows: allRows.slice(pageIndex * 6, pageIndex * 6 + 6),
-        allRows,
-        pageIndex,
-        pageCount,
+        ...campaignPage,
       });
-    }
+    });
   }
   if (settings.sections.paidConversionFunnel)
     pages.push({ key: "paidConversionFunnel" });
@@ -492,19 +629,36 @@ export default function ReportPreview({
               <FacebookOrganicSlide
                 socialData={socialData}
                 settings={settings}
-                sourceError={sourceErrors.social}
+                sourceError={sourceErrors.facebook || sourceErrors.social}
               />
             )}
             {page.key === "paidTrend" && (
               <>
                 <SectionTitle
-                  title="Facebook performance month over month"
-                  subtitle="Selected organic metrics compared with the previous month"
+                  title={
+                    settings.facebookGraphMode === "range"
+                      ? "Facebook performance comparison"
+                      : comparisonMode === "months"
+                      ? "Facebook performance by month"
+                      : "Facebook performance month over month"
+                  }
+                  subtitle={
+                    settings.facebookGraphMode === "range"
+                      ? "Selected range vs Compare with"
+                      : comparisonMode === "months"
+                      ? "Selected organic metrics compared across the chosen months"
+                      : "Selected organic metrics compared with the previous month"
+                  }
                   accent={settings.accent}
                 />
                 <FacebookComparisonChart
                   socialData={socialData}
                   settings={settings}
+                  monthWise={
+                    settings.facebookGraphMode !== "range" &&
+                    comparisonMode === "months"
+                  }
+                  rangeComparison={settings.facebookGraphMode === "range"}
                 />
               </>
             )}
@@ -512,26 +666,45 @@ export default function ReportPreview({
               <InstagramTableSlide
                 socialData={socialData}
                 settings={settings}
-                sourceError={sourceErrors.social}
+                sourceError={sourceErrors.instagram || sourceErrors.social}
               />
             )}
             {page.key === "instagramGraph" && (
               <InstagramComparisonSlide
                 socialData={socialData}
                 settings={settings}
+                monthWise={
+                  settings.instagramGraphMode !== "range" &&
+                  comparisonMode === "months"
+                }
+                rangeComparison={settings.instagramGraphMode === "range"}
               />
             )}
             {page.key === "tiktokTable" && (
               <TikTokTableSlide
                 socialData={socialData}
                 settings={settings}
-                sourceError={sourceErrors.social}
+                sourceError={sourceErrors.tiktok || sourceErrors.social}
               />
             )}
             {page.key === "tiktokGraph" && (
               <TikTokComparisonSlide
                 socialData={socialData}
                 settings={settings}
+                monthWise={
+                  settings.tiktokGraphMode !== "range" &&
+                  comparisonMode === "months"
+                }
+                rangeComparison={settings.tiktokGraphMode === "range"}
+              />
+            )}
+            {page.key === "organicHighlights" && (
+              <OrganicHighlightsSlide
+                accent={settings.accent}
+                points={organicHighlights}
+                platforms={organicHighlightsPlatforms}
+                loading={organicHighlightsLoading}
+                error={organicHighlightsError}
               />
             )}
             {page.key === "paidOverview" && (
@@ -539,6 +712,23 @@ export default function ReportPreview({
             )}
             {page.key === "paidDailyTrend" && (
               <PaidDailyTrendSlide paidData={paidData} settings={settings} />
+            )}
+            {page.key === "paidMonthlyComparison" && (
+              <PaidMonthlyComparisonSlide
+                monthlyData={paidMonthlyData}
+                rangeMonthlyData={paidRangeMonthlyData}
+                rangeMonthlyLoading={paidRangeMonthlyLoading}
+                paidData={paidData}
+                selectedMonths={selectedMonths}
+                comparisonMode={comparisonMode}
+                settings={settings}
+                sourceError={
+                  comparisonMode === "months"
+                    ? sourceErrors.paidMonthly
+                    : sourceErrors.paid || (settings.paidMonthlyGraphMode === "range" ? paidRangeMonthlyError : "")
+                }
+                currency={paidData?.account?.currency}
+              />
             )}
             {page.type === "paidCampaignTable" && (
               <CampaignRankingReportSlide
@@ -548,6 +738,13 @@ export default function ReportPreview({
                 allRows={page.allRows}
                 pageIndex={page.pageIndex}
                 pageCount={page.pageCount}
+                objective={page.objective}
+                fieldKeys={page.fieldKeys}
+                editKey={`${client?.id || clientName}:${paidData?.period?.since || month}:${paidData?.period?.until || month}:${page.objective || "campaigns"}:${page.pageIndex}`}
+                textEdits={previewEdits.text}
+                columnWidthEdits={previewEdits.columnWidths}
+                onTextEdit={onPreviewTextChange}
+                onColumnWidthsEdit={onPreviewColumnWidthsChange}
               />
             )}
             {page.key === "paidConversionFunnel" && (

@@ -15,6 +15,13 @@ type PlatformKey = 'facebook' | 'instagram' | 'tiktok';
 
 @Injectable()
 export class ClientInsightsReportService {
+  private readonly reportCache = new Map<
+    string,
+    { expiresAt: number; value: any }
+  >();
+  private readonly inflightReports = new Map<string, Promise<any>>();
+  private readonly reportCacheTtlMs = 2 * 60 * 1000;
+
   constructor(
     private readonly clientService: ClientService,
     private readonly facebookService: FacebookService,
@@ -22,7 +29,43 @@ export class ClientInsightsReportService {
     private readonly tiktokService: TiktokService,
   ) {}
 
-  async buildReport(clientId: number, platform?: string, customRanges?: DateRange[]) {
+  async buildReport(
+    clientId: number,
+    platform?: string,
+    customRanges?: DateRange[],
+    forceRefresh = false,
+  ) {
+    const cacheKey = JSON.stringify({
+      clientId,
+      platform: platform || 'all',
+      customRanges: customRanges || null,
+    });
+    const cached = this.reportCache.get(cacheKey);
+    if (!forceRefresh && cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
+    const inflight = this.inflightReports.get(cacheKey);
+    if (inflight) return inflight;
+
+    const request = this.buildFreshReport(clientId, platform, customRanges)
+      .then((value) => {
+        this.reportCache.set(cacheKey, {
+          expiresAt: Date.now() + this.reportCacheTtlMs,
+          value,
+        });
+        return value;
+      })
+      .finally(() => this.inflightReports.delete(cacheKey));
+    this.inflightReports.set(cacheKey, request);
+    return request;
+  }
+
+  private async buildFreshReport(
+    clientId: number,
+    platform?: string,
+    customRanges?: DateRange[],
+  ) {
     const client = await this.clientService.findOne(clientId);
     const ranges = {
       weeks10: this.generateLast10Weeks(),
@@ -73,18 +116,34 @@ export class ClientInsightsReportService {
       return this.unavailablePlatform('Facebook', 'Facebook Page ID or API key is missing.');
     }
 
-    const [weekly, monthly, custom] = await Promise.all([
-      this.fetchFacebookRows(client, ranges.weeks10),
-      this.fetchFacebookRows(client, ranges.months6),
-      ranges.custom ? this.fetchFacebookRows(client, ranges.custom) : Promise.resolve(null),
-    ]);
+    const comparisonSeriesRanges = (ranges.custom || []).map((range) =>
+      this.monthlyBucketsForRange(range),
+    );
+    const uniqueRanges = this.uniqueRanges(
+      ranges.weeks10,
+      ranges.months6,
+      ranges.custom || [],
+      ...comparisonSeriesRanges,
+    );
+    const rows = await this.fetchFacebookRows(client, uniqueRanges);
+    const weekly = this.rowsForRanges(rows, ranges.weeks10);
+    const monthly = this.rowsForRanges(rows, ranges.months6);
+    const custom = ranges.custom
+      ? this.rowsForRanges(rows, ranges.custom)
+      : null;
 
     return {
       label: 'Facebook',
       available: true,
       weekly,
       monthly,
-      comparisonRows: custom ? [custom[1], custom[0]] : undefined,
+      comparisonRows: custom ? [...custom].reverse() : undefined,
+      comparisonSeries: ranges.custom
+        ? ranges.custom.map((range, index) => ({
+            range,
+            rows: this.rowsForRanges(rows, comparisonSeriesRanges[index]),
+          }))
+        : undefined,
     };
   }
 
@@ -114,34 +173,41 @@ export class ClientInsightsReportService {
       return this.unavailablePlatform('Instagram', 'Instagram Account ID or API key is missing.');
     }
 
-    const [weekly, monthly, custom] = await Promise.all([
-      this.instagramService
-        .getRangeInsights({
-          pageId: client.instagramAccountId,
-          accessToken: client.instagramApiKey,
-          ranges: ranges.weeks10,
-        })
-        .then((result) => result.weeks || [])
-        .catch((error) => ranges.weeks10.map((range) => this.errorRow(range, error))),
-      this.instagramService
-        .getRangeInsights({
-          pageId: client.instagramAccountId,
-          accessToken: client.instagramApiKey,
-          ranges: ranges.months6,
-        })
-        .then((result) => result.weeks || [])
-        .catch((error) => ranges.months6.map((range) => this.errorRow(range, error))),
-      ranges.custom
-        ? this.instagramService.getRangeInsights({ pageId: client.instagramAccountId, accessToken: client.instagramApiKey, ranges: ranges.custom }).then((result) => result.weeks || []).catch((error) => ranges.custom!.map((range) => this.errorRow(range, error)))
-        : Promise.resolve(null),
-    ]);
+    const comparisonSeriesRanges = (ranges.custom || []).map((range) =>
+      this.monthlyBucketsForRange(range),
+    );
+    const uniqueRanges = this.uniqueRanges(
+      ranges.weeks10,
+      ranges.months6,
+      ranges.custom || [],
+      ...comparisonSeriesRanges,
+    );
+    const rows = await this.instagramService
+      .getRangeInsights({
+        pageId: client.instagramAccountId,
+        accessToken: client.instagramApiKey,
+        ranges: uniqueRanges,
+      })
+      .then((result) => result.weeks || [])
+      .catch((error) => uniqueRanges.map((range) => this.errorRow(range, error)));
+    const weekly = this.rowsForRanges(rows, ranges.weeks10);
+    const monthly = this.rowsForRanges(rows, ranges.months6);
+    const custom = ranges.custom
+      ? this.rowsForRanges(rows, ranges.custom)
+      : null;
 
     return {
       label: 'Instagram',
       available: true,
       weekly,
       monthly,
-      comparisonRows: custom ? [custom[1], custom[0]] : undefined,
+      comparisonRows: custom ? [...custom].reverse() : undefined,
+      comparisonSeries: ranges.custom
+        ? ranges.custom.map((range, index) => ({
+            range,
+            rows: this.rowsForRanges(rows, comparisonSeriesRanges[index]),
+          }))
+        : undefined,
     };
   }
 
@@ -166,7 +232,18 @@ export class ClientInsightsReportService {
         videos,
         weekly: this.buildTiktokVideoRows(videos, 10),
         monthly: this.buildTiktokBuckets(videos, ranges.months6),
-        comparisonRows: ranges.custom ? this.buildTiktokBuckets(videos, [ranges.custom[1], ranges.custom[0]]) : undefined,
+        comparisonRows: ranges.custom
+          ? this.buildTiktokBuckets(videos, [...ranges.custom].reverse())
+          : undefined,
+        comparisonSeries: ranges.custom
+          ? ranges.custom.map((range) => ({
+              range,
+              rows: this.buildTiktokBuckets(
+                videos,
+                this.monthlyBucketsForRange(range),
+              ),
+            }))
+          : undefined,
       };
     } catch (error) {
       return this.unavailablePlatform('TikTok', this.safeErrorMessage(error));
@@ -189,6 +266,60 @@ export class ClientInsightsReportService {
         comment_count: Number(video?.comment_count) || 0,
         share_count: Number(video?.share_count) || 0,
       }));
+  }
+
+  private uniqueRanges(...groups: DateRange[][]) {
+    const unique = new Map<string, DateRange>();
+    groups.flat().forEach((range) => {
+      const key = `${range.since}:${range.until}`;
+      if (!unique.has(key)) unique.set(key, range);
+    });
+    return [...unique.values()];
+  }
+
+  private monthlyBucketsForRange(range: DateRange): DateRange[] {
+    const parse = (value: string) => {
+      const [year, month, day] = value.split('-').map(Number);
+      return new Date(Date.UTC(year, month - 1, day));
+    };
+    const iso = (date: Date) =>
+      `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+    const end = parse(range.until);
+    let cursor = parse(range.since);
+    const buckets: DateRange[] = [];
+
+    while (cursor <= end) {
+      const monthEnd = new Date(
+        Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 0),
+      );
+      const bucketEnd = monthEnd < end ? monthEnd : end;
+      buckets.push({
+        label: cursor.toLocaleDateString('en-GB', {
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        }),
+        since: iso(cursor),
+        until: iso(bucketEnd),
+      });
+      cursor = new Date(
+        Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1),
+      );
+    }
+
+    return buckets;
+  }
+
+  private rowsForRanges(rows: any[], ranges: DateRange[]) {
+    const byRange = new Map(
+      rows.map((row) => [`${row.since}:${row.until}`, row]),
+    );
+    return ranges.map((range) => ({
+      ...(byRange.get(`${range.since}:${range.until}`) || {}),
+      week: range.label,
+      since: range.since,
+      until: range.until,
+    }));
   }
 
   private buildTiktokBuckets(videos: any[], ranges: DateRange[]) {

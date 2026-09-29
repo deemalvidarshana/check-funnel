@@ -95,14 +95,57 @@ export class ClientController {
     @Query('currentUntil') currentUntil?: string,
     @Query('compareSince') compareSince?: string,
     @Query('compareUntil') compareUntil?: string,
+    @Query('months') months?: string,
+    @Query('refresh') refresh?: string,
   ) {
-    const customRanges = currentSince && currentUntil && compareSince && compareUntil
-      ? [
-          { label: `${currentSince} - ${currentUntil}`, since: currentSince, until: currentUntil },
-          { label: `${compareSince} - ${compareUntil}`, since: compareSince, until: compareUntil },
-        ]
+    const selectedMonths = [
+      ...new Set(
+        String(months || '')
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (selectedMonths.length > 10) {
+      throw new BadRequestException('You can compare up to 10 months');
+    }
+    const monthRanges = selectedMonths.length
+      ? selectedMonths
+          .map((value) => {
+            if (!/^\d{4}-\d{2}$/.test(value)) {
+              throw new BadRequestException(`Invalid month: ${value}`);
+            }
+            const [year, month] = value.split('-').map(Number);
+            if (month < 1 || month > 12) {
+              throw new BadRequestException(`Invalid month: ${value}`);
+            }
+            const since = `${value}-01`;
+            const finalDay = new Date(Date.UTC(year, month, 0))
+              .getUTCDate()
+              .toString()
+              .padStart(2, '0');
+            const label = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(
+              'en-GB',
+              { month: 'long', year: 'numeric', timeZone: 'UTC' },
+            );
+            return { label, since, until: `${value}-${finalDay}` };
+          })
+          .sort((a, b) => b.since.localeCompare(a.since))
       : undefined;
-    return this.clientInsightsReportService.buildReport(id, platform, customRanges);
+    const customRanges =
+      monthRanges ||
+      (currentSince && currentUntil && compareSince && compareUntil
+        ? [
+            { label: `${currentSince} - ${currentUntil}`, since: currentSince, until: currentUntil },
+            { label: `${compareSince} - ${compareUntil}`, since: compareSince, until: compareUntil },
+          ]
+        : undefined);
+    return this.clientInsightsReportService.buildReport(
+      id,
+      platform,
+      customRanges,
+      refresh === 'true',
+    );
   }
 
 

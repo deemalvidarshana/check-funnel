@@ -4,7 +4,11 @@ import {
   PlatformTableSlide,
 } from "./PlatformSlideVisuals";
 
-export function TikTokTableSlide({ socialData, settings, sourceError }) {
+export function TikTokTableSlide({
+  socialData,
+  settings,
+  sourceError,
+}) {
   return (
     <PlatformTableSlide
       platform="TikTok"
@@ -14,6 +18,7 @@ export function TikTokTableSlide({ socialData, settings, sourceError }) {
       selected={settings.tiktokTableMetrics || []}
       sourceError={sourceError}
       periodLabel="Upload date"
+      tableMode={settings.tiktokTableMode || "weekly"}
       rowLabel={(row) =>
         row.create_time
           ? new Date(Number(row.create_time) * 1000).toLocaleDateString(
@@ -32,7 +37,12 @@ export function TikTokTableSlide({ socialData, settings, sourceError }) {
     />
   );
 }
-export function TikTokComparisonSlide({ socialData, settings }) {
+export function TikTokComparisonSlide({
+  socialData,
+  settings,
+  monthWise = false,
+  rangeComparison = false,
+}) {
   const source = socialData?.platforms?.tiktok;
   const hasActivity = (rows = []) =>
     rows.some((row) =>
@@ -49,7 +59,7 @@ export function TikTokComparisonSlide({ socialData, settings }) {
   const customRanges = socialData?.ranges?.custom;
   const rawVideos = source?.videos || source?.weekly || [];
   const rebuiltComparison = customRanges?.length
-    ? [customRanges[1], customRanges[0]].map((range) => {
+    ? [...customRanges].reverse().map((range) => {
         const since = new Date(`${range.since}T00:00:00`).getTime();
         const until = new Date(`${range.until}T23:59:59.999`).getTime();
         const videos = rawVideos.filter((video) => {
@@ -91,6 +101,8 @@ export function TikTokComparisonSlide({ socialData, settings }) {
         data={{ ...source, comparisonRows }}
         options={tiktokMetricOptions}
         selected={settings.tiktokGraphMetrics || []}
+        monthWise={monthWise}
+        rangeComparison={rangeComparison}
       />
     );
   const monthly = source?.monthly || [];
@@ -114,6 +126,8 @@ export function TikTokComparisonSlide({ socialData, settings }) {
       data={comparisonData}
       options={tiktokMetricOptions}
       selected={settings.tiktokGraphMetrics || []}
+      monthWise={monthWise}
+      rangeComparison={rangeComparison}
     />
   );
 }

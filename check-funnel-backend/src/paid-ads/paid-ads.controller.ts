@@ -18,6 +18,17 @@ export class PaidAdsController {
     return this.paidAdsService.getMonthlyComparison(clientId, months);
   }
 
+  @Get(':clientId/range-monthly-comparison')
+  getRangeMonthlyComparison(
+    @Param('clientId', ParseIntPipe) clientId: number,
+    @Query('since') since: string,
+    @Query('until') until: string,
+    @Query('compareSince') compareSince: string,
+    @Query('compareUntil') compareUntil: string,
+  ) {
+    return this.paidAdsService.getRangeMonthlyComparison(clientId, since, until, compareSince, compareUntil);
+  }
+
   @Get(':clientId/insights')
   getInsights(
     @Param('clientId', ParseIntPipe) clientId: number,
