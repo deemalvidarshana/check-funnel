@@ -248,7 +248,7 @@ function MonthlyComparisonBars({ totals, account, period, comparisonPeriod }) {
   );
 }
 
-export default function PaidAdsPerformanceChart({ data, clientId, selectedMonth, onApplyRange, loading = false }) {
+export default function PaidAdsPerformanceChart({ data, clientId, selectedMonth, onApplyRange, loading = false, loadMonthlyComparison }) {
   const [analysisMode, setAnalysisMode] = useState('comparison');
   const [visibleMetrics, setVisibleMetrics] = useState(() => new Set(seriesConfig.map(series => series.key)));
   const [visiblePeriods, setVisiblePeriods] = useState(() => new Set(['current', 'previous']));
@@ -298,7 +298,7 @@ export default function PaidAdsPerformanceChart({ data, clientId, selectedMonth,
         })}
       </div>}
 
-      {analysisMode === 'comparison' && chartView === 2 ? <PaidAdsBrandEnquiryMonthlyComparison clientId={clientId} selectedMonth={selectedMonth} currency={account.currency} mode="all" embedded months={monthlyMonths} onMonthsChange={setMonthlyMonths} /> : analysisMode === 'comparison' && chartView === 0 ? <MonthlyComparisonBars totals={totals} account={account} period={period} comparisonPeriod={comparisonPeriod} /> : ((chartDaily.length || chartPreviousDaily.length) ? <div className="mt-5">
+      {analysisMode === 'comparison' && chartView === 2 ? <PaidAdsBrandEnquiryMonthlyComparison clientId={clientId} selectedMonth={selectedMonth} currency={account.currency} mode="all" embedded months={monthlyMonths} onMonthsChange={setMonthlyMonths} loadMonthlyComparison={loadMonthlyComparison} /> : analysisMode === 'comparison' && chartView === 0 ? <MonthlyComparisonBars totals={totals} account={account} period={period} comparisonPeriod={comparisonPeriod} /> : ((chartDaily.length || chartPreviousDaily.length) ? <div className="mt-5">
         <div className="overflow-x-auto"><div className="relative min-w-[1120px]"><svg className="h-[330px] w-full" viewBox="0 0 1200 330" preserveAspectRatio="none" role="img" aria-label="Meta Ads daily performance chart">
           <rect x="1018" y="25" width="177" height="260" rx="10" fill="#fafbfc" />
           {[52, 108, 165, 221, 278].map((y) => <line key={y} x1="58" y1={y} x2="1010" y2={y} stroke="#e7e9ed" strokeDasharray="3 4" />)}

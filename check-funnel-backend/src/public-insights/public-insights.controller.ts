@@ -17,6 +17,7 @@ import { TiktokService } from '../tiktok/tiktok.service';
 import { CompetitorService } from '../competitor/competitor.service';
 import { ApifyService } from '../apify/apify.service';
 import { CalendarService } from '../calendar/calendar.service';
+import { PaidAdsService } from '../paid-ads/paid-ads.service';
 
 type PublicIgInsightRange = {
   label: string;
@@ -34,7 +35,55 @@ export class PublicInsightsController {
     private readonly competitorService: CompetitorService,
     private readonly apifyService: ApifyService,
     private readonly calendarService: CalendarService,
+    private readonly paidAdsService: PaidAdsService,
   ) {}
+
+  @Get('paid-ads/:shareToken/insights')
+  async getPublicPaidAdsInsights(
+    @Param('shareToken') shareToken: string,
+    @Query('month') month: string,
+    @Query('since') since?: string,
+    @Query('until') until?: string,
+    @Query('compareSince') compareSince?: string,
+    @Query('compareUntil') compareUntil?: string,
+    @Query('campaignId') campaignId?: string,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    return this.paidAdsService.getInsights(client.id, month, {
+      since,
+      until,
+      compareSince,
+      compareUntil,
+      campaignId,
+    });
+  }
+
+  @Get('paid-ads/:shareToken/monthly-comparison')
+  async getPublicPaidAdsMonthlyComparison(
+    @Param('shareToken') shareToken: string,
+    @Query('months') months: string,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    return this.paidAdsService.getMonthlyComparison(client.id, months);
+  }
+
+  @Get('paid-ads/:shareToken/range-monthly-comparison')
+  async getPublicPaidAdsRangeMonthlyComparison(
+    @Param('shareToken') shareToken: string,
+    @Query('since') since: string,
+    @Query('until') until: string,
+    @Query('compareSince') compareSince: string,
+    @Query('compareUntil') compareUntil: string,
+  ) {
+    const client = await this.clientService.findByShareToken(shareToken);
+    return this.paidAdsService.getRangeMonthlyComparison(
+      client.id,
+      since,
+      until,
+      compareSince,
+      compareUntil,
+    );
+  }
 
   @Get('info/:shareToken')
   async getPublicInfo(@Param('shareToken') shareToken: string) {

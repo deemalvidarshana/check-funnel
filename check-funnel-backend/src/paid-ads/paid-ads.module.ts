@@ -7,5 +7,6 @@ import { PaidAdsService } from './paid-ads.service';
   imports: [ClientModule],
   controllers: [PaidAdsController],
   providers: [PaidAdsService],
+  exports: [PaidAdsService],
 })
 export class PaidAdsModule {}

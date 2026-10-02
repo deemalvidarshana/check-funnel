@@ -8,6 +8,7 @@ import { TiktokModule } from '../tiktok/tiktok.module';
 import { CompetitorModule } from '../competitor/competitor.module';
 import { ApifyModule } from '../apify/apify.module';
 import { CalendarModule } from '../calendar/calendar.module';
+import { PaidAdsModule } from '../paid-ads/paid-ads.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CalendarModule } from '../calendar/calendar.module';
     CompetitorModule,
     ApifyModule,
     CalendarModule,
+    PaidAdsModule,
   ],
 
   controllers: [PublicInsightsController],

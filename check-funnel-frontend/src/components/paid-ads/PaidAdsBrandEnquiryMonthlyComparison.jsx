@@ -106,7 +106,7 @@ export function PaidAdsMonthSelector({ anchor, selected, onApply, loading = fals
   </div>;
 }
 
-export default function PaidAdsBrandEnquiryMonthlyComparison({ clientId, selectedMonth, currency, mode = 'brand-enquiry', embedded = false, months, onMonthsChange }) {
+export default function PaidAdsBrandEnquiryMonthlyComparison({ clientId, selectedMonth, currency, mode = 'brand-enquiry', embedded = false, months, onMonthsChange, loadMonthlyComparison = getPaidAdsMonthlyComparison }) {
   const selected = months || defaultComparisonMonths(selectedMonth);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -114,12 +114,12 @@ export default function PaidAdsBrandEnquiryMonthlyComparison({ clientId, selecte
 
   useEffect(() => {
     let active = true;
-    getPaidAdsMonthlyComparison(clientId, selected)
+    loadMonthlyComparison(clientId, selected)
       .then(result => active && setRows(result.months || []))
       .catch(requestError => active && setError(paidAdsErrorMessage(requestError)))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [clientId, selected]);
+  }, [clientId, selected, loadMonthlyComparison]);
 
   const groupWidth = Math.max(142, rows.length * 44 + 34);
   const metrics = mode === 'ecommerce' ? ecommerceMetrics : mode === 'all' ? allMetrics : brandMetrics;

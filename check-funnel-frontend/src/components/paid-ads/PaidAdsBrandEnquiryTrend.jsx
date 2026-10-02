@@ -82,7 +82,7 @@ function MetricsComparison({ totals, period, comparisonPeriod, currency, compari
   </div>;
 }
 
-export default function PaidAdsBrandEnquiryTrend({ data, clientId, selectedMonth, onApplyRange, loading = false }) {
+export default function PaidAdsBrandEnquiryTrend({ data, clientId, selectedMonth, onApplyRange, loading = false, loadMonthlyComparison }) {
   const [metricKey, setMetricKey] = useState('spend');
   const [viewMode, setViewMode] = useState('comparison');
   const [chartSlide, setChartSlide] = useState(0);
@@ -110,7 +110,7 @@ export default function PaidAdsBrandEnquiryTrend({ data, clientId, selectedMonth
         </div>
       </div>
     </div>
-    {chartSlide === 3 ? <PaidAdsBrandEnquiryMonthlyComparison clientId={clientId} selectedMonth={selectedMonth} currency={data.account.currency} months={monthlyMonths} embedded/> : chartSlide === 2 ? <>
+    {chartSlide === 3 ? <PaidAdsBrandEnquiryMonthlyComparison clientId={clientId} selectedMonth={selectedMonth} currency={data.account.currency} months={monthlyMonths} embedded loadMonthlyComparison={loadMonthlyComparison}/> : chartSlide === 2 ? <>
     <div className="mt-5 flex flex-wrap gap-2">{series.map(item => <button key={item.key} type="button" onClick={() => setMetricKey(item.key)} className={`rounded-full px-4 py-2 text-xs font-bold transition ${metricKey === item.key ? 'text-white shadow-sm' : 'bg-[#f3f4f5] text-[#727782]'}`} style={metricKey === item.key ? { backgroundColor: item.color } : undefined}>{item.label}</button>)}</div>
     {(current.length || previous.length) ? <div className="mt-5 overflow-x-auto rounded-2xl border border-[#c2c6d3]/20 bg-[#fbfcfd] p-3"><div className="relative min-w-[900px]"><svg className="h-[310px] w-full" viewBox="0 0 1200 310" preserveAspectRatio="none" role="img" aria-label={`${active.label} daily performance`}>
       {[60,106,152,198,245].map((y,index) => <g key={y}><line x1="72" y1={y} x2="1092" y2={y} stroke="#e5e9ee" strokeDasharray="4 5"/><text x="60" y={y + 4} textAnchor="end" fill="#8a9099" fontSize="9" fontWeight="700">{compact(max * (4-index)/4, active.type, data.account.currency)}</text></g>)}

@@ -58,3 +58,27 @@ export const getPublicPostDetails = async (shareToken, postId) => {
   const response = await publicApi.get(`/public-insights/post-details/${shareToken}/${postId}`);
   return response.data;
 };
+
+export const getPublicPaidAdsInsights = async (shareToken, month, range = {}) => {
+  const response = await publicApi.get(`/public-insights/paid-ads/${shareToken}/insights`, {
+    params: { month, ...range },
+    timeout: 90000,
+  });
+  return response.data;
+};
+
+export const getPublicPaidAdsMonthlyComparison = async (shareToken, months) => {
+  const response = await publicApi.get(`/public-insights/paid-ads/${shareToken}/monthly-comparison`, {
+    params: { months: months.join(',') },
+    timeout: 90000,
+  });
+  return response.data;
+};
+
+export const getPublicPaidAdsRangeMonthlyComparison = async (shareToken, range) => {
+  const response = await publicApi.get(`/public-insights/paid-ads/${shareToken}/range-monthly-comparison`, {
+    params: range,
+    timeout: 90000,
+  });
+  return response.data;
+};
